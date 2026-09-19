@@ -181,7 +181,7 @@ export default function BenchmarkDetailPage({
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-[#08090b] text-white flex items-center justify-center">
+      <main className="min-h-screen text-white flex items-center justify-center">
         <p className="text-zinc-500">Loading...</p>
       </main>
     );
@@ -189,7 +189,7 @@ export default function BenchmarkDetailPage({
 
   if (notFound || !benchmark) {
     return (
-      <main className="min-h-screen bg-[#08090b] text-white flex items-center justify-center px-6">
+      <main className="min-h-screen text-white flex items-center justify-center px-6">
         <div className="text-center">
           <p className="text-zinc-400">Benchmark not found.</p>
           <Link href="/benchmarks" className="mt-4 inline-block text-sm text-white hover:underline">
@@ -204,7 +204,7 @@ export default function BenchmarkDetailPage({
   const hasScenarios = scenarios.length > 0;
 
   return (
-    <main className="min-h-screen bg-[#08090b] text-white">
+    <main className="min-h-screen text-white">
       <div className="mx-auto max-w-3xl px-6 py-12">
         <Link href="/benchmarks" className="text-sm text-zinc-500 hover:text-white transition">
           ← Back to benchmarks
@@ -221,6 +221,9 @@ export default function BenchmarkDetailPage({
           </div>
 
           <h1 className="text-3xl font-bold tracking-tight">{benchmark.title}</h1>
+          <div className="mt-2 flex gap-2">
+            <Link href={`/benchmarks/${id}/edit`} className="text-xs text-cyan-400 hover:text-cyan-300 underline">Edit benchmark</Link>
+          </div>
           <p className="mt-2 text-zinc-500">
             {benchmark.description || "No description"}
           </p>

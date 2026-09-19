@@ -2,6 +2,48 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getSessionAccountId } from "@/lib/session";
 
+export async function PUT(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const accountId = await getSessionAccountId();
+    if (!accountId) {
+      return NextResponse.json({ error: "Not logged in" }, { status: 401 });
+    }
+    const { id } = await params;
+    const body = await request.json();
+
+    const { title, description, difficulty, platform } = body;
+
+    const { data: benchmark } = await supabaseAdmin
+      .from("benchmarks")
+      .select("user_id")
+      .eq("id", id)
+      .maybeSingle();
+
+    if (!benchmark) {
+      return NextResponse.json({ error: "Benchmark not found" }, { status: 404 });
+    }
+    if ((benchmark as any).user_id !== accountId) {
+      return NextResponse.json({ error: "Not authorized" }, { status: 403 });
+    }
+
+    const { data: updated, error } = await supabaseAdmin
+      .from("benchmarks")
+      .update({ title, description, difficulty, platform })
+      .eq("id", id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return NextResponse.json({ benchmark: updated }, { status: 200 });
+  } catch (err) {
+    console.error("UPDATE BENCHMARK ERROR:", err);
+    return NextResponse.json({ error: "Failed to update benchmark" }, { status: 500 });
+  }
+}
+
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> }

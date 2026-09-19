@@ -77,7 +77,7 @@ export default async function ProfilePage() {
   });
 
   return (
-    <main className="min-h-screen bg-[#08090b] text-white">
+    <main className="min-h-screen text-white">
       <div className="mx-auto max-w-5xl px-6 py-12">
         {/* HEADER */}
         <header className="border-b border-white/10 mb-8">

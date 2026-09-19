@@ -22,7 +22,7 @@ export default async function Home() {
   const benchmarks = (data || []) as BenchmarkCard[];
 
   return (
-    <main className="min-h-screen bg-[#080808] text-white">
+    <main className="min-h-screen text-white">
       {/* NAVBAR */}
       <header className="border-b border-white/10">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-6">
@@ -34,6 +34,7 @@ export default async function Home() {
             <Link href="/benchmarks" className="text-white">Benchmarks</Link>
             <Link href="/leaderboard" className="hover:text-white">Leaderboard</Link>
             <Link href="/rank-history" className="hover:text-white">Rank History</Link>
+            <Link href="/theme-settings" className="hover:text-white">Theme</Link>
           </nav>
 
           <div className="flex gap-3">

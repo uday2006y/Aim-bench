@@ -145,7 +145,7 @@ export default function CreateBenchmarkPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#08090b] text-white flex items-center justify-center px-6 py-12">
+    <main className="min-h-screen text-white flex items-center justify-center px-6 py-12">
       <div className="w-full max-w-2xl">
         <div className="mb-8">
           <Link

@@ -47,7 +47,7 @@ export default function LeaderboardPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#08090b] text-white">
+    <main className="min-h-screen text-white">
       <div className="mx-auto max-w-7xl px-6 py-12">
         {/* HEADER */}
         <header className="border-b border-white/10 mb-8">
@@ -60,6 +60,7 @@ export default function LeaderboardPage() {
               <Link href="/benchmarks" className="hover:text-white">Benchmarks</Link>
               <Link href="/leaderboard" className="text-white">Leaderboard</Link>
               <Link href="/rank-history" className="hover:text-white">Rank History</Link>
+              <Link href="/theme-settings" className="hover:text-white">Theme</Link>
             </nav>
 
             <div className="flex gap-3">

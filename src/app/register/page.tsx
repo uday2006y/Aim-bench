@@ -40,7 +40,7 @@ export default function RegisterPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#08090b] text-white flex items-center justify-center px-6">
+    <main className="min-h-screen text-white flex items-center justify-center px-6">
       <div className="w-full max-w-md">
         <div className="mb-8">
           <Link

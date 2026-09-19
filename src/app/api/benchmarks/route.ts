@@ -5,7 +5,7 @@ import { getSessionAccountId } from "@/lib/session";
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const platform = searchParams.get("platform") || "kovaiacks";
+    const platform = searchParams.get("platform") || "easyaim";
     const q = searchParams.get("q");
 
     let query = supabaseAdmin.from("benchmarks").select("*");
@@ -105,7 +105,7 @@ export async function POST(request: Request) {
       .insert({
         title,
         description,
-        platform: scenarioList.length > 0 ? "easyaim" : platform || "kovaiacks",
+        platform: scenarioList.length > 0 ? "easyaim" : platform || "easyaim",
         difficulty: difficulty || "medium",
         user_id: accountId,
         scenario_count:

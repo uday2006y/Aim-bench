@@ -5,8 +5,8 @@ import Link from "next/link";
 
 export default function BenchmarksPage() {
   const [benchmarks, setBenchmarks] = useState<any[]>([]);
-  const [platforms, setPlatforms] = useState<string[]>(["kovaiacks"]);
-  const [selectedPlatform, setSelectedPlatform] = useState("kovaiacks");
+  const [platforms, setPlatforms] = useState<string[]>(["easyaim"]);
+  const [selectedPlatform, setSelectedPlatform] = useState("easyaim");
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
 
@@ -30,7 +30,7 @@ export default function BenchmarksPage() {
         ...new Set((data.benchmarks || []).map((b: any) => b.platform)),
       ].filter(Boolean) as string[];
 
-      setPlatforms(uniquePlatforms.length ? uniquePlatforms : ["kovaiacks"]);
+      setPlatforms(uniquePlatforms.length ? uniquePlatforms : ["easyaim"]);
     } catch (error) {
       console.error("Failed to fetch platforms:", error);
     }
@@ -58,7 +58,7 @@ export default function BenchmarksPage() {
   };
 
   return (
-    <main className="min-h-screen bg-[#08090b] text-white">
+    <main className="min-h-screen text-white">
       <div className="mx-auto max-w-7xl px-6 py-12">
                 {/* HEADER */}
         <header className="border-b border-white/10 mb-8">
@@ -71,6 +71,7 @@ export default function BenchmarksPage() {
               <Link href="/benchmarks" className="text-white">Benchmarks</Link>
               <Link href="/leaderboard" className="hover:text-white">Leaderboard</Link>
               <Link href="/rank-history" className="hover:text-white">Rank History</Link>
+              <Link href="/theme-settings" className="text-white">Theme</Link>
             </nav>
 
             <div className="flex gap-3">
@@ -107,12 +108,7 @@ export default function BenchmarksPage() {
               }}
               className="rounded-xl border border-white/10 px-4 py-2 text-white background-transparent focus:outline-none focus:border-white/20"
             >
-              <option value="all">All Platforms</option>
-              {platforms.map((p) => (
-                <option key={p} value={p}>
-                  {p}
-                </option>
-              ))}
+              <option value="easyaim">easyaim</option>
             </select>
           </div>
         </div>
