@@ -11,7 +11,7 @@ const RANK_NAMES = [
 interface Scenario {
   id: number;
   title: string;
-  cutoffs: Record<string, number | string>;
+  cutoffs: Record<string, number | string | undefined>;
 }
 
 export default function EditBenchmarkPage({ params }: { params: Promise<{ id: string }> }) {
