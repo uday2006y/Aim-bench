@@ -78,14 +78,17 @@ alter table public.benchmark_edits enable row level security;
 
 -- profiles: public read (usernames/display names for leaderboards),
 -- no anon writes.
+drop policy if exists "Profiles are viewable by everyone" on public.profiles;
 create policy "Profiles are viewable by everyone"
   on public.profiles for select using (true);
 
 -- benchmarks: public read, no anon writes.
+drop policy if exists "Benchmarks are viewable by everyone" on public.benchmarks;
 create policy "Benchmarks are viewable by everyone"
   on public.benchmarks for select using (true);
 
 -- benchmark_scores: public read, no anon writes.
+drop policy if exists "Scores are viewable by everyone" on public.benchmark_scores;
 create policy "Scores are viewable by everyone"
   on public.benchmark_scores for select using (true);
 
