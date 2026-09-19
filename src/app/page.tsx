@@ -178,31 +178,28 @@ export default async function Home() {
         )}
       </section>
 
-      {/* QUICK ACTIONS */}
+            {/* QUICK ACTIONS */}
       <section className="mx-auto max-w-7xl px-6 pb-24">
         <div className="grid gap-4 md:grid-cols-2">
-          <div>
-            <Link
-              href="/benchmarks"
-              className="group rounded-2xl border border-white/10 bg-white/[0.02] p-6 transition hover:border-white/20 hover:bg-white/[0.04]"
-            >
-              <h3 className="text-lg font-semibold mb-2">Browse All Benchmarks</h3>
-              <p className="text-sm text-zinc-500">
-                Community-created aim trainer benchmarks across all platforms
-              </p>
-            </Link>
-          </div>
-          <div>
-            <Link
-              href="/create-benchmark"
-              className="group rounded-2xl border border-white/10 bg-white/[0.02] p-6 transition hover:border-white/20 hover:bg-white/[0.04]"
-            >
-              <h3 className="text-lg font-semibold mb-2">Create Benchmark</h3>
-              <p className="text-sm text-zinc-500">
-                Share your aim trainer benchmark with the community
-              </p>
-            </Link>
-          </div>
+          <Link
+            href="/benchmarks"
+            className="group rounded-2xl border border-white/10 bg-white/[0.02] p-6 transition hover:border-white/20 hover:bg-white/[0.04]"
+          >
+            <h3 className="text-lg font-semibold mb-2">Browse All Benchmarks</h3>
+            <p className="text-sm text-zinc-500">
+              Community-created aim trainer benchmarks across all platforms
+            </p>
+          </Link>
+
+          <Link
+            href="/create-benchmark"
+            className="group rounded-2xl border border-white/10 bg-white/[0.02] p-6 transition hover:border-white/20 hover:bg-white/[0.04]"
+          >
+            <h3 className="text-lg font-semibold mb-2">Create Benchmark</h3>
+            <p className="text-sm text-zinc-500">
+              Share your aim trainer benchmark with the community
+            </p>
+          </Link>
         </div>
       </section>
     </main>

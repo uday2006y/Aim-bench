@@ -34,7 +34,7 @@ export default function CreateBenchmarkPage() {
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [platform, setPlatform] = useState("kovaiacks");
+  const [platform, setPlatform] = useState("EasyAim");
   const [difficulty, setDifficulty] = useState("medium");
   const [scenarioCount, setScenarioCount] = useState<number>(1);
   const [scenarios, setScenarios] = useState<AddedScenario[]>([]);
@@ -286,9 +286,6 @@ export default function CreateBenchmarkPage() {
                 disabled={scenarios.length > 0}
                 className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-3 text-white outline-none placeholder:text-zinc-600 focus:border-zinc-500 disabled:opacity-60"
               >
-                <option value="kovaiacks">KovaaK&apos;s</option>
-                <option value="aimlabs">Aim Labs</option>
-                <option value="aimbeast">Aim Beasts</option>
                 <option value="easyaim">EasyAim</option>
               </select>
               {scenarios.length > 0 && (
