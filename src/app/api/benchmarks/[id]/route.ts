@@ -29,9 +29,11 @@ export async function PUT(
       return NextResponse.json({ error: "Not authorized" }, { status: 403 });
     }
 
+    const scenarioCount = Array.isArray(body.scenarios) ? body.scenarios.length : undefined;
+
     const { data: updated, error: updateErr } = await supabaseAdmin
       .from("benchmarks")
-      .update({ title, description, difficulty, platform })
+      .update({ title, description, difficulty, platform, ...(scenarioCount !== undefined ? { scenario_count: scenarioCount } : {}) })
       .eq("id", id)
       .select()
       .single();

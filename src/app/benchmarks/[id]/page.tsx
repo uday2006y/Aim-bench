@@ -31,14 +31,7 @@ interface ScoreEntry {
 }
 
 const FALLBACK_RANKS = [
-  "Bronze",
-  "Silver",
-  "Gold",
-  "Platinum",
-  "Diamond",
-  "Champion",
-  "Radiant",
-  "Immortal",
+  "Bronze", "Silver", "Gold", "Platinum", "Diamond", "Champion", "Radiant", "Immortal",
 ];
 
 function rankForScenario(
@@ -47,7 +40,6 @@ function rankForScenario(
   rankOrder: string[]
 ): string | null {
   let achieved: string | null = null;
-
   for (let i = rankOrder.length - 1; i >= 0; i--) {
     const needed = cutoffs[rankOrder[i]];
     if (needed === undefined) continue;
@@ -56,7 +48,6 @@ function rankForScenario(
       break;
     }
   }
-
   return achieved;
 }
 
@@ -65,12 +56,9 @@ function progressPercent(score: number, cutoffs: Record<string, number>, rankOrd
     .map((rank) => cutoffs[rank])
     .filter((v): v is number => v !== undefined)
     .sort((a, b) => a - b);
-
   if (sorted.length === 0) return 0;
-
   let lower = 0;
   let upper = sorted[sorted.length - 1];
-
   for (let i = 0; i < sorted.length; i++) {
     if (score < sorted[i]) {
       upper = sorted[i];
@@ -80,7 +68,6 @@ function progressPercent(score: number, cutoffs: Record<string, number>, rankOrd
     lower = sorted[i];
     upper = sorted[i];
   }
-
   if (upper === lower) return 100;
   return Math.min(100, Math.max(0, ((score - lower) / (upper - lower)) * 100));
 }
@@ -91,13 +78,11 @@ export default function BenchmarkDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = use(params);
-
   const [benchmark, setBenchmark] = useState<Benchmark | null>(null);
   const [scenarios, setScenarios] = useState<BenchmarkScenario[]>([]);
   const [myScores, setMyScores] = useState<ScoreEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
-
   const [scoreInput, setScoreInput] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -141,30 +126,23 @@ export default function BenchmarkDetailPage({
   async function handleSubmitScore() {
     setError("");
     setNotice("");
-
     const score = Number(scoreInput);
-
     if (!scoreInput || !Number.isFinite(score) || score < 0) {
       setError("Enter a valid score (0 or higher)");
       return;
     }
-
     setSubmitting(true);
-
     try {
       const res = await fetch("/api/scores", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ benchmarkId: id, score }),
       });
-
       const data = await res.json();
-
       if (!res.ok) {
         setError(data.error || "Failed to submit score");
         return;
       }
-
       setNotice(
         `Score submitted: ${data.score.score}${
           data.score.rank ? ` — ${data.score.rank}` : ""
@@ -181,20 +159,17 @@ export default function BenchmarkDetailPage({
 
   if (loading) {
     return (
-      <main className="min-h-screen text-white flex items-center justify-center">
-        <p className="text-zinc-500">Loading...</p>
+      <main className="min-h-screen flex items-center justify-center text-zinc-500">
+        <p>Loading...</p>
       </main>
     );
   }
-
   if (notFound || !benchmark) {
     return (
-      <main className="min-h-screen text-white flex items-center justify-center px-6">
+      <main className="min-h-screen flex items-center justify-center px-6 text-white">
         <div className="text-center">
           <p className="text-zinc-400">Benchmark not found.</p>
-          <Link href="/benchmarks" className="mt-4 inline-block text-sm text-white hover:underline">
-            ← Back to benchmarks
-          </Link>
+          <Link href="/benchmarks" className="mt-4 inline-block text-sm hover:underline">← Back to benchmarks</Link>
         </div>
       </main>
     );
@@ -205,153 +180,150 @@ export default function BenchmarkDetailPage({
 
   return (
     <main className="min-h-screen text-white">
-      <div className="mx-auto max-w-3xl px-6 py-12">
-        <Link href="/benchmarks" className="text-sm text-zinc-500 hover:text-white transition">
+      <div className="mx-auto max-w-7xl px-6 py-12">
+        <Link href="/benchmarks" className="text-sm text-zinc-500 hover:text-white transition inline-block mb-8">
           ← Back to benchmarks
         </Link>
 
-        <div className="mt-6 rounded-2xl border border-white/10 bg-white/[0.02] p-8">
-          <div className="mb-4 flex items-center gap-3">
-            <span className="rounded-full border border-white/10 px-3 py-1 text-xs text-zinc-400">
-              {benchmark.platform}
-            </span>
-            <span className="rounded-full border border-white/10 px-3 py-1 text-xs text-zinc-400">
-              {benchmark.difficulty}
-            </span>
-          </div>
-
-          <h1 className="text-3xl font-bold tracking-tight">{benchmark.title}</h1>
-          <div className="mt-2 flex gap-2">
-            <Link href={`/benchmarks/${id}/edit`} className="text-xs text-cyan-400 hover:text-cyan-300 underline">Edit benchmark</Link>
-          </div>
-          <p className="mt-2 text-zinc-500">
-            {benchmark.description || "No description"}
-          </p>
-          <p className="mt-1 text-sm text-zinc-600">
-            {benchmark.scenario_count} scenario{benchmark.scenario_count === 1 ? "" : "s"}
-          </p>
-
-          {!hasScenarios && benchmark.rank_thresholds && (
-            <div className="mt-6 flex flex-wrap gap-2">
-              {Object.entries(benchmark.rank_thresholds)
-                .sort(([, a], [, b]) => a - b)
-                .map(([rankName, threshold]) => (
-                  <span
-                    key={rankName}
-                    className="rounded-lg border border-white/10 px-3 py-1.5 text-xs text-zinc-400"
-                  >
-                    {rankName}: {threshold}+
-                  </span>
-                ))}
+        <div className="grid lg:grid-cols-3 gap-8">
+          {/* Main info */}
+          <div className="lg:col-span-2 space-y-6">
+            <div className="rounded-3xl border border-white/10 bg-white/[0.02] p-8">
+              <div className="flex items-center gap-3 mb-4">
+                <span className="rounded-full border border-white/10 px-3 py-1 text-xs text-zinc-400">{benchmark.platform}</span>
+                <span className="rounded-full border border-white/10 px-3 py-1 text-xs text-zinc-400">{benchmark.difficulty}</span>
+                <Link href={`/benchmarks/${id}/edit`} className="text-xs text-cyan-400 hover:text-cyan-300 underline">Edit benchmark</Link>
+              </div>
+              <h1 className="text-4xl font-extrabold tracking-tight">{benchmark.title}</h1>
+              <p className="mt-3 text-zinc-400 text-base leading-relaxed max-w-2xl">{benchmark.description || "No description"}</p>
+              <p className="mt-2 text-sm text-zinc-600">{benchmark.scenario_count} scenario{benchmark.scenario_count === 1 ? "" : "s"}</p>
             </div>
-          )}
-        </div>
 
-        {/* SCENARIOS — auto-tracked, scores come from linked EasyAim sync */}
-        {hasScenarios && (
-          <div className="mt-6 rounded-2xl border border-zinc-800 bg-zinc-950 p-6">
-            <h2 className="text-lg font-semibold mb-4">Scenarios</h2>
-
-            <div className="space-y-4">
-              {scenarios.map((scenario) => {
-                const score = scenario.best_score ?? 0;
-                const rank = rankForScenario(score, scenario.cutoffs, rankOrder);
-                const pct = progressPercent(score, scenario.cutoffs, rankOrder);
-                const cleared = rank !== null;
-
-                return (
-                  <div key={scenario.id}>
-                    <div className="mb-1 flex items-center justify-between text-sm">
-                      <span className="font-medium">{scenario.title}</span>
-                      <span className={cleared ? "text-cyan-400" : "text-zinc-500"}>
-                        {score}
-                        {rank ? ` — ${rank}` : ""}
-                      </span>
-                    </div>
-                    <div className="h-2 w-full overflow-hidden rounded-full bg-zinc-800">
-                      <div
-                        className={`h-full rounded-full ${cleared ? "bg-cyan-400" : "bg-zinc-600"}`}
-                        style={{ width: `${pct}%` }}
-                      />
-                    </div>
-                    <div className="mt-1 flex flex-wrap gap-x-3 text-xs text-zinc-600">
-                      {rankOrder
-                        .filter((r) => scenario.cutoffs[r] !== undefined)
-                        .map((r) => (
-                          <span key={r}>
-                            {r}: {scenario.cutoffs[r]}+
-                          </span>
+            {/* Scenario Ranking Table — evxl.app style */}
+            {hasScenarios && (
+              <div className="rounded-3xl border border-zinc-800 bg-zinc-950 overflow-hidden">
+                <div className="px-6 py-5 border-b border-white/5 flex items-center justify-between">
+                  <h2 className="text-xl font-bold tracking-tight">Scenarios</h2>
+                  <span className="text-xs text-zinc-500">{scenarios.length} attached</span>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-zinc-900 text-zinc-400 text-xs uppercase tracking-wider">
+                      <tr>
+                        <th className="text-left px-6 py-3 font-medium">Scenario</th>
+                        <th className="text-left px-4 py-3 font-medium">Score</th>
+                        {rankOrder.map((r) => (
+                          <th key={r} className="text-center px-3 py-3 font-medium whitespace-nowrap">{r}</th>
                         ))}
+                        <th className="text-left px-4 py-3 font-medium">Energy</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {scenarios.map((scenario) => {
+                        const score = scenario.best_score ?? 0;
+                        const rank = rankForScenario(score, scenario.cutoffs, rankOrder);
+                        const pct = progressPercent(score, scenario.cutoffs, rankOrder);
+                        const cleared = rank !== null;
+                        return (
+                          <tr key={scenario.id} className="border-b border-white/5 hover:bg-white/[0.015] transition">
+                            <td className="px-6 py-4 whitespace-nowrap font-medium text-white">{scenario.title}</td>
+                            <td className="px-4 py-4 whitespace-nowrap text-zinc-300 font-mono text-sm">{score}</td>
+                            {rankOrder.map((r) => (
+                              <td key={r} className="text-center px-3 py-4">
+                                <div className="flex flex-col items-center gap-1">
+                                  <span className={`text-xs font-bold ${scenario.cutoffs[r] !== undefined ? (score >= scenario.cutoffs[r] ? "text-cyan-400" : "text-zinc-600") : "text-zinc-700"}`}>
+                                    {scenario.cutoffs[r] !== undefined ? scenario.cutoffs[r] : "—"}
+                                  </span>
+                                  {scenario.cutoffs[r] !== undefined && (
+                                    <div className="w-16 h-1.5 rounded-full bg-zinc-800 overflow-hidden">
+                                      <div
+                                        className={`h-full rounded-full ${score >= scenario.cutoffs[r] ? "bg-gradient-to-r from-cyan-500 to-cyan-300" : "bg-zinc-600"}`}
+                                        style={{ width: `${Math.min(100, Math.round((score / Math.max(scenario.cutoffs[r] || 1, 1)) * 100))}%` }}
+                                      />
+                                    </div>
+                                  )}
+                                </div>
+                              </td>
+                            ))}
+                            <td className="px-4 py-4 whitespace-nowrap text-xs text-zinc-500 font-mono">{score}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* Non-scenario benchmark info */}
+            {!hasScenarios && (
+              <div className="rounded-3xl border border-zinc-800 bg-zinc-950 p-8">
+                <h2 className="text-xl font-bold tracking-tight mb-6">Rank Thresholds</h2>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  {benchmark.rank_thresholds && Object.entries(benchmark.rank_thresholds).sort(([, a], [, b]) => (a as number) - (b as number)).map(([rankName, threshold]) => (
+                    <div key={rankName} className="rounded-2xl border border-white/10 bg-zinc-900 p-4 text-center">
+                      <p className="text-xs text-zinc-500 uppercase tracking-wide">{rankName}</p>
+                      <p className="text-xl font-extrabold text-white">{threshold}+</p>
                     </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Manual Score Submission */}
+            {!hasScenarios && (
+              <div className="rounded-3xl border border-zinc-800 bg-zinc-950 p-8">
+                <h2 className="text-xl font-bold tracking-tight mb-4">Submit a score</h2>
+                <div className="flex gap-2">
+                  <input
+                    type="number"
+                    value={scoreInput}
+                    onChange={(e) => setScoreInput(e.target.value)}
+                    placeholder="Your score"
+                    min="0"
+                    className="flex-1 rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-3 text-white outline-none placeholder:text-zinc-600 focus:border-zinc-500 transition"
+                  />
+                  <button
+                    onClick={handleSubmitScore}
+                    disabled={submitting}
+                    className="rounded-xl bg-white px-6 py-3 font-semibold text-black hover:bg-zinc-200 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {submitting ? "Submitting..." : "Submit"}
+                  </button>
+                </div>
+                {error && (
+                  <div className="mt-4 rounded-xl border border-red-900/50 bg-red-950/30 px-4 py-3 text-sm text-red-400">
+                    {error}{" "}
+                    {error.includes("logged in") && <Link href="/login" className="underline">Log in</Link>}
                   </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* MANUAL SCORE SUBMISSION — only for non-EasyAim benchmarks */}
-        {!hasScenarios && (
-          <div className="mt-6 rounded-2xl border border-zinc-800 bg-zinc-950 p-6">
-            <h2 className="text-lg font-semibold mb-4">Submit a score</h2>
-
-            <div className="flex gap-2">
-              <input
-                type="number"
-                value={scoreInput}
-                onChange={(e) => setScoreInput(e.target.value)}
-                placeholder="Your score"
-                min="0"
-                className="flex-1 rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-3 text-white outline-none placeholder:text-zinc-600 focus:border-zinc-500"
-              />
-              <button
-                onClick={handleSubmitScore}
-                disabled={submitting}
-                className="rounded-lg bg-white px-6 py-3 font-semibold text-black transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {submitting ? "Submitting..." : "Submit"}
-              </button>
-            </div>
-
-            {error && (
-              <div className="mt-4 rounded-lg border border-red-900/50 bg-red-950/30 px-4 py-3 text-sm text-red-400">
-                {error}{" "}
-                {error.includes("logged in") && (
-                  <Link href="/login" className="underline">
-                    Log in
-                  </Link>
+                )}
+                {notice && (
+                  <div className="mt-4 rounded-xl border border-green-900/50 bg-green-950/30 px-4 py-3 text-sm text-green-400">
+                    {notice}
+                  </div>
                 )}
               </div>
             )}
 
-            {notice && (
-              <div className="mt-4 rounded-lg border border-green-900/50 bg-green-950/30 px-4 py-3 text-sm text-green-400">
-                {notice}
+            {/* Score History */}
+            {myScores.length > 0 && (
+              <div className="rounded-3xl border border-zinc-800 bg-zinc-950 p-8">
+                <h2 className="text-xl font-bold tracking-tight mb-4">Your attempts</h2>
+                <div className="divide-y divide-white/5">
+                  {myScores.map((s) => (
+                    <div key={s.id} className="flex items-center justify-between py-3 first:pt-0 last:pb-0">
+                      <div className="flex items-center gap-4">
+                        <span className="font-mono font-medium text-white">{s.score}</span>
+                        <span className="text-sm text-zinc-400">{s.rank || "—"}</span>
+                      </div>
+                      <span className="text-sm text-zinc-600">{new Date(s.completed_at).toLocaleDateString()}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
           </div>
-        )}
-
-        {/* MY SCORE HISTORY */}
-        {myScores.length > 0 && (
-          <div className="mt-6 rounded-2xl border border-zinc-800 bg-zinc-950 p-6">
-            <h2 className="text-lg font-semibold mb-4">Your attempts</h2>
-            <div className="space-y-2">
-              {myScores.map((s) => (
-                <div
-                  key={s.id}
-                  className="flex items-center justify-between border-b border-white/10 py-2 last:border-0"
-                >
-                  <span className="font-medium">{s.score}</span>
-                  <span className="text-sm text-zinc-400">{s.rank || "—"}</span>
-                  <span className="text-sm text-zinc-600">
-                    {new Date(s.completed_at).toLocaleDateString()}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+        </div>
       </div>
     </main>
   );
