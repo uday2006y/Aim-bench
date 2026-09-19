@@ -107,7 +107,7 @@ export interface EasyAimDiscordIdentity {
 export async function lookupPlayerByDiscordId(discordId: string) {
   try {
     const result = await easyaimGet
-      EasyAimDiscordIdentity[] | { data: EasyAimDiscordIdentity[] }
+      <EasyAimDiscordIdentity[] | { data: EasyAimDiscordIdentity[] }
     >(`/api/v1/lookup/discord/${discordId}`);
 
     return Array.isArray(result) ? result : result.data || [];
