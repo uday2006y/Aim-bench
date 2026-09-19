@@ -185,9 +185,7 @@ export default function BenchmarkDetailPage({
           ← Back to benchmarks
         </Link>
 
-        <div className="grid lg:grid-cols-3 gap-8">
-          {/* Main info */}
-          <div className="lg:col-span-2 space-y-6">
+        <div className="space-y-6">
             <div className="rounded-3xl border border-white/10 bg-white/[0.02] p-8">
               <div className="flex items-center gap-3 mb-4">
                 <span className="rounded-full border border-white/10 px-3 py-1 text-xs text-zinc-400">{benchmark.platform}</span>
@@ -199,23 +197,23 @@ export default function BenchmarkDetailPage({
               <p className="mt-2 text-sm text-zinc-600">{benchmark.scenario_count} scenario{benchmark.scenario_count === 1 ? "" : "s"}</p>
             </div>
 
-            {/* Scenario Ranking Table — evxl.app style */}
+            {/* Scenario Ranking Table — evxl.app exact style */}
             {hasScenarios && (
-              <div className="rounded-3xl border border-zinc-800 bg-zinc-950 overflow-hidden">
-                <div className="px-6 py-5 border-b border-white/5 flex items-center justify-between">
-                  <h2 className="text-xl font-bold tracking-tight">Scenarios</h2>
-                  <span className="text-xs text-zinc-500">{scenarios.length} attached</span>
+              <div className="rounded-3xl border border-zinc-800 bg-zinc-950 overflow-hidden shadow-2xl">
+                <div className="px-6 py-5 border-b border-white/5 flex items-center justify-between bg-gradient-to-r from-zinc-950 to-zinc-900/50">
+                  <h2 className="text-xl font-extrabold tracking-tight">Scenarios</h2>
+                  <span className="text-xs text-zinc-500 font-medium">{scenarios.length} attached</span>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
-                    <thead className="bg-zinc-900 text-zinc-400 text-xs uppercase tracking-wider">
+                    <thead className="bg-zinc-950/80 text-zinc-300 text-xs uppercase tracking-widest font-bold border-b border-white/5">
                       <tr>
-                        <th className="text-left px-6 py-3 font-medium">Scenario</th>
-                        <th className="text-left px-4 py-3 font-medium">Score</th>
+                        <th className="text-left px-6 py-4 font-bold">Scenario</th>
+                        <th className="text-left px-4 py-4 font-bold">Score</th>
                         {rankOrder.map((r) => (
-                          <th key={r} className="text-center px-3 py-3 font-medium whitespace-nowrap">{r}</th>
+                          <th key={r} className="text-center px-3 py-4 font-bold whitespace-nowrap">{r}</th>
                         ))}
-                        <th className="text-left px-4 py-3 font-medium">Energy</th>
+                        <th className="text-left px-4 py-4 font-bold">Energy</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -223,29 +221,46 @@ export default function BenchmarkDetailPage({
                         const score = scenario.best_score ?? 0;
                         const rank = rankForScenario(score, scenario.cutoffs, rankOrder);
                         const pct = progressPercent(score, scenario.cutoffs, rankOrder);
-                        const cleared = rank !== null;
                         return (
-                          <tr key={scenario.id} className="border-b border-white/5 hover:bg-white/[0.015] transition">
-                            <td className="px-6 py-4 whitespace-nowrap font-medium text-white">{scenario.title}</td>
-                            <td className="px-4 py-4 whitespace-nowrap text-zinc-300 font-mono text-sm">{score}</td>
+                          <tr key={scenario.id} className="border-b border-white/[0.04] hover:bg-white/[0.03] transition">
+                            <td className="px-6 py-5 whitespace-nowrap align-top">
+                              <div className="flex items-start gap-3">
+                                <span className="inline-block rounded px-1.5 py-0.5 text-[10px] font-extrabold tracking-wider bg-cyan-950 text-cyan-400 border border-cyan-900 shrink-0 mt-0.5">SCENARIO</span>
+                                <div>
+                                  <p className="font-bold text-white leading-snug">{scenario.title}</p>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-4 py-5 whitespace-nowrap align-top">
+                              <div className="flex flex-col gap-0.5">
+                                <span className="font-mono font-extrabold text-white text-base">{score}</span>
+                                <span className="text-xs text-zinc-500 font-medium">{score > 0 ? Math.round((pct / 100) * 100) + "%" : "0%"}</span>
+                              </div>
+                            </td>
                             {rankOrder.map((r) => (
-                              <td key={r} className="text-center px-3 py-4">
-                                <div className="flex flex-col items-center gap-1">
-                                  <span className={`text-xs font-bold ${scenario.cutoffs[r] !== undefined ? (score >= scenario.cutoffs[r] ? "text-cyan-400" : "text-zinc-600") : "text-zinc-700"}`}>
-                                    {scenario.cutoffs[r] !== undefined ? scenario.cutoffs[r] : "—"}
-                                  </span>
-                                  {scenario.cutoffs[r] !== undefined && (
-                                    <div className="w-16 h-1.5 rounded-full bg-zinc-800 overflow-hidden">
+                              <td key={r} className="text-center px-3 py-5 align-top">
+                                {scenario.cutoffs[r] !== undefined ? (
+                                  <div className="flex flex-col items-center gap-2">
+                                    <span className={`text-[10px] font-extrabold tracking-wider uppercase ${score >= scenario.cutoffs[r] ? "text-cyan-400" : "text-zinc-600"}`}>
+                                      {scenario.cutoffs[r]}
+                                    </span>
+                                    <div className="w-24 h-2.5 rounded-full bg-zinc-800 overflow-hidden shadow-inner relative">
                                       <div
-                                        className={`h-full rounded-full ${score >= scenario.cutoffs[r] ? "bg-gradient-to-r from-cyan-500 to-cyan-300" : "bg-zinc-600"}`}
+                                        className={`h-full rounded-full ${score >= scenario.cutoffs[r] ? "bg-gradient-to-r from-cyan-600 to-cyan-300 shadow-[0_0_8px_rgba(34,211,238,0.4)]" : "bg-zinc-700"}`}
                                         style={{ width: `${Math.min(100, Math.round((score / Math.max(scenario.cutoffs[r] || 1, 1)) * 100))}%` }}
                                       />
                                     </div>
-                                  )}
-                                </div>
+                                  </div>
+                                ) : (
+                                  <span className="text-xs text-zinc-700">—</span>
+                                )}
                               </td>
                             ))}
-                            <td className="px-4 py-4 whitespace-nowrap text-xs text-zinc-500 font-mono">{score}</td>
+                            <td className="px-4 py-5 whitespace-nowrap align-top">
+                              <div className="flex items-center gap-2">
+                                <span className="font-mono font-extrabold text-base text-white">{score}</span>
+                              </div>
+                            </td>
                           </tr>
                         );
                       })}
@@ -324,7 +339,6 @@ export default function BenchmarkDetailPage({
             )}
           </div>
         </div>
-      </div>
     </main>
   );
 }

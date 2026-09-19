@@ -4,24 +4,25 @@ import { syncEasyAimAccount } from "@/lib/easyaimSync";
 import { getSessionAccountId } from "@/lib/session";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
-function parseEasyAimPlayerId(input: string): number | null {
+function parseEasyAimPlayerId(input: string): number | string | null {
   const trimmed = input.trim();
 
-  if (/^\d+$/.test(trimmed)) {
-    return Number(trimmed);
+  if (/^[\w-]+$/.test(trimmed) && !trimmed.includes(" ")) {
+    const num = Number(trimmed);
+    if (!isNaN(num)) return num;
+    if (/^[a-fA-F0-9]+$/i.test(trimmed) || /^[\w]+$/i.test(trimmed)) {
+      return trimmed;
+    }
   }
 
   try {
     const url = new URL(trimmed);
-
     if (!/(^|\.)easyaim\.com$/i.test(url.hostname)) {
       return null;
     }
-
     const parts = url.pathname.split("/").filter(Boolean);
     const last = parts[parts.length - 1];
-
-    return last && /^\d+$/.test(last) ? Number(last) : null;
+    return last ? (last && /^\d+$/.test(last) ? Number(last) : last) : null;
   } catch {
     return null;
   }

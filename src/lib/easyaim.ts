@@ -86,7 +86,7 @@ async function easyaimGet<T>(path: string): Promise<T> {
   }
 }
 
-export function getPlayer(playerId: number) {
+export function getPlayer(playerId: number | string) {
   return easyaimGet<EasyAimPlayer>(
     `/api/v1/players/${playerId}`
   );
