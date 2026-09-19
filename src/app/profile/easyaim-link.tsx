@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 export interface EasyAimLinkInfo {
@@ -16,8 +16,6 @@ const AUTO_SYNC_INTERVAL_MS = 2 * 60 * 1000;
 
 export function EasyAimLinkCard({ link }: { link: EasyAimLinkInfo | null }) {
   const router = useRouter();
-  const [profile, setProfile] = useState("");
-  const [busy, setBusy] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -82,63 +80,6 @@ export function EasyAimLinkCard({ link }: { link: EasyAimLinkInfo | null }) {
     };
   }, [playerId, syncNow]);
 
-  async function handleLink(event: FormEvent) {
-    event.preventDefault();
-    setBusy(true);
-    setError("");
-    setNotice("");
-
-    try {
-      const response = await fetch("/api/easyaim/link", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ profile }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        setError(data.error || "Failed to link account");
-        return;
-      }
-
-      setNotice(
-        `Linked to ${data.link.display_name || data.link.easyaim_username}`
-      );
-      setProfile("");
-      router.refresh();
-    } catch {
-      setError("Could not reach the server");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function handleUnlink() {
-    if (!window.confirm("Unlink your EasyAim account?")) return;
-
-    setBusy(true);
-    setError("");
-    setNotice("");
-
-    try {
-      const response = await fetch("/api/easyaim/link", { method: "DELETE" });
-      const data = await response.json();
-
-      if (!response.ok) {
-        setError(data.error || "Failed to unlink");
-        return;
-      }
-
-      setNotice("EasyAim account unlinked");
-      router.refresh();
-    } catch {
-      setError("Could not reach the server");
-    } finally {
-      setBusy(false);
-    }
-  }
-
   return (
     <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-6">
       <h2 className="text-lg font-semibold mb-4">EasyAim account</h2>
@@ -170,24 +111,14 @@ export function EasyAimLinkCard({ link }: { link: EasyAimLinkInfo | null }) {
               </div>
             </div>
 
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => syncNow(true)}
-                disabled={syncing || busy}
-                className="rounded-lg bg-white px-4 py-2 text-sm font-semibold text-black transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {syncing ? "Syncing..." : "Sync now"}
-              </button>
-              <button
-                type="button"
-                onClick={handleUnlink}
-                disabled={busy}
-                className="rounded-lg border border-zinc-800 px-4 py-2 text-sm text-zinc-400 transition hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                Unlink
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={() => syncNow(true)}
+              disabled={syncing}
+              className="rounded-lg bg-white px-4 py-2 text-sm font-semibold text-black transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {syncing ? "Syncing..." : "Sync now"}
+            </button>
           </div>
 
           <div className="mt-4 flex flex-wrap gap-x-8 gap-y-1 text-xs text-zinc-500">
@@ -204,30 +135,12 @@ export function EasyAimLinkCard({ link }: { link: EasyAimLinkInfo | null }) {
           </div>
         </div>
       ) : (
-        <form onSubmit={handleLink} className="space-y-3">
-          <p className="text-sm text-zinc-500">
-            Paste your EasyAim profile link (or numeric player ID) to sync
-            your personal bests automatically. Find it on your EasyAim
-            profile page.
-          </p>
-
-          <input
-            type="text"
-            value={profile}
-            onChange={(e) => setProfile(e.target.value)}
-            placeholder="https://easyaim.com/players/username/1234"
-            required
-            className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-3 text-white outline-none placeholder:text-zinc-600 focus:border-zinc-500"
-          />
-
-          <button
-            type="submit"
-            disabled={busy}
-            className="rounded-lg bg-white px-5 py-2.5 text-sm font-semibold text-black transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {busy ? "Linking..." : "Link account"}
-          </button>
-        </form>
+        <p className="text-sm text-zinc-500">
+          Your EasyAim account links automatically through Discord. If
+          nothing shows here, make sure your EasyAim Account Center shows
+          Discord as connected (Account Center → Connected With), then log
+          out and back in.
+        </p>
       )}
 
       {error && (
