@@ -29,14 +29,29 @@ export async function PUT(
       return NextResponse.json({ error: "Not authorized" }, { status: 403 });
     }
 
-    const { data: updated, error } = await supabaseAdmin
+    const { data: updated, error: updateErr } = await supabaseAdmin
       .from("benchmarks")
       .update({ title, description, difficulty, platform })
       .eq("id", id)
       .select()
       .single();
 
-    if (error) throw error;
+    // Update scenarios if provided
+    if (body.scenarios !== undefined) {
+      await supabaseAdmin.from("benchmark_scenarios").delete().eq("benchmark_id", id);
+      if (Array.isArray(body.scenarios) && body.scenarios.length > 0) {
+        const inserts = body.scenarios.map((s: any, idx: number) => ({
+          benchmark_id: id,
+          easyaim_scenario_id: Number(s.id) || s.easyaim_scenario_id,
+          title: s.title || `Scenario ${s.id || s.easyaim_scenario_id}`,
+          position: idx,
+          cutoffs: s.cutoffs || {},
+        }));
+        await supabaseAdmin.from("benchmark_scenarios").insert(inserts);
+      }
+    }
+
+    if (updateErr) throw updateErr;
     return NextResponse.json({ benchmark: updated }, { status: 200 });
   } catch (err) {
     console.error("UPDATE BENCHMARK ERROR:", err);

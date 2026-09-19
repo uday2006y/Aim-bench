@@ -20,8 +20,12 @@ export default function EditBenchmarkPage({ params }: { params: Promise<{ id: st
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [platform, setPlatform] = useState("easyaim");
   const [difficulty, setDifficulty] = useState("medium");
   const [scenarios, setScenarios] = useState<Scenario[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [searching, setSearching] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -34,6 +38,7 @@ export default function EditBenchmarkPage({ params }: { params: Promise<{ id: st
         const data = await res.json();
         setTitle(data.benchmark.title);
         setDescription(data.benchmark.description || "");
+        setPlatform(data.benchmark.platform || "easyaim");
         setDifficulty(data.benchmark.difficulty || "medium");
         setScenarios(
           (data.scenarios || []).map((s: any) => ({
@@ -50,6 +55,36 @@ export default function EditBenchmarkPage({ params }: { params: Promise<{ id: st
     }
     load();
   }, [id]);
+
+  useEffect(() => {
+    const query = searchQuery.trim();
+    if (query.length < 2) {
+      setSearchResults([]);
+      return;
+    }
+    const timeout = setTimeout(async () => {
+      setSearching(true);
+      try {
+        const res = await fetch(`/api/easyaim/scenarios?q=${encodeURIComponent(query)}`);
+        const data = await res.json();
+        setSearchResults(res.ok ? data.scenarios || [] : []);
+      } catch {
+        setSearchResults([]);
+      } finally {
+        setSearching(false);
+      }
+    }, 300);
+    return () => clearTimeout(timeout);
+  }, [searchQuery]);
+
+  function addScenarioFromResult(scenario: any) {
+    setScenarios((prev) => {
+      if (prev.some((s) => s.id === scenario.id)) return prev;
+      return [...prev, { id: scenario.id, title: scenario.title, cutoffs: {} }];
+    });
+    setSearchQuery("");
+    setSearchResults([]);
+  }
 
   function addScenario() {
     setScenarios((prev) => [...prev, { id: Date.now(), title: "New Scenario", cutoffs: {} }]);
@@ -78,6 +113,7 @@ export default function EditBenchmarkPage({ params }: { params: Promise<{ id: st
         title,
         description,
         difficulty,
+        platform,
         scenarios: scenarios.map((s) => ({
           id: s.id,
           title: s.title,
@@ -125,12 +161,34 @@ export default function EditBenchmarkPage({ params }: { params: Promise<{ id: st
           </div>
 
           <div>
+            <label className="block text-sm text-zinc-400 mb-2">Platform</label>
+            <select value={platform} onChange={(e) => setPlatform(e.target.value)} className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-3 text-white focus:border-zinc-500 outline-none">
+              <option value="easyaim">easyaim</option>
+            </select>
+          </div>
+
+          <div>
             <label className="block text-sm text-zinc-400 mb-2">Difficulty</label>
             <select value={difficulty} onChange={(e) => setDifficulty(e.target.value)} className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-3 text-white focus:border-zinc-500 outline-none">
               <option value="easy">Easy</option>
               <option value="medium">Medium</option>
               <option value="hard">Hard</option>
             </select>
+          </div>
+
+          <div>
+            <label className="text-sm text-zinc-400 mb-2">Add EasyAim Scenario (optional)</label>
+            <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Search EasyAim scenarios..." className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-3 text-white focus:border-zinc-500 outline-none" />
+            {searching && <p className="text-xs text-zinc-500 mt-2">Searching...</p>}
+            {searchResults.length > 0 && (
+              <div className="mt-2 max-h-48 overflow-y-auto rounded-lg border border-zinc-800 bg-zinc-900">
+                {searchResults.map((r: any) => (
+                  <button key={r.id} type="button" onClick={() => addScenarioFromResult(r)} className="w-full text-left px-4 py-2 text-sm hover:bg-zinc-800 border-b border-zinc-800 last:border-0">
+                    {r.title}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           <div>
