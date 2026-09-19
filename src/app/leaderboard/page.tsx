@@ -5,6 +5,7 @@ import Link from "next/link";
 
 export default function LeaderboardPage() {
   const [leaderboard, setLeaderboard] = useState<any[]>([]);
+  const [benchmarks, setBenchmarks] = useState<any[]>([]);
   const [selectedBenchmark, setSelectedBenchmark] = useState<string | null>(null);
   const [rankingType, setRankingType] = useState("score");
   const [loading, setLoading] = useState(true);
@@ -12,6 +13,20 @@ export default function LeaderboardPage() {
   useEffect(() => {
     fetchLeaderboard();
   }, [selectedBenchmark]);
+
+  useEffect(() => {
+    fetchBenchmarks();
+  }, []);
+
+  async function fetchBenchmarks() {
+    try {
+      const response = await fetch("/api/benchmarks?platform=all");
+      const data = await response.json();
+      setBenchmarks(data.benchmarks || []);
+    } catch (error) {
+      console.error("Failed to fetch benchmarks:", error);
+    }
+  }
 
   async function fetchLeaderboard() {
     setLoading(true);
@@ -64,21 +79,14 @@ export default function LeaderboardPage() {
             Select Benchmark
           </h2>
           <select
-            onChange={(e) => {
-              setSelectedBenchmark(e.target.value);
-              fetchLeaderboard();
-            }}
+            value={selectedBenchmark || ""}
+            onChange={(e) => setSelectedBenchmark(e.target.value || null)}
             className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-3 text-white outline-none placeholder:text-zinc-600 focus:border-zinc-500"
           >
             <option value="">All Benchmarks</option>
-            {[
-              "Voltaic S5",
-              "Voltaic",
-              "Viscose Benchmarks S2",
-              "Raw Input",
-            ].map((name) => (
-              <option key={name} value={name}>
-                {name}
+            {benchmarks.map((benchmark) => (
+              <option key={benchmark.id} value={benchmark.id}>
+                {benchmark.title}
               </option>
             ))}
           </select>
@@ -99,6 +107,9 @@ export default function LeaderboardPage() {
                   </th>
                   <th className="text-left text-sm text-zinc-500 p-4">
                     Player
+                  </th>
+                  <th className="text-left text-sm text-zinc-500 p-4">
+                    Benchmark
                   </th>
                   <th className="text-left text-sm text-zinc-500 p-4">
                     Score
@@ -125,6 +136,9 @@ export default function LeaderboardPage() {
                         </div>
                         <span className="text-white font-medium">{entry.username || "Anonymous"}</span>
                       </div>
+                    </td>
+                    <td className="p-4 text-zinc-400 small">
+                      {entry.benchmark_title || "—"}
                     </td>
                     <td className="p-4 font-medium text-white">
                       {entry.score}

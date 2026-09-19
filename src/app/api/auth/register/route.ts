@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { createSession } from "@/lib/session";
 import bcrypt from "bcryptjs";
 
 export async function POST(request: Request) {
@@ -67,10 +68,22 @@ export async function POST(request: Request) {
       console.error("PROFILE ERROR:", profileError);
     }
 
-    return NextResponse.json({
+    const token = await createSession(account.id);
+
+    const response = NextResponse.json({
       success: true,
       account,
     });
+
+    response.cookies.set("session", token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 60 * 60 * 24 * 7,
+      path: "/",
+    });
+
+    return response;
   } catch (error) {
     console.error("REGISTER ERROR:", error);
 

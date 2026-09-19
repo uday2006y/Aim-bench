@@ -14,6 +14,7 @@ export async function GET(request: Request) {
       .select(`
         id,
         user_id,
+        benchmark_id,
         score,
         rank,
         completed_at,
@@ -42,7 +43,8 @@ export async function GET(request: Request) {
     const rankHistory: any[] = [];
 
     for (const entry of data || []) {
-      const previous = lastSeen.get(entry.user_id);
+      const key = `${entry.user_id}:${entry.benchmark_id}`;
+      const previous = lastSeen.get(key);
 
       if (previous) {
         rankHistory.push({
@@ -57,7 +59,7 @@ export async function GET(request: Request) {
         });
       }
 
-      lastSeen.set(entry.user_id, { score: entry.score, rank: entry.rank });
+      lastSeen.set(key, { score: entry.score, rank: entry.rank });
     }
 
     // Most recent improvements first.

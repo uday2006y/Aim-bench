@@ -11,23 +11,41 @@ export default function BenchmarksPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchBenchmarks();
+    const timeout = setTimeout(() => {
+      fetchBenchmarks(searchQuery, selectedPlatform);
+    }, 300);
+
+    return () => clearTimeout(timeout);
+  }, [searchQuery, selectedPlatform]);
+
+  useEffect(() => {
+    fetchPlatforms();
   }, []);
 
-  async function fetchBenchmarks() {
+  async function fetchPlatforms() {
+    try {
+      const response = await fetch("/api/benchmarks?platform=all");
+      const data = (await response.json()) as { benchmarks: any[] };
+      const uniquePlatforms = [
+        ...new Set((data.benchmarks || []).map((b: any) => b.platform)),
+      ].filter(Boolean) as string[];
+
+      setPlatforms(uniquePlatforms.length ? uniquePlatforms : ["kovaiacks"]);
+    } catch (error) {
+      console.error("Failed to fetch platforms:", error);
+    }
+  }
+
+  async function fetchBenchmarks(query: string, platform: string) {
     setLoading(true);
     try {
       const url = new URL("/api/benchmarks", window.location.origin);
-      if (selectedPlatform) url.searchParams.set("platform", selectedPlatform);
-      if (searchQuery) url.searchParams.set("q", searchQuery);
+      if (platform) url.searchParams.set("platform", platform);
+      if (query) url.searchParams.set("q", query);
 
       const response = await fetch(url);
       const data = (await response.json()) as { benchmarks: any[] };
       setBenchmarks(data.benchmarks || []);
-
-      // Extract unique platforms
-      const uniquePlatforms = [...new Set(data.benchmarks?.map((b: any) => b.platform) || [])];
-      setPlatforms(["kovaiacks", ...uniquePlatforms.filter((p: string) => p !== "kovaiacks")]);
     } catch (error) {
       console.error("Failed to fetch benchmarks:", error);
     } finally {
@@ -37,7 +55,6 @@ export default function BenchmarksPage() {
 
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchQuery(e.target.value);
-    fetchBenchmarks();
   };
 
   return (
@@ -82,7 +99,6 @@ export default function BenchmarksPage() {
               value={selectedPlatform}
               onChange={(e) => {
                 setSelectedPlatform(e.target.value);
-                fetchBenchmarks();
               }}
               className="rounded-xl border border-white/10 px-4 py-2 text-white background-transparent focus:outline-none focus:border-white/20"
             >

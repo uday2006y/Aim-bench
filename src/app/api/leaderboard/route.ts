@@ -14,17 +14,22 @@ export async function GET(request: Request) {
       user_id,
       score,
       rank,
+      rank_index,
       completed_at,
+      benchmarks ( title, platform ),
       profiles ( display_name )
     `,
         { count: "exact" }
-      )
-      // Highest score first, so when we dedupe down to "best per
-      // player" below, the first row we see per user_id IS their best.
-      .order("score", { ascending: false });
+      );
 
     if (benchmarkId) {
-      query = query.eq("benchmark_id", benchmarkId);
+      // Scenario benchmarks rank by achieved rank first, total score second.
+      query = query
+        .eq("benchmark_id", benchmarkId)
+        .order("rank_index", { ascending: false, nullsFirst: false })
+        .order("score", { ascending: false });
+    } else {
+      query = query.order("score", { ascending: false });
     }
 
     // Pull more than 50 rows before deduping, since one player can
@@ -54,6 +59,12 @@ export async function GET(request: Request) {
             ?.display_name || "Anonymous",
         score: entry.score,
         rank: entry.rank || "—",
+        benchmark_title:
+          (entry.benchmarks as unknown as { title: string } | null)?.title ||
+          "Unknown Benchmark",
+        platform:
+          (entry.benchmarks as unknown as { platform: string } | null)
+            ?.platform || "—",
         completed_at: entry.completed_at,
       }));
 

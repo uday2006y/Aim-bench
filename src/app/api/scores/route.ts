@@ -4,24 +4,31 @@ import { getSessionAccountId } from "@/lib/session";
 
 // Works out which rank a score lands in for a given benchmark, based
 // on that benchmark's rank_thresholds (e.g. {"Bronze":0,"Silver":1000,...}).
-// Returns the name of the highest rank whose threshold the score clears.
+// Returns the best rank the score clears plus its position in the
+// ladder (rank_index, used to sort scenario-benchmark leaderboards).
 function calculateRank(
   score: number,
   rankThresholds: Record<string, number> | null
-): string | null {
-  if (!rankThresholds) return null;
+): { rank: string | null; rankIndex: number | null } {
+  if (!rankThresholds) return { rank: null, rankIndex: null };
+
+  const sorted = Object.entries(rankThresholds).sort(
+    (a, b) => a[1] - b[1]
+  );
 
   let bestRank: string | null = null;
+  let bestIndex: number | null = null;
   let bestThreshold = -Infinity;
 
-  for (const [rank, threshold] of Object.entries(rankThresholds)) {
+  sorted.forEach(([rank, threshold], index) => {
     if (score >= threshold && threshold > bestThreshold) {
       bestRank = rank;
+      bestIndex = index;
       bestThreshold = threshold;
     }
-  }
+  });
 
-  return bestRank;
+  return { rank: bestRank, rankIndex: bestIndex };
 }
 
 export async function POST(request: Request) {
@@ -69,7 +76,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const rank = calculateRank(score, benchmark.rank_thresholds);
+    const { rank, rankIndex } = calculateRank(score, benchmark.rank_thresholds);
 
     const { data: submittedScore, error } = await supabaseAdmin
       .from("benchmark_scores")
@@ -78,6 +85,7 @@ export async function POST(request: Request) {
         user_id: accountId,
         score,
         rank,
+        rank_index: rankIndex,
       })
       .select()
       .single();

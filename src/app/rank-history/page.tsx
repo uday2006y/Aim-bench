@@ -5,12 +5,27 @@ import Link from "next/link";
 
 export default function RankHistoryPage() {
   const [rankHistory, setRankHistory] = useState<any[]>([]);
+  const [benchmarks, setBenchmarks] = useState<any[]>([]);
   const [selectedBenchmark, setSelectedBenchmark] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetchRankHistory();
   }, [selectedBenchmark]);
+
+  useEffect(() => {
+    fetchBenchmarks();
+  }, []);
+
+  async function fetchBenchmarks() {
+    try {
+      const response = await fetch("/api/benchmarks?platform=all");
+      const data = await response.json();
+      setBenchmarks(data.benchmarks || []);
+    } catch (error) {
+      console.error("Failed to fetch benchmarks:", error);
+    }
+  }
 
   async function fetchRankHistory() {
     setLoading(true);
@@ -63,21 +78,14 @@ export default function RankHistoryPage() {
             Select Benchmark
           </h2>
           <select
-            onChange={(e) => {
-              setSelectedBenchmark(e.target.value);
-              fetchRankHistory();
-            }}
+            value={selectedBenchmark || ""}
+            onChange={(e) => setSelectedBenchmark(e.target.value || null)}
             className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-3 text-white outline-none placeholder:text-zinc-600 focus:border-zinc-500"
           >
             <option value="">All Benchmarks</option>
-            {[
-              "Voltaic S5",
-              "Voltaic",
-              "Viscose Benchmarks S2",
-              "Raw Input",
-            ].map((name) => (
-              <option key={name} value={name}>
-                {name}
+            {benchmarks.map((benchmark) => (
+              <option key={benchmark.id} value={benchmark.id}>
+                {benchmark.title}
               </option>
             ))}
           </select>
@@ -97,18 +105,23 @@ export default function RankHistoryPage() {
                   className="group rounded-2xl border border-white/10 bg-white/[0.02] p-6 transition hover:border-white/20 hover:bg-white/[0.04]"
                 >
                   <div className="flex items-center justify-between mb-4">
-                    <span className="text-lg font-semibold">
-                      {entry.benchmark_title || "Unknown Benchmark"}
-                    </span>
+                    <div>
+                      <span className="text-lg font-semibold">
+                        {entry.username || "Anonymous"}
+                      </span>
+                      <span className="ml-2 text-sm text-zinc-500">
+                        {entry.benchmark_title || "Unknown Benchmark"}
+                      </span>
+                    </div>
 
                     <span className="text-sm text-zinc-500">
-                      {entry.date || "—"}
+                      {entry.date ? new Date(entry.date).toLocaleDateString() : "—"}
                     </span>
                   </div>
 
                   <div className="mb-3">
                     <p className="text-sm text-zinc-400">Previous Score</p>
-                    <p className="text-2xl font-bold">{entry.old_score || "—"}</p>
+                    <p className="text-2xl font-bold">{entry.old_score ?? "—"}</p>
                   </div>
 
                   <div className="mb-3">
