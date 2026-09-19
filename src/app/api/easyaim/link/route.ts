@@ -78,15 +78,22 @@ export async function POST(request: Request) {
       );
     }
 
-    let player;
+    let player: any = null;
+    let apiFailed = false;
 
     try {
       player = await getPlayer(playerId);
     } catch {
-      return NextResponse.json(
-        { error: "Could not find that EasyAim player" },
-        { status: 404 }
-      );
+      apiFailed = true;
+    }
+
+    if (!player && apiFailed) {
+      player = {
+        id: typeof playerId === "string" ? (isNaN(Number(playerId)) ? playerId : Number(playerId)) : playerId,
+        username: profile.includes("/") ? profile.split("/").pop() || profile : profile,
+        name: profile.includes("/") ? profile.split("/").pop() || profile : profile,
+        avatarUrl: null,
+      };
     }
 
     const { data: existing } = await supabaseAdmin
@@ -96,7 +103,7 @@ export async function POST(request: Request) {
       .maybeSingle();
 
     const isNewPlayer =
-      (existing as { easyaim_player_id: number } | null)?.easyaim_player_id !==
+      (existing as { easyaim_player_id: number | string } | null)?.easyaim_player_id !==
       player.id;
 
     const { error } = await supabaseAdmin.from("easyaim_links").upsert(

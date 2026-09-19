@@ -101,7 +101,7 @@ create policy "Scores are viewable by everyone"
 create table if not exists public.benchmark_scenarios (
   id uuid default gen_random_uuid() primary key,
   benchmark_id uuid references public.benchmarks(id) on delete cascade not null,
-  easyaim_scenario_id bigint not null,
+  easyaim_scenario_id text not null,
   title text not null,
   position integer not null default 0,
   cutoffs jsonb not null default '{}'::jsonb,
@@ -115,7 +115,7 @@ create index if not exists benchmark_scenarios_scenario_idx on public.benchmark_
 -- Links one AIMBENCH account to one EasyAim player, plus sync bookkeeping.
 create table if not exists public.easyaim_links (
   account_id uuid references public.accounts(id) on delete cascade primary key,
-  easyaim_player_id bigint not null unique,
+  easyaim_player_id text not null unique,
   easyaim_username text not null,
   display_name text,
   avatar_url text,
@@ -130,7 +130,7 @@ create table if not exists public.easyaim_links (
 -- are attached to at least one benchmark are stored here.
 create table if not exists public.easyaim_pbs (
   account_id uuid references public.accounts(id) on delete cascade not null,
-  scenario_id bigint not null,
+  scenario_id text not null,
   score integer not null,
   run_id bigint not null,
   achieved_at timestamp with time zone not null,
