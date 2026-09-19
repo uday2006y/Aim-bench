@@ -48,21 +48,48 @@ async function easyaimGet<T>(path: string): Promise<T> {
     throw new Error("EASYAIM_API_KEY is not set");
   }
 
-  const response = await fetch(`${API_URL}${path}`, {
-    headers: { Authorization: `Bearer ${API_KEY}` },
+  const url = `${API_URL}${path}`;
+
+  const response = await fetch(url, {
+    headers: {
+      Authorization: `Bearer ${API_KEY}`,
+      Accept: "application/json",
+    },
     cache: "no-store",
     signal: AbortSignal.timeout(15000),
   });
 
+  const body = await response.text();
+
   if (!response.ok) {
-    throw new Error(`EasyAim API request failed (${response.status}): ${path}`);
+    console.error("EASY AIM API ERROR:", {
+      url,
+      status: response.status,
+      body,
+    });
+
+    throw new Error(
+      `EasyAim API request failed (${response.status}): ${path}`
+    );
   }
 
-  return (await response.json()) as T;
+  try {
+    return JSON.parse(body) as T;
+  } catch {
+    console.error("EASY AIM INVALID JSON:", {
+      url,
+      status: response.status,
+      body,
+    });
+
+    throw new Error("EasyAim API returned invalid JSON");
+  }
 }
 
 export function getPlayer(playerId: number) {
-  return easyaimGet<EasyAimPlayer>(`/api/v1/players/${playerId}`);
+  return easyaimGet<EasyAimPlayer>(
+    `/api/v1/players/${playerId}`
+  );
 }
 
 export function searchScenarios(query: string, limit = 20) {
@@ -71,18 +98,27 @@ export function searchScenarios(query: string, limit = 20) {
     limit: String(limit),
   });
 
-  return easyaimGet<{ data: EasyAimScenario[]; next: string | null }>(
-    `/api/v1/scenarios?${params.toString()}`
-  );
+  return easyaimGet<{
+    data: EasyAimScenario[];
+    next: string | null;
+  }>(`/api/v1/scenarios?${params.toString()}`);
 }
 
-export function getRunPage(playerId: number, cursor?: string, limit = 25) {
-  const params = new URLSearchParams({ limit: String(limit) });
+export function getRunPage(
+  playerId: number,
+  cursor?: string,
+  limit = 25
+) {
+  const params = new URLSearchParams({
+    limit: String(limit),
+  });
+
   if (cursor) {
     params.set("cursor", cursor);
   }
 
-  return easyaimGet<{ data: EasyAimRun[]; next: string | null }>(
-    `/api/v1/players/${playerId}/runs?${params.toString()}`
-  );
+  return easyaimGet<{
+    data: EasyAimRun[];
+    next: string | null;
+  }>(`/api/v1/players/${playerId}/runs?${params.toString()}`);
 }
