@@ -94,7 +94,6 @@ export async function getPlayer(playerId: number | string) {
   }
 }
 
-
 export interface EasyAimDiscordIdentity {
   id: number;
   active: boolean;
@@ -107,13 +106,12 @@ export interface EasyAimDiscordIdentity {
  */
 export async function lookupPlayerByDiscordId(discordId: string) {
   try {
-    return await easyaimGet<EasyAimDiscordIdentity[]>(
-      `/api/v1/lookup/discord/${discordId}`
-    );
+    const result = await easyaimGet
+      EasyAimDiscordIdentity[] | { data: EasyAimDiscordIdentity[] }
+    >(`/api/v1/lookup/discord/${discordId}`);
+
+    return Array.isArray(result) ? result : result.data || [];
   } catch {
-    // A 404 / no-match here just means this Discord account has
-    // never linked an EasyAim identity — treat it as "nothing found"
-    // rather than a hard failure that blocks Discord login.
     return [];
   }
 }
