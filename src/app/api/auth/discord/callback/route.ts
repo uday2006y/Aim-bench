@@ -25,13 +25,8 @@ async function autoLinkEasyAim(accountId: string, discordId: string) {
 
     if (existingLink) return;
 
-    const identities = await lookupPlayerByDiscordId(discordId);
-    if (identities.length === 0) return;
-
-    // Prefer the identity EasyAim marks as "active"; fall back to the first.
-    const chosen = identities.find((identity) => identity.active) || identities[0];
-
-    const player = await getPlayer(chosen.id);
+        const player = await lookupPlayerByDiscordId(discordId);
+    if (!player) return;
 
     const { error } = await supabaseAdmin.from("easyaim_links").upsert(
       {

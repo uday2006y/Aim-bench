@@ -94,25 +94,32 @@ export async function getPlayer(playerId: number | string) {
   }
 }
 
-export interface EasyAimDiscordIdentity {
-  id: number;
-  active: boolean;
+export interface EasyAimDiscordLookupResponse {
+  players: EasyAimPlayer[];
+  active: number;
 }
 
 /**
  * Looks up which EasyAim player(s) a Discord account is linked to.
- * Returns an empty array if the Discord account has no linked
- * EasyAim identities (not an error — just nothing to auto-link).
+ * Returns null if the Discord account has no linked EasyAim
+ * identities (not an error — just nothing to auto-link).
  */
-export async function lookupPlayerByDiscordId(discordId: string) {
+export async function lookupPlayerByDiscordId(
+  discordId: string
+): Promise<EasyAimPlayer | null> {
   try {
-    const result = await easyaimGet
-      <EasyAimDiscordIdentity[] | { data: EasyAimDiscordIdentity[] }
-    >(`/api/v1/lookup/discord/${discordId}`);
+    const result = await easyaimGet<EasyAimDiscordLookupResponse>(
+      `/api/v1/lookup/discord/${discordId}`
+    );
 
-    return Array.isArray(result) ? result : result.data || [];
+    if (!result.players?.length) return null;
+
+    return (
+      result.players.find((player) => player.id === result.active) ||
+      result.players[0]
+    );
   } catch {
-    return [];
+    return null;
   }
 }
 
