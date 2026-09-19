@@ -86,10 +86,12 @@ async function easyaimGet<T>(path: string): Promise<T> {
   }
 }
 
-export function getPlayer(playerId: number | string) {
-  return easyaimGet<EasyAimPlayer>(
-    `/api/v1/players/${playerId}`
-  );
+export async function getPlayer(playerId: number | string) {
+  try {
+    return await easyaimGet<EasyAimPlayer>(`/api/v1/players/${playerId}`);
+  } catch {
+    return await easyaimGet<EasyAimPlayer>(`/api/v1/players/by-id/${playerId}`);
+  }
 }
 
 export function searchScenarios(query: string, limit = 20) {
@@ -105,7 +107,7 @@ export function searchScenarios(query: string, limit = 20) {
 }
 
 export function getRunPage(
-  playerId: number,
+  playerId: number | string,
   cursor?: string,
   limit = 25
 ) {
