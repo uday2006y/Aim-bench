@@ -10,20 +10,21 @@ export async function GET(request: Request) {
       .from("benchmark_scores")
       .select(
         `
-      id,
-      user_id,
-      score,
-      rank,
-      rank_index,
-      completed_at,
-      benchmarks ( title, platform ),
-      profiles ( display_name )
-    `,
+        id,
+        user_id,
+        score,
+        rank,
+        rank_index,
+        completed_at,
+        benchmarks ( title, platform ),
+        accounts (
+          profiles ( display_name )
+        )
+        `,
         { count: "exact" }
       );
 
     if (benchmarkId) {
-      // Scenario benchmarks rank by achieved rank first, total score second.
       query = query
         .eq("benchmark_id", benchmarkId)
         .order("rank_index", { ascending: false, nullsFirst: false })
@@ -32,18 +33,12 @@ export async function GET(request: Request) {
       query = query.order("score", { ascending: false });
     }
 
-    // Pull more than 50 rows before deduping, since one player can
-    // have many submissions and we only want their best one to count
-    // toward the top 50 spots.
     const { data, error, count } = await query.limit(500);
 
     if (error) throw error;
 
-    // Each player can have many score rows (score history); a
-    // leaderboard should only show each player's best. Since rows are
-    // already sorted by score descending, the first time we see a
-    // user_id is their best score.
     const bestPerUser = new Map<string, (typeof data)[number]>();
+
     for (const entry of data || []) {
       if (!bestPerUser.has(entry.user_id)) {
         bestPerUser.set(entry.user_id, entry);
@@ -55,22 +50,39 @@ export async function GET(request: Request) {
       .map((entry) => ({
         id: entry.id,
         username:
-          (entry.profiles as unknown as { display_name: string } | null)
-            ?.display_name || "Anonymous",
+          (
+            entry.accounts as unknown as {
+              profiles: { display_name: string } | null;
+            } | null
+          )?.profiles?.display_name || "Anonymous",
+
         score: entry.score,
         rank: entry.rank || "—",
+
         benchmark_title:
-          (entry.benchmarks as unknown as { title: string } | null)?.title ||
-          "Unknown Benchmark",
+          (
+            entry.benchmarks as unknown as {
+              title: string;
+            } | null
+          )?.title || "Unknown Benchmark",
+
         platform:
-          (entry.benchmarks as unknown as { platform: string } | null)
-            ?.platform || "—",
+          (
+            entry.benchmarks as unknown as {
+              platform: string;
+            } | null
+          )?.platform || "—",
+
         completed_at: entry.completed_at,
       }));
 
-    return NextResponse.json({ leaderboard, total: count });
+    return NextResponse.json({
+      leaderboard,
+      total: count,
+    });
   } catch (error) {
     console.error("LEADERBOARD ERROR:", error);
+
     return NextResponse.json(
       { error: "Failed to fetch leaderboard" },
       { status: 500 }
