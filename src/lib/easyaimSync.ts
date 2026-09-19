@@ -181,7 +181,7 @@ export async function syncEasyAimAccount(accountId: string): Promise<SyncResult>
     storedPbs.set(pb.scenario_id, pb.score);
   }
 
-  const changed: { scenario_id: number; score: number; run_id: number; achieved_at: string }[] = [];
+  const changed: { account_id: string; scenario_id: number; score: number; run_id: number; achieved_at: string }[] = [];
   const newPbs: NewPb[] = [];
 
   for (const [scenarioId, run] of bestRunByScenario) {
@@ -189,6 +189,7 @@ export async function syncEasyAimAccount(accountId: string): Promise<SyncResult>
     if (previous !== null && run.score <= previous) continue;
 
     changed.push({
+      account_id: accountId,
       scenario_id: scenarioId,
       score: run.score,
       run_id: run.id,
