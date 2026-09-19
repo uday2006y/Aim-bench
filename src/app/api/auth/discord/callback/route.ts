@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { createSession } from "@/lib/session";
+import { getPlayer, lookupPlayerByDiscordId } from "@/lib/easyaim";
+import { syncEasyAimAccount } from "@/lib/easyaimSync";
 
 interface DiscordTokenResponse {
   access_token: string;
@@ -10,6 +12,57 @@ interface DiscordUser {
   id: string;
   username: string;
   global_name: string | null;
+}
+
+async function autoLinkEasyAim(accountId: string, discordId: string) {
+  try {
+    // Don't overwrite an existing manual link.
+    const { data: existingLink } = await supabaseAdmin
+      .from("easyaim_links")
+      .select("account_id")
+      .eq("account_id", accountId)
+      .maybeSingle();
+
+    if (existingLink) return;
+
+    const identities = await lookupPlayerByDiscordId(discordId);
+    if (identities.length === 0) return;
+
+    // Prefer the identity EasyAim marks as "active"; fall back to the first.
+    const chosen = identities.find((identity) => identity.active) || identities[0];
+
+    const player = await getPlayer(chosen.id);
+
+    const { error } = await supabaseAdmin.from("easyaim_links").upsert(
+      {
+        account_id: accountId,
+        easyaim_player_id: player.id,
+        easyaim_username: player.username,
+        display_name: player.name,
+        avatar_url: player.avatarUrl,
+        last_run_id: null,
+        backfill_cursor: null,
+        backfill_done: false,
+        last_synced_at: null,
+      },
+      { onConflict: "account_id" }
+    );
+
+    if (error) {
+      console.error("EASYAIM AUTO-LINK UPSERT ERROR:", error);
+      return;
+    }
+
+    // Kick off an initial sync so their PBs populate right away.
+    try {
+      await syncEasyAimAccount(accountId);
+    } catch (syncError) {
+      console.error("EASYAIM AUTO-LINK INITIAL SYNC ERROR:", syncError);
+    }
+  } catch (error) {
+    // Auto-link is a bonus, not a requirement — never let it break login.
+    console.error("EASYAIM AUTO-LINK ERROR:", error);
+  }
 }
 
 export async function GET(request: Request) {
@@ -106,6 +159,10 @@ export async function GET(request: Request) {
         display_name: displayName,
       });
     }
+
+    // Best-effort: link an EasyAim identity automatically if this
+    // Discord account has one, so the user never has to paste an ID.
+    await autoLinkEasyAim(accountId, discordUser.id);
 
     const token = await createSession(accountId);
 

@@ -94,6 +94,30 @@ export async function getPlayer(playerId: number | string) {
   }
 }
 
+
+export interface EasyAimDiscordIdentity {
+  id: number;
+  active: boolean;
+}
+
+/**
+ * Looks up which EasyAim player(s) a Discord account is linked to.
+ * Returns an empty array if the Discord account has no linked
+ * EasyAim identities (not an error — just nothing to auto-link).
+ */
+export async function lookupPlayerByDiscordId(discordId: string) {
+  try {
+    return await easyaimGet<EasyAimDiscordIdentity[]>(
+      `/api/v1/lookup/discord/${discordId}`
+    );
+  } catch {
+    // A 404 / no-match here just means this Discord account has
+    // never linked an EasyAim identity — treat it as "nothing found"
+    // rather than a hard failure that blocks Discord login.
+    return [];
+  }
+}
+
 export function searchScenarios(query: string, limit = 20) {
   const params = new URLSearchParams({
     q: query,
