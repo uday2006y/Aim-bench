@@ -60,27 +60,32 @@ export default function BenchmarksPage() {
   return (
     <main className="min-h-screen bg-[#08090b] text-white">
       <div className="mx-auto max-w-7xl px-6 py-12">
-        {/* HEADER */}
+                {/* HEADER */}
         <header className="border-b border-white/10 mb-8">
           <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-6">
-            <div className="text-xl font-bold tracking-tight">
+            <Link href="/" className="text-xl font-bold tracking-tight">
               AIM<span className="text-zinc-500">BENCH</span>
-            </div>
+            </Link>
 
             <nav className="hidden gap-8 text-sm text-zinc-400 md:flex">
-              <a href="#" className="text-white">Benchmarks</a>
-              <a href="#" className="text-white">Leaderboard</a>
-              <a href="#" className="text-white">Players</a>
-              <a href="#" className="text-white">Compare</a>
+              <Link href="/benchmarks" className="text-white">Benchmarks</Link>
+              <Link href="/leaderboard" className="hover:text-white">Leaderboard</Link>
+              <Link href="/rank-history" className="hover:text-white">Rank History</Link>
             </nav>
 
             <div className="flex gap-3">
-              <button className="rounded-lg px-4 py-2 text-sm text-zinc-400 hover:text-white">
+              <Link
+                href="/create-benchmark"
+                className="rounded-lg px-4 py-2 text-sm text-zinc-400 hover:text-white"
+              >
                 Create Benchmark
-              </button>
-              <button className="rounded-lg bg-white px-4 py-2 text-sm font-medium text-black">
+              </Link>
+              <Link
+                href="/profile"
+                className="rounded-lg bg-white px-4 py-2 text-sm font-medium text-black"
+              >
                 Profile
-              </button>
+              </Link>
             </div>
           </div>
         </header>
