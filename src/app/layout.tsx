@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "AIMBENCH — Aim Benchmark Tracker",
   description:
-    "Create benchmarks, compete on scenarios, track your scores and compare your performance with other players.",
+    "Profiles, compete on scenarios, track your scores and compare your performance with other players.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

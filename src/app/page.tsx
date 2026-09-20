@@ -41,10 +41,10 @@ export default async function Home() {
             {accountId ? (
               <>
                 <Link
-                  href="/create-benchmark"
-                  className="rounded-lg px-4 py-2 text-sm text-zinc-400 hover:text-white"
+                  href="/profile"
+                  className="rounded-lg bg-white px-4 py-2 text-sm font-medium text-black hover:bg-zinc-200"
                 >
-                  Create Benchmark
+                  Profile
                 </Link>
                 <form action="/api/auth/logout" method="post">
                   <button
