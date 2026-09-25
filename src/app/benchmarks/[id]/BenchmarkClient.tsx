@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 
 interface Benchmark {
@@ -42,6 +42,19 @@ export default function BenchmarkClient({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [accent, setAccent] = useState("#b9f2fe");
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("aimbench-theme");
+      if (stored) {
+        const t = JSON.parse(stored);
+        if (t.accent) setAccent(t.accent);
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
 
   async function handleSubmitScore() {
     setError("");
@@ -113,7 +126,8 @@ export default function BenchmarkClient({
               {isAuthorized ? (
                 <Link
                   href={`/benchmarks/${id}/edit`}
-                  className="text-xs text-cyan-400 hover:text-cyan-300 underline"
+                  className="text-xs underline"
+                  style={{ color: accent }}
                 >
                   Edit benchmark
                 </Link>
@@ -201,7 +215,14 @@ export default function BenchmarkClient({
                         >
                           <td className="px-6 py-5 whitespace-nowrap align-top">
                             <div className="flex items-start gap-3">
-                              <span className="inline-block rounded px-1.5 py-0.5 text-[10px] font-extrabold tracking-wider bg-cyan-950 text-cyan-400 border border-cyan-900 shrink-0 mt-0.5">
+                              <span
+                                className="inline-block rounded px-1.5 py-0.5 text-[10px] font-extrabold tracking-wider shrink-0 mt-0.5"
+                                style={{
+                                  backgroundColor: accent,
+                                  color: "#0a0a0a",
+                                  border: `1px solid ${accent}`,
+                                }}
+                              >
                                 SCENARIO
                               </span>
                               <div>
@@ -229,11 +250,8 @@ export default function BenchmarkClient({
                               {cutoffs[r] !== undefined ? (
                                 <div className="flex flex-col items-center gap-2">
                                   <span
-                                    className={`text-[10px] font-extrabold tracking-wider uppercase ${
-                                      score >= cutoffs[r]
-                                        ? "text-cyan-400"
-                                        : "text-zinc-600"
-                                    }`}
+                                    className={`text-[10px] font-extrabold tracking-wider uppercase`}
+                                    style={{ color: score >= cutoffs[r] ? accent : "#6b7280" }}
                                   >
                                     {cutoffs[r]}
                                   </span>
