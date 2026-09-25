@@ -239,23 +239,12 @@ export default function BenchmarkClient({
                                   </span>
                                   <div className="w-24 h-2.5 rounded-full bg-zinc-800 overflow-hidden shadow-inner relative">
                                     <div
-                                      className={`h-full rounded-full ${
-                                        score >= cutoffs[r]
-                                          ? "bg-gradient-to-r from-cyan-600 to-cyan-300 shadow-[0_0_8px_rgba(34,211,238,0.4)]"
-                                          : "bg-zinc-700"
-                                      }`}
+                                      className={`h-full rounded-full ${score >= cutoffs[r] ? `shadow-[0_0_8px_rgba(34,211,238,0.4)]` : ""}`}
                                       style={{
-                                        width: `${Math.min(
-                                          100,
-                                          Math.round(
-                                            (score /
-                                              Math.max(
-                                                cutoffs[r] || 1,
-                                                1
-                                              )) *
-                                              100
-                                          )
-                                        )}%`,
+                                        width: `${Math.min(100, Math.round((score / Math.max(cutoffs[r] || 1, 1)) * 100))}%`,
+                                        backgroundColor: score >= cutoffs[r]
+                                          ? benchmark.rank_colors?.[rankOrder.indexOf(r)] || "#b9f2fe"
+                                          : "#27272a",
                                       }}
                                     />
                                   </div>
