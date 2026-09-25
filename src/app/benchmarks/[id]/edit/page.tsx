@@ -293,7 +293,7 @@ export default function EditBenchmarkPage({ params }: { params: Promise<{ id: st
             </div>
             <div className="space-y-2">
               {ranks.map((rankDef, idx) => (
-                <div key={`${rankDef.name}-${idx}`} className="flex items-center gap-2 rounded-xl border border-zinc-800 bg-zinc-900/60 p-2">
+                <div key={`rank-${idx}`} className="flex items-center gap-2 rounded-xl border border-zinc-800 bg-zinc-900/60 p-2">
                   <input
                     type="text"
                     value={rankDef.name}
