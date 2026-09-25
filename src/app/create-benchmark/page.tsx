@@ -4,16 +4,21 @@ import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
-const RANK_NAMES = [
-  "Bronze",
-  "Silver",
-  "Gold",
-  "Platinum",
-  "Diamond",
-  "Champion",
-  "Radiant",
-  "Immortal",
+const DEFAULT_RANKS = [
+  { name: "Bronze", color: "#b87333" },
+  { name: "Silver", color: "#c0c0c0" },
+  { name: "Gold", color: "#ffd700" },
+  { name: "Platinum", color: "#e5e4e2" },
+  { name: "Diamond", color: "#b9f2fe" },
+  { name: "Champion", color: "#ffd700" },
+  { name: "Radiant", color: "#ff0000" },
+  { name: "Immortal", color: "#9f9f9f" },
 ];
+
+interface RankDef {
+  name: string;
+  color: string;
+}
 
 interface ScenarioResult {
   id: number;
@@ -38,6 +43,7 @@ export default function CreateBenchmarkPage() {
   const [difficulty, setDifficulty] = useState("medium");
   const [scenarioCount, setScenarioCount] = useState<number>(1);
   const [scenarios, setScenarios] = useState<AddedScenario[]>([]);
+  const [ranks, setRanks] = useState<RankDef[]>(DEFAULT_RANKS);
   const [searchQuery, setSearchQuery] = useState("");
   const [results, setResults] = useState<ScenarioResult[]>([]);
   const [searching, setSearching] = useState(false);
@@ -97,6 +103,39 @@ export default function CreateBenchmarkPage() {
     );
   }
 
+  function addRank() {
+    setRanks((prev) => [...prev, { name: `Rank ${prev.length + 1}`, color: "#ffffff" }]);
+  }
+
+  function removeRank(index: number) {
+    const rankName = ranks[index].name;
+    setRanks((prev) => prev.filter((_, i) => i !== index));
+    // Remove this rank from all scenario cutoffs
+    setScenarios((prev) => prev.map((s) => {
+      const newCutoffs = { ...s.cutoffs };
+      delete newCutoffs[rankName];
+      return { ...s, cutoffs: newCutoffs };
+    }));
+  }
+
+  function updateRankName(index: number, value: string) {
+    const oldName = ranks[index].name;
+    const newName = value.trim() || `Rank ${index + 1}`;
+    setRanks((prev) => prev.map((r, i) => i === index ? { ...r, name: newName } : r));
+    // Update cutoffs key from old name to new name
+    setScenarios((prev) => prev.map((s) => {
+      const newCutoffs: Record<string, string> = {};
+      for (const [k, v] of Object.entries(s.cutoffs)) {
+        newCutoffs[k === oldName ? newName : k] = v;
+      }
+      return { ...s, cutoffs: newCutoffs };
+    }));
+  }
+
+  function updateRankColor(index: number, color: string) {
+    setRanks((prev) => prev.map((r, i) => i === index ? { ...r, color } : r));
+  }
+
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError("");
@@ -123,6 +162,9 @@ export default function CreateBenchmarkPage() {
           description,
           platform: scenarios.length > 0 ? "easyaim" : platform,
           difficulty,
+          rank_names: ranks.map((r) => r.name),
+          rank_colors: ranks.map((r) => r.color),
+          rank_thresholds: {},
           scenarioCount:
             scenarios.length > 0 ? scenarios.length : scenarioCount,
           scenarios: payloadScenarios,
@@ -254,26 +296,73 @@ export default function CreateBenchmarkPage() {
                   </div>
 
                   <div className="mt-3 grid grid-cols-2 gap-2 md:grid-cols-4">
-                    {RANK_NAMES.map((rank) => (
-                      <label key={rank} className="block">
-                        <span className="mb-1 block text-xs text-zinc-500">
-                          {rank} score
-                        </span>
+                    {ranks.map((rank, idx) => (
+                      <div key={`${rank.name}-${idx}`} className="block">
+                        <div className="flex items-center gap-2 mb-1">
+                          <input
+                            type="text"
+                            value={rank.name}
+                            onChange={(e) => updateRankName(idx, e.target.value)}
+                            className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-2 py-1 text-xs text-white outline-none focus:border-zinc-500"
+                          />
+                          <input
+                            type="color"
+                            value={rank.color}
+                            onChange={(e) => updateRankColor(idx, e.target.value)}
+                            className="w-6 h-6 rounded border border-white/10 shrink-0 cursor-pointer p-0.5"
+                            title={`${rank.name} color`}
+                          />
+                        </div>
+                        <label className="block text-xs text-zinc-500 mb-0.5">Score</label>
                         <input
                           type="number"
                           min="0"
-                          value={scenario.cutoffs[rank] ?? ""}
-                          onChange={(e) =>
-                            updateCutoff(scenario.id, rank, e.target.value)
-                          }
+                          value={scenario.cutoffs[rank.name] ?? ""}
+                          onChange={(e) => updateCutoff(scenario.id, rank.name, e.target.value)}
                           placeholder="—"
-                          className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-white outline-none placeholder:text-zinc-600 focus:border-zinc-500"
+                          className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-2 py-1 text-xs text-white outline-none placeholder:text-zinc-600 focus:border-zinc-500"
                         />
-                      </label>
+                      </div>
                     ))}
                   </div>
                 </div>
               ))}
+            </div>
+
+            {/* RANK CONFIG */}
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <label className="text-sm text-zinc-400">Rank Names & Colors</label>
+                <button type="button" onClick={addRank} className="text-xs bg-white text-black px-3 py-1 rounded font-medium hover:bg-zinc-200">+ Add Rank</button>
+              </div>
+              <div className="space-y-3">
+                {ranks.map((rank, idx) => (
+                  <div key={`${rank.name}-${idx}`} className="flex items-center gap-3 rounded-xl border border-zinc-800 bg-zinc-900/60 p-3">
+                    <input
+                      type="text"
+                      value={rank.name}
+                      onChange={(e) => updateRankName(idx, e.target.value)}
+                      className="flex-1 rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-white outline-none focus:border-zinc-500"
+                      placeholder="Rank name"
+                    />
+                    <input
+                      type="color"
+                      value={rank.color}
+                      onChange={(e) => updateRankColor(idx, e.target.value)}
+                      className="w-10 h-10 rounded-lg border border-white/10 shrink-0 cursor-pointer p-1"
+                      title={`${rank.name} color`}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeRank(idx)}
+                      className="text-xs text-red-400 hover:text-red-300 px-2"
+                      disabled={ranks.length <= 1}
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))}
+              </div>
             </div>
 
             <div>

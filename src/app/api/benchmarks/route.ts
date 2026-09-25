@@ -79,7 +79,7 @@ function sanitizeScenarios(input: unknown): ScenarioInput[] {
 
 export async function POST(request: Request) {
   try {
-    const { title, description, platform, difficulty, scenarioCount, scenarios } =
+    const { title, description, platform, difficulty, scenarioCount, scenarios, rank_names, rank_colors, rank_thresholds } =
       await request.json();
 
     if (!title) {
@@ -107,6 +107,9 @@ export async function POST(request: Request) {
         description,
         platform: scenarioList.length > 0 ? "easyaim" : platform || "easyaim",
         difficulty: difficulty || "medium",
+        rank_names: rank_names || '{"Bronze","Silver","Gold","Platinum","Diamond","Champion","Radiant","Immortal"}',
+        rank_colors: rank_colors || '{"#b87333","#c0c0c0","#ffd700","#e5e4e2","#b9f2fe","#ffd700","#ff0000","#9f9f9f"}',
+        rank_thresholds: rank_thresholds || '{"Bronze":0,"Silver":1000,"Gold":2500,"Platinum":5000,"Diamond":10000,"Champion":15000,"Radiant":20000,"Immortal":30000}',
         user_id: accountId,
         scenario_count:
           scenarioList.length > 0 ? scenarioList.length : scenarioCount || 1,
