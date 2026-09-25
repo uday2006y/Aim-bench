@@ -133,16 +133,8 @@ export default function EditBenchmarkPage({ params }: { params: Promise<{ id: st
   }
 
   function updateRankName(index: number, value: string) {
-    const oldName = ranks[index].name;
     const newName = value.trim() || `Rank ${index + 1}`;
     setRanks((prev) => prev.map((r, i) => i === index ? { ...r, name: newName } : r));
-    setScenarios((prev) => prev.map((s) => {
-      const newCutoffs: Record<string, string | number | undefined> = {};
-      for (const [k, v] of Object.entries(s.cutoffs)) {
-        newCutoffs[k === oldName ? newName : k] = v;
-      }
-      return { ...s, cutoffs: newCutoffs };
-    }));
   }
 
   function addRank() {
