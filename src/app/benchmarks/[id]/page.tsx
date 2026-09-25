@@ -245,8 +245,9 @@ export default function BenchmarkDetailPage({
                     <tbody>
                       {scenarios.map((scenario) => {
                         const score = scenario.best_score ?? 0;
-                        const rank = rankForScenario(score, scenario.cutoffs, rankOrder);
-                        const pct = progressPercent(score, scenario.cutoffs, rankOrder);
+                        const cutoffs = scenario.cutoffs || {};
+                        const rank = rankForScenario(score, cutoffs, rankOrder);
+                        const pct = progressPercent(score, cutoffs, rankOrder);
                         return (
                           <tr key={scenario.id} className="border-b border-white/[0.04] hover:bg-white/[0.03] transition">
                             <td className="px-6 py-5 whitespace-nowrap align-top">
@@ -265,15 +266,15 @@ export default function BenchmarkDetailPage({
                             </td>
                             {rankOrder.map((r) => (
                               <td key={r} className="text-center px-3 py-5 align-top">
-                                {scenario.cutoffs[r] !== undefined ? (
+                                {cutoffs[r] !== undefined ? (
                                   <div className="flex flex-col items-center gap-2">
-                                    <span className={`text-[10px] font-extrabold tracking-wider uppercase ${score >= scenario.cutoffs[r] ? "text-cyan-400" : "text-zinc-600"}`}>
-                                      {scenario.cutoffs[r]}
+                                    <span className={`text-[10px] font-extrabold tracking-wider uppercase ${score >= cutoffs[r] ? "text-cyan-400" : "text-zinc-600"}`}>
+                                      {cutoffs[r]}
                                     </span>
                                     <div className="w-24 h-2.5 rounded-full bg-zinc-800 overflow-hidden shadow-inner relative">
                                       <div
-                                        className={`h-full rounded-full ${score >= scenario.cutoffs[r] ? "bg-gradient-to-r from-cyan-600 to-cyan-300 shadow-[0_0_8px_rgba(34,211,238,0.4)]" : "bg-zinc-700"}`}
-                                        style={{ width: `${Math.min(100, Math.round((score / Math.max(scenario.cutoffs[r] || 1, 1)) * 100))}%` }}
+                                        className={`h-full rounded-full ${score >= cutoffs[r] ? "bg-gradient-to-r from-cyan-600 to-cyan-300 shadow-[0_0_8px_rgba(34,211,238,0.4)]" : "bg-zinc-700"}`}
+                                        style={{ width: `${Math.min(100, Math.round((score / Math.max(cutoffs[r] || 1, 1)) * 100))}%` }}
                                       />
                                     </div>
                                   </div>
