@@ -3,6 +3,28 @@
 import { useState } from "react";
 import Link from "next/link";
 
+interface Benchmark {
+  id: string;
+  title: string;
+  description: string | null;
+  platform: string;
+  difficulty: string;
+  rank_names: string[];
+  rank_colors: string[];
+  rank_thresholds: Record<string, number>;
+  scenario_count: number;
+  user_id?: string;
+}
+
+interface BenchmarkScenario {
+  id: string;
+  easyaim_scenario_id: number;
+  title: string;
+  position: number;
+  cutoffs: Record<string, number>;
+  best_score?: number;
+}
+
 export default function BenchmarkClient({
   id,
   benchmark,
@@ -11,9 +33,9 @@ export default function BenchmarkClient({
   isAuthorized,
 }: {
   id: string;
-  benchmark: any;
-  scenarios: any[];
-  myScores: any[];
+  benchmark: Benchmark;
+  scenarios: BenchmarkScenario[];
+  myScores: { id: string; score: number; rank: string | null; completed_at: string }[];
   isAuthorized: boolean;
 }) {
   const [scoreInput, setScoreInput] = useState("");
@@ -125,7 +147,7 @@ export default function BenchmarkClient({
                     <tr>
                       <th className="text-left px-6 py-4 font-bold">Scenario</th>
                       <th className="text-left px-4 py-4 font-bold">Score</th>
-                      {rankOrder.map((r) => (
+                      {rankOrder.map((r: string) => (
                         <th
                           key={r}
                           className="text-center px-3 py-4 font-bold whitespace-nowrap"
@@ -137,7 +159,7 @@ export default function BenchmarkClient({
                     </tr>
                   </thead>
                   <tbody>
-                    {scenarios.map((scenario: any) => {
+                    {scenarios.map((scenario: BenchmarkScenario) => {
                       const score = scenario.best_score ?? 0;
                       const cutoffs = scenario.cutoffs || {};
                       const rank =
@@ -156,9 +178,9 @@ export default function BenchmarkClient({
                             })()
                           : null;
                       const sorted = rankOrder
-                        .map((r) => cutoffs[r])
+                        .map((r: string) => cutoffs[r])
                         .filter((v): v is number => v !== undefined)
-                        .sort((a, b) => a - b);
+                        .sort((a: number, b: number) => a - b);
                       let lower = 0;
                       let upper = sorted[sorted.length - 1] || 0;
                       for (let i = 0; i < sorted.length; i++) {
@@ -199,7 +221,7 @@ export default function BenchmarkClient({
                               </span>
                             </div>
                           </td>
-                          {rankOrder.map((r) => (
+                          {rankOrder.map((r: string) => (
                             <td
                               key={r}
                               className="text-center px-3 py-5 align-top"
@@ -335,7 +357,7 @@ export default function BenchmarkClient({
                 Your attempts
               </h2>
               <div className="divide-y divide-white/5">
-                {myScores.map((s: any) => (
+                {myScores.map((s: { id: string; score: number; rank: string | null; completed_at: string }) => (
                   <div
                     key={s.id}
                     className="flex items-center justify-between py-3 first:pt-0 last:pb-0"
