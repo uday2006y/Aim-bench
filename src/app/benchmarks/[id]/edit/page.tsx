@@ -1,6 +1,6 @@
 "use client";
 
-import { getSessionAccountId } from "@/lib/session";
+
 
 import { useState, useEffect, use } from "react";
 import Link from "next/link";
@@ -54,7 +54,9 @@ export default function EditBenchmarkPage({ params }: { params: Promise<{ id: st
       const data = await res.json();
       const benchmarkData = data.benchmark;
 
-      const accId = await getSessionAccountId();
+      const sessionRes = await fetch("/api/session");
+      const sessionData = await sessionRes.json();
+      const accId = sessionData.accountId ?? null;
       if (benchmarkData && accId && benchmarkData.user_id === accId) {
         setIsOwner(true);
         setTitle(benchmarkData.title);

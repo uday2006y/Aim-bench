@@ -3,7 +3,7 @@
 import { useState, useEffect, use, useCallback } from "react";
 import Link from "next/link";
 
-import { getSessionAccountId } from "@/lib/session";
+
 
 interface Benchmark {
   id: string;
@@ -184,12 +184,19 @@ export default function BenchmarkDetailPage({
 
   useEffect(() => {
     (async () => {
-      const accId = await getSessionAccountId();
-      setCurrentAccountId(accId);
-      if (benchmark && accId && benchmark.user_id !== accId) {
+      try {
+        const res = await fetch("/api/session");
+        const data = await res.json();
+        const accId = data.accountId ?? null;
+        setCurrentAccountId(accId);
+        if (benchmark && accId && benchmark.user_id !== accId) {
+          setIsAuthorized(false);
+        } else {
+          setIsAuthorized(true);
+        }
+      } catch {
+        setCurrentAccountId(null);
         setIsAuthorized(false);
-      } else {
-        setIsAuthorized(true);
       }
     })();
   }, [benchmark]);
