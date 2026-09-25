@@ -174,7 +174,7 @@ export default function CreateBenchmarkPage() {
       const data = await response.json();
 
       if (!response.ok) {
-        setError(data.error || "Failed to Profile");
+        setError(data.error || "Failed to create benchmark");
         return;
       }
 
@@ -200,7 +200,7 @@ export default function CreateBenchmarkPage() {
 
         <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-8 shadow-2xl">
           <h1 className="text-3xl font-bold tracking-tight">
-            Profile
+            Create Benchmark
           </h1>
 
           <p className="mt-2 text-sm text-zinc-500">
@@ -427,7 +427,7 @@ export default function CreateBenchmarkPage() {
               disabled={loading}
               className="w-full rounded-lg bg-white px-4 py-3 font-semibold text-black transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {loading ? "Creating..." : "Profile"}
+              {loading ? "Creating..." : "Create Benchmark"}
             </button>
           </form>
 
