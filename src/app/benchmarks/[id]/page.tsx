@@ -3,6 +3,8 @@
 import { useState, useEffect, use, useCallback } from "react";
 import Link from "next/link";
 
+import { getSessionAccountId } from "@/lib/session";
+
 interface Benchmark {
   id: string;
   title: string;
@@ -71,8 +73,6 @@ function progressPercent(score: number, cutoffs: Record<string, number>, rankOrd
   if (upper === lower) return 100;
   return Math.min(100, Math.max(0, ((score - lower) / (upper - lower)) * 100));
 }
-
-import { getSessionAccountId } from "@/lib/session";
 
 export default function BenchmarkDetailPage({
   params,
@@ -180,10 +180,19 @@ export default function BenchmarkDetailPage({
   const rankOrder = benchmark.rank_names?.length ? benchmark.rank_names : FALLBACK_RANKS;
   const hasScenarios = scenarios.length > 0;
   const [currentAccountId, setCurrentAccountId] = useState<string | null>(null);
+  const [isAuthorized, setIsAuthorized] = useState(true);
 
   useEffect(() => {
-    getSessionAccountId().then((id) => setCurrentAccountId(id));
-  }, []);
+    (async () => {
+      const accId = await getSessionAccountId();
+      setCurrentAccountId(accId);
+      if (benchmark && accId && benchmark.user_id !== accId) {
+        setIsAuthorized(false);
+      } else {
+        setIsAuthorized(true);
+      }
+    })();
+  }, [benchmark]);
 
   return (
     <main className="min-h-screen text-white">
@@ -197,7 +206,7 @@ export default function BenchmarkDetailPage({
               <div className="flex items-center gap-3 mb-4">
                 <span className="rounded-full border border-white/10 px-3 py-1 text-xs text-zinc-400">{benchmark.platform}</span>
                 <span className="rounded-full border border-white/10 px-3 py-1 text-xs text-zinc-400">{benchmark.difficulty}</span>
-                {currentAccountId && benchmark.user_id === currentAccountId ? (
+                {isAuthorized ? (
                   <Link href={`/benchmarks/${id}/edit`} className="text-xs text-cyan-400 hover:text-cyan-300 underline">Edit benchmark</Link>
                 ) : null}
               </div>
