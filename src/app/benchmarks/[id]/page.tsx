@@ -6,9 +6,9 @@ import BenchmarkClient from "./BenchmarkClient";
 export default async function BenchmarkDetailPage({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
-  const { id } = params;
+  const { id } = await params;
 
   const { data: benchmark, error: benchErr } = await supabaseAdmin
     .from("benchmarks")
