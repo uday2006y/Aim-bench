@@ -8,10 +8,13 @@
 create table if not exists public.accounts (
   id uuid default gen_random_uuid() primary key,
   username text not null unique,
-  password_hash text not null,
+  password_hash text,
+  discord_id text unique,
   role text not null default 'user',
   created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
+
+create index if not exists accounts_discord_idx on public.accounts (discord_id);
 
 create table if not exists public.profiles (
   id uuid references public.accounts(id) on delete cascade primary key,

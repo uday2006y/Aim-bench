@@ -42,6 +42,7 @@ export default function EditBenchmarkPage({ params }: { params: Promise<{ id: st
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [isOwner, setIsOwner] = useState<boolean | null>(null);
+  const [notFound, setNotFound] = useState(false);
 
   useEffect(() => {
     async function checkAndLoad() {

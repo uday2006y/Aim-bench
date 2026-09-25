@@ -14,6 +14,7 @@ interface Benchmark {
   rank_names: string[];
   rank_thresholds: Record<string, number>;
   scenario_count: number;
+  user_id?: string;
 }
 
 interface BenchmarkScenario {
