@@ -39,10 +39,28 @@ export default async function BenchmarkDetailPage({
     title: s.title,
     position: s.position,
     cutoffs: s.cutoffs || {},
+    best_score: 0,
   }));
 
   const accountId = await getSessionAccountId();
   const isAuthorized = !!(benchmark.user_id && accountId && benchmark.user_id === accountId);
+
+  if (accountId && scenarios.length > 0) {
+    const scenarioIds = scenarios.map((s) => s.easyaim_scenario_id);
+    const { data: pbRows } = await supabaseAdmin
+      .from("easyaim_pbs")
+      .select("scenario_id, score")
+      .eq("account_id", accountId)
+      .in("scenario_id", scenarioIds);
+    const pbMap = new Map<number, number>();
+    for (const row of pbRows || []) {
+      const pb = row as { scenario_id: number; score: number };
+      pbMap.set(pb.scenario_id, pb.score);
+    }
+    for (const scenario of scenarios) {
+      scenario.best_score = pbMap.get(scenario.easyaim_scenario_id) ?? 0;
+    }
+  }
 
   let myScores: any[] = [];
   if (accountId) {
