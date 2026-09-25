@@ -337,7 +337,7 @@ export default function CreateBenchmarkPage() {
               </div>
               <div className="space-y-3">
                 {ranks.map((rank, idx) => (
-                  <div key={`${rank.name}-${idx}`} className="flex items-center gap-3 rounded-xl border border-zinc-800 bg-zinc-900/60 p-3">
+                  <div key={`rank-${idx}`} className="flex items-center gap-3 rounded-xl border border-zinc-800 bg-zinc-900/60 p-3">
                     <input
                       type="text"
                       value={rank.name}
