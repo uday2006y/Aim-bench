@@ -72,6 +72,8 @@ function progressPercent(score: number, cutoffs: Record<string, number>, rankOrd
   return Math.min(100, Math.max(0, ((score - lower) / (upper - lower)) * 100));
 }
 
+import { getSessionAccountId } from "@/lib/session";
+
 export default function BenchmarkDetailPage({
   params,
 }: {
@@ -177,6 +179,11 @@ export default function BenchmarkDetailPage({
 
   const rankOrder = benchmark.rank_names?.length ? benchmark.rank_names : FALLBACK_RANKS;
   const hasScenarios = scenarios.length > 0;
+  const [currentAccountId, setCurrentAccountId] = useState<string | null>(null);
+
+  useEffect(() => {
+    getSessionAccountId().then((id) => setCurrentAccountId(id));
+  }, []);
 
   return (
     <main className="min-h-screen text-white">
@@ -190,7 +197,9 @@ export default function BenchmarkDetailPage({
               <div className="flex items-center gap-3 mb-4">
                 <span className="rounded-full border border-white/10 px-3 py-1 text-xs text-zinc-400">{benchmark.platform}</span>
                 <span className="rounded-full border border-white/10 px-3 py-1 text-xs text-zinc-400">{benchmark.difficulty}</span>
-                <Link href={`/benchmarks/${id}/edit`} className="text-xs text-cyan-400 hover:text-cyan-300 underline">Edit benchmark</Link>
+                {currentAccountId && benchmark.user_id === currentAccountId ? (
+                  <Link href={`/benchmarks/${id}/edit`} className="text-xs text-cyan-400 hover:text-cyan-300 underline">Edit benchmark</Link>
+                ) : null}
               </div>
               <h1 className="text-4xl font-extrabold tracking-tight">{benchmark.title}</h1>
               <p className="mt-3 text-zinc-400 text-base leading-relaxed max-w-2xl">{benchmark.description || "No description"}</p>
