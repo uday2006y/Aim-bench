@@ -14,7 +14,7 @@ export async function PUT(
     const { id } = await params;
     const body = await request.json();
 
-    const { title, description, difficulty, platform } = body;
+    const { title, description, difficulty, platform, rank_names, rank_colors, rank_thresholds, scenarios } = body;
 
     const { data: benchmark } = await supabaseAdmin
       .from("benchmarks")
@@ -33,7 +33,16 @@ export async function PUT(
 
     const { data: updated, error: updateErr } = await supabaseAdmin
       .from("benchmarks")
-      .update({ title, description, difficulty, platform, ...(scenarioCount !== undefined ? { scenario_count: scenarioCount } : {}) })
+      .update({
+        title,
+        description,
+        difficulty,
+        platform,
+        ...(rank_names !== undefined ? { rank_names } : {}),
+        ...(rank_colors !== undefined ? { rank_colors } : {}),
+        ...(rank_thresholds !== undefined ? { rank_thresholds } : {}),
+        ...(scenarioCount !== undefined ? { scenario_count: scenarioCount } : {}),
+      })
       .eq("id", id)
       .select()
       .single();
@@ -135,5 +144,42 @@ export async function GET(
       { error: "Failed to fetch benchmark" },
       { status: 500 }
     );
+  }
+}
+
+export async function DELETE(
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const accountId = await getSessionAccountId();
+    if (!accountId) {
+      return NextResponse.json({ error: "Not logged in" }, { status: 401 });
+    }
+    const { id } = await params;
+
+    const { data: benchmark } = await supabaseAdmin
+      .from("benchmarks")
+      .select("user_id")
+      .eq("id", id)
+      .maybeSingle();
+
+    if (!benchmark) {
+      return NextResponse.json({ error: "Benchmark not found" }, { status: 404 });
+    }
+    if ((benchmark as any).user_id !== accountId) {
+      return NextResponse.json({ error: "Not authorized" }, { status: 403 });
+    }
+
+    const { error } = await supabaseAdmin
+      .from("benchmarks")
+      .delete()
+      .eq("id", id);
+
+    if (error) throw error;
+    return NextResponse.json({ success: true }, { status: 200 });
+  } catch (err) {
+    console.error("DELETE BENCHMARK ERROR:", err);
+    return NextResponse.json({ error: "Failed to delete benchmark" }, { status: 500 });
   }
 }

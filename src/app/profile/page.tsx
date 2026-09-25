@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { getSessionAccountId } from "@/lib/session";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { EasyAimLinkCard, type EasyAimLinkInfo } from "./easyaim-link";
+import BenchmarkDeleteButton from "./benchmark-delete";
 
 interface AccountRow {
   username: string;
@@ -75,6 +76,12 @@ export default async function ProfilePage() {
       achievedAt: pb.achieved_at,
     };
   });
+
+  const { data: userBenchmarks } = await supabaseAdmin
+    .from("benchmarks")
+    .select("id, title, description, platform, difficulty, scenario_count, created_at")
+    .eq("user_id", accountId)
+    .order("created_at", { ascending: false });
 
   return (
     <main className="min-h-screen text-white">
@@ -151,6 +158,35 @@ export default async function ProfilePage() {
                     </p>
                   </div>
                   <span className="ml-4 font-semibold">{pb.score}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* USER BENCHMARKS */}
+        <div className="mt-6 rounded-2xl border border-zinc-800 bg-zinc-950 p-6">
+          <h2 className="text-lg font-semibold mb-4">Your benchmarks</h2>
+          {!userBenchmarks || userBenchmarks.length === 0 ? (
+            <p className="text-sm text-zinc-500">No benchmarks yet.</p>
+          ) : (
+            <div className="space-y-3">
+              {(userBenchmarks || []).map((b: any) => (
+                <div
+                  key={b.id}
+                  className="flex items-center justify-between rounded-xl border border-zinc-800 bg-zinc-900/40 px-4 py-3"
+                >
+                  <div>
+                    <p className="text-sm font-medium truncate max-w-[300px]">{b.title}</p>
+                    <p className="text-xs text-zinc-500">
+                      {b.platform || "—"} · {b.scenario_count || 0} scenario{b.scenario_count === 1 ? "" : "s"}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <Link href={`/benchmarks/${b.id}`} className="text-xs text-zinc-400 hover:text-white underline">View</Link>
+                    <Link href={`/benchmarks/${b.id}/edit`} className="text-xs text-cyan-400 hover:text-cyan-300 underline">Edit</Link>
+                    <BenchmarkDeleteButton benchmarkId={b.id} />
+                  </div>
                 </div>
               ))}
             </div>
