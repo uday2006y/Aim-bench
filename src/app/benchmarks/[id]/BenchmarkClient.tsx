@@ -104,6 +104,7 @@ export default function BenchmarkClient({
           "Immortal",
         ];
   const energy = scenarios.reduce((sum, s) => sum + (s.best_score || 0), 0);
+  const hasScenarios = (scenarios || []).length > 0;
 
   return (
     <main className="min-h-screen text-white">
