@@ -39,6 +39,9 @@ export default function EditBenchmarkPage({ params }: { params: Promise<{ id: st
   const [useCustomRankCalc, setUseCustomRankCalc] = useState(false);
   const [scenarios, setScenarios] = useState<Scenario[]>([]);
   const [categories, setCategories] = useState<CategoryDef[]>(DEFAULT_CATEGORIES);
+  // Records why the load failed so the page can explain itself instead of
+  // rendering an empty form that looks like a fresh benchmark.
+  const [loadError, setLoadError] = useState("");
   // Where the next scenario picked from EasyAim search will be filed.
   const [addTargetCategory, setAddTargetCategory] = useState("");
   const [addTargetSubCategory, setAddTargetSubCategory] = useState("");
@@ -62,10 +65,17 @@ export default function EditBenchmarkPage({ params }: { params: Promise<{ id: st
   const [notFound, setNotFound] = useState(false);
 
   useEffect(() => {
+    if (loadError || notFound) {
+      document.title = "Benchmark not found — AIMBENCH";
+    }
+  }, [loadError, notFound]);
+
+  useEffect(() => {
     async function checkAndLoad() {
       const res = await fetch(`/api/benchmarks/${id}`);
       if (!res.ok) {
         setNotFound(true);
+        setLoadError("Benchmark not found. It may have been deleted.");
         setLoading(false);
         return;
       }
@@ -75,42 +85,77 @@ export default function EditBenchmarkPage({ params }: { params: Promise<{ id: st
       const sessionRes = await fetch("/api/session");
       const sessionData = await sessionRes.json();
       const accId = sessionData.accountId ?? null;
-      if (benchmarkData && accId && benchmarkData.user_id === accId) {
-        setIsOwner(true);
-        setTitle(benchmarkData.title);
-        setDescription(benchmarkData.description || "");
-        setPlatform(benchmarkData.platform || "easyaim");
-        setDifficulty(benchmarkData.difficulty || "medium");
-        const loadedCategories =
-          Array.isArray(benchmarkData.category_defs) &&
-          benchmarkData.category_defs.length > 0
-            ? benchmarkData.category_defs
-            : DEFAULT_CATEGORIES;
 
-        setCategories(loadedCategories);
-        setAddTargetCategory(loadedCategories[0]?.name ?? "Other");
-
-        setScenarios(
-          (data.scenarios || []).map((s: any) => ({
-            id: s.easyaim_scenario_id,
-            title: s.title,
-            cutoffs: s.cutoffs || {},
-            category: s.category || "Other",
-            subCategory: s.sub_category || "",
-          }))
-        );
-      } else {
-        setIsOwner(false);
+      if (!benchmarkData) {
         setNotFound(true);
+        setLoadError("Benchmark not found. It may have been deleted.");
         setLoading(false);
-        router.push(`/benchmarks/${id}`);
         return;
       }
+
+      if (!accId) {
+        setIsOwner(false);
+        setNotFound(true);
+        setLoadError("You need to be logged in to edit a benchmark.");
+        setLoading(false);
+        return;
+      }
+
+      if (benchmarkData.user_id !== accId) {
+        setIsOwner(false);
+        setNotFound(true);
+        setLoadError("You can only edit benchmarks you created.");
+        setLoading(false);
+        return;
+      }
+
+      setIsOwner(true);
+      setLoadError("");
+      setTitle(benchmarkData.title);
+      setDescription(benchmarkData.description || "");
+      setPlatform(benchmarkData.platform || "easyaim");
+      setDifficulty(benchmarkData.difficulty || "medium");
+
+      // Load the rank ladder from the benchmark. Without this the form
+      // kept its hardcoded 8-rank default on every page load, so removing
+      // a rank and saving appeared to work (the detail page showed the
+      // shortened ladder) but the next visit showed the deleted rank
+      // again — and saving from that state re-added it.
+      if (
+        Array.isArray(benchmarkData.rank_names) &&
+        benchmarkData.rank_names.length > 0
+      ) {
+        setRanks(
+          benchmarkData.rank_names.map((name: string, index: number) => ({
+            name,
+            color: benchmarkData.rank_colors?.[index] || "#ffffff",
+          }))
+        );
+      }
+
+      const loadedCategories =
+        Array.isArray(benchmarkData.category_defs) &&
+        benchmarkData.category_defs.length > 0
+          ? benchmarkData.category_defs
+          : DEFAULT_CATEGORIES;
+
+      setCategories(loadedCategories);
+      setAddTargetCategory(loadedCategories[0]?.name ?? "Other");
+
+      setScenarios(
+        (data.scenarios || []).map((s: any) => ({
+          id: s.easyaim_scenario_id,
+          title: s.title,
+          cutoffs: s.cutoffs || {},
+          category: s.category || "Other",
+          subCategory: s.sub_category || "",
+        }))
+      );
 
       setLoading(false);
     }
     checkAndLoad();
-  }, [id]);
+  }, [id, router]);
 
   useEffect(() => {
     const query = searchQuery.trim();
@@ -383,9 +428,42 @@ export default function EditBenchmarkPage({ params }: { params: Promise<{ id: st
     return <main className="min-h-screen text-white flex items-center justify-center"><p>Loading...</p></main>;
   }
 
+  // Previously the load-failure paths set notFound but nothing rendered it,
+  // so a deleted benchmark or a non-owner saw a blank edit form that looked
+  // like a brand new benchmark — and saving it would have overwritten
+  // whatever was actually there.
+  if (notFound || !isOwner) {
+    return (
+      <main className="min-h-screen text-white">
+        <div className="mx-auto flex max-w-3xl flex-col items-center px-6 py-24 text-center">
+          <h1 className="text-2xl font-bold tracking-tight">
+            {notFound ? "Benchmark unavailable" : "Nothing to edit"}
+          </h1>
+          <p className="mt-3 max-w-md text-sm text-zinc-500">
+            {loadError || "You can only edit benchmarks you created."}
+          </p>
+          <div className="mt-8 flex gap-3">
+            <Link
+              href="/benchmarks"
+              className="rounded-lg bg-white px-4 py-2 text-sm font-medium text-black transition hover:bg-zinc-200"
+            >
+              All benchmarks
+            </Link>
+            <Link
+              href="/login"
+              className="rounded-lg border border-white/15 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/10"
+            >
+              Log in
+            </Link>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
   return (
     <main className="min-h-screen text-white">
-      <div className="mx-auto max-w-3xl px-6 py-12">
+      <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6 sm:py-12">
         <Link href={`/benchmarks/${id}`} className="text-sm text-zinc-500 hover:text-white mb-6 inline-block">← Back</Link>
         <h1 className="text-3xl font-bold tracking-tight">Edit Benchmark</h1>
 

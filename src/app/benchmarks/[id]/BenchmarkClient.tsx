@@ -130,6 +130,20 @@ export default function BenchmarkClient({
   const hasScenarios = (scenarios || []).length > 0;
   const totalEnergy = scenarios.reduce((sum, s) => sum + (s.best_score ?? 0), 0);
 
+  // A rank with no cutoff on any scenario can never be achieved, because
+  // the aggregate walk treats a missing cutoff as "this scenario doesn't
+  // count" and a rank is only granted when every scenario clears it.
+  // Flag it rather than rendering a column of em-dashes with no
+  // explanation.
+  const ranksWithNoCutoffs = rankOrder
+    .filter((rank) =>
+      scenarios.every((scenario) => {
+        const cutoff = scenario.cutoffs?.[rank.name];
+        return !(typeof cutoff === "number" && cutoff > 0);
+      })
+    )
+    .map((rank) => rank.name);
+
   function getCategoryColor(catName: string): string {
     const def = benchmark.category_defs?.find((c) => c.name === catName);
     return def?.color || "#7a7a7a";
@@ -250,6 +264,19 @@ export default function BenchmarkClient({
                   {totalEnergy.toLocaleString()}
                 </span>
               </span>
+            </div>
+          )}
+
+          {isAuthorized && ranksWithNoCutoffs.length > 0 && (
+            <div className="mt-4 rounded-lg border border-amber-900/40 bg-amber-950/20 px-4 py-3 text-xs text-amber-300/90">
+              No score cutoffs are set for{" "}
+              <span className="font-semibold">
+                {ranksWithNoCutoffs.join(", ")}
+              </span>
+              , so{" "}
+              {ranksWithNoCutoffs.length === 1 ? "that rank can" : "those ranks can"}{" "}
+              never be reached. Add a required score per scenario to unlock{" "}
+              {ranksWithNoCutoffs.length === 1 ? "it" : "them"}.
             </div>
           )}
         </div>
