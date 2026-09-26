@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getSessionAccountId } from "@/lib/session";
+import SiteHeader from "@/components/SiteHeader";
 
 interface BenchmarkCard {
   id: string;
@@ -23,56 +24,7 @@ export default async function Home() {
 
   return (
     <main className="min-h-screen text-white">
-      {/* NAVBAR */}
-      <header className="border-b border-white/10">
-        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-6">
-          <Link href="/" className="text-xl font-bold tracking-tight">
-            AIM<span className="text-zinc-500">BENCH</span>
-          </Link>
-
-          <nav className="hidden gap-8 text-sm text-zinc-400 md:flex">
-            <Link href="/benchmarks" className="text-white">Benchmarks</Link>
-            <Link href="/leaderboard" className="hover:text-white">Leaderboard</Link>
-            <Link href="/rank-history" className="hover:text-white">Rank History</Link>
-          </nav>
-
-          <div className="flex gap-3">
-            {accountId ? (
-              <>
-                <Link
-                  href="/profile"
-                  className="rounded-lg bg-white px-4 py-2 text-sm font-medium text-black hover:bg-zinc-200"
-                >
-                  Profile
-                </Link>
-                <form action="/api/auth/logout" method="post">
-                  <button
-                    type="submit"
-                    className="rounded-lg bg-white px-4 py-2 text-sm font-medium text-black"
-                  >
-                    Log Out
-                  </button>
-                </form>
-              </>
-            ) : (
-              <>
-                <Link
-                  href="/login"
-                  className="rounded-lg px-4 py-2 text-sm text-zinc-400 hover:text-white"
-                >
-                  Login
-                </Link>
-                <Link
-                  href="/register"
-                  className="rounded-lg bg-white px-4 py-2 text-sm font-medium text-black"
-                >
-                  Create Account
-                </Link>
-              </>
-            )}
-          </div>
-        </div>
-      </header>
+      <SiteHeader loggedIn={Boolean(accountId)} />
 
       {/* HERO */}
       <section className="mx-auto max-w-7xl px-6 pb-20 pt-24">

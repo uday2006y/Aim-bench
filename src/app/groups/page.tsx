@@ -1,4 +1,5 @@
 import Link from "next/link";
+import SiteHeader from "@/components/SiteHeader";
 
 const GROUPS = [
   { name: "KovaaK's", link: "/benchmarks?platform=kovaiacks", desc: "The original aim trainer benchmark platform." },
@@ -27,24 +28,14 @@ const GROUPS = [
 export default function GroupsPage() {
   return (
     <main className="min-h-screen text-white">
-      <div className="mx-auto max-w-6xl px-6 py-16">
-        <header className="border-b border-white/10 mb-8">
-          <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
-            <Link href="/" className="text-xl font-bold tracking-tight">
-              AIM<span className="text-zinc-500">BENCH</span>
-            </Link>
-            <nav className="hidden gap-8 text-sm text-zinc-400 md:flex">
-              <Link href="/benchmarks" className="hover:text-white">Benchmarks</Link>
-              <Link href="/leaderboard" className="hover:text-white">Leaderboard</Link>
-              <Link href="/rank-history" className="hover:text-white">Rank History</Link>
-              <Link href="/groups" className="text-white">Groups</Link>
-            </nav>
-            <Link href="/profile" className="rounded-lg bg-white px-4 py-2 text-sm font-medium text-black">Profile</Link>
-          </div>
-        </header>
-        <Link href="/" className="text-sm text-zinc-500 hover:text-white transition mb-8 inline-block">← Back</Link>
-        <h1 className="text-5xl font-extrabold tracking-tight mb-4">Browse Groups</h1>
-        <p className="text-lg text-zinc-400 mb-12 max-w-2xl">Select an aim trainer platform to view benchmarks made for that community.</p>
+      <SiteHeader />
+
+      <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6 sm:py-16">
+        <h1 className="mb-4 text-4xl font-extrabold tracking-tight sm:text-5xl">Browse Groups</h1>
+        <p className="mb-8 max-w-2xl text-base text-zinc-400 sm:mb-12 sm:text-lg">
+          Select an aim trainer platform to view benchmarks made for that
+          community.
+        </p>
 
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
           {GROUPS.map((g) => (

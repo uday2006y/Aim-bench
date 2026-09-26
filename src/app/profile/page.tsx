@@ -4,6 +4,7 @@ import { getSessionAccountId } from "@/lib/session";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { EasyAimLinkCard, type EasyAimLinkInfo } from "./easyaim-link";
 import BenchmarkDeleteButton from "./benchmark-delete";
+import SiteHeader from "@/components/SiteHeader";
 
 interface AccountRow {
   username: string;
@@ -85,33 +86,9 @@ export default async function ProfilePage() {
 
   return (
     <main className="min-h-screen text-white">
-      <div className="mx-auto max-w-5xl px-6 py-12">
-        {/* HEADER */}
-        <header className="border-b border-white/10 mb-8">
-          <div className="mx-auto flex h-16 max-w-5xl items-center justify-between px-6">
-            <Link href="/" className="text-xl font-bold tracking-tight">
-              AIM<span className="text-zinc-500">BENCH</span>
-            </Link>
+      <SiteHeader loggedIn width="max-w-5xl" />
 
-            <nav className="hidden gap-8 text-sm text-zinc-400 md:flex">
-              <Link href="/benchmarks" className="hover:text-white">Benchmarks</Link>
-              <Link href="/leaderboard" className="hover:text-white">Leaderboard</Link>
-              <Link href="/rank-history" className="hover:text-white">Rank History</Link>
-              <Link href="/profile" className="text-white">Profile</Link>
-            </nav>
-
-            <div className="flex gap-3">
-              <form action="/api/auth/logout" method="post">
-                <button
-                  type="submit"
-                  className="rounded-lg bg-white px-4 py-2 text-sm font-medium text-black"
-                >
-                  Log Out
-                </button>
-              </form>
-            </div>
-          </div>
-        </header>
+      <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 sm:py-12">
 
         {/* ACCOUNT */}
         <div className="mb-6 rounded-2xl border border-zinc-800 bg-zinc-950 p-6">
