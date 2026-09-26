@@ -169,7 +169,7 @@ export default function BenchmarkClient({
                               <td className="px-2 py-3 whitespace-nowrap align-middle">
                                 <div className="flex items-center gap-2">
                                   <span
-                                    className="inline-flex items-center justify-center rounded px-1 py-0.5 text-[8px] font-extrabold tracking-[0.15em] uppercase bg-gradient-to-b from-purple-700 to-purple-900 text-white border border-purple-500/40"
+                                    className="inline-flex items-center justify-center rounded px-1 py-0.5 text-[8px] font-extrabold tracking-[0.15em] uppercase bg-zinc-800 text-zinc-300 border border-zinc-700"
                                     style={{ writingMode: "vertical-rl", textOrientation: "mixed", letterSpacing: "0.05em" }}
                                   >
                                     {cat.toUpperCase()}
@@ -228,6 +228,8 @@ export default function BenchmarkClient({
     </main>
   );
 }
+
+
 
 
 
