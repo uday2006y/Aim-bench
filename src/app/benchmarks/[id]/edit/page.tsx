@@ -165,9 +165,18 @@ export default function EditBenchmarkPage({ params }: { params: Promise<{ id: st
 
   function updateScenarioCategory(index: number, categoryName: string) {
     setScenarios((prev) =>
-      prev.map((s, i) =>
-        i === index ? { ...s, category: categoryName, subCategory: "" } : s
-      )
+      prev.map((s, i) => {
+        if (i !== index) return s;
+
+        // Only drop the sub-category if it isn't valid under the new
+        // category. Clearing it unconditionally meant that re-picking the
+        // same category after choosing a sub-category threw the
+        // sub-category away without any visible feedback.
+        const stillValid = (categories.find((c) => c.name === categoryName)
+          ?.subCategories ?? []).includes(s.subCategory);
+
+        return { ...s, category: categoryName, subCategory: stillValid ? s.subCategory : "" };
+      })
     );
   }
 
@@ -549,7 +558,12 @@ export default function EditBenchmarkPage({ params }: { params: Promise<{ id: st
               <label className="text-sm text-zinc-400">Scenarios</label>
             </div>
             <div className="space-y-3">
-              {scenarios.map((scenario, idx) => (
+              {scenarios.map((scenario, idx) => {
+                const availableSubs =
+                  categories.find((c) => c.name === scenario.category)
+                    ?.subCategories ?? [];
+
+                return (
                 <div key={scenario.id} className="rounded-xl border border-zinc-800 bg-zinc-950 p-4 space-y-3">
                   <div className="flex items-center gap-3">
                     <input value={scenario.title} onChange={(e) => setScenarios((prev) => prev.map((s, i) => i === idx ? { ...s, title: e.target.value } : s))} className="flex-1 rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-white outline-none" placeholder="Scenario title" />
@@ -570,17 +584,32 @@ export default function EditBenchmarkPage({ params }: { params: Promise<{ id: st
                       </select>
                     </div>
                     <div>
-                      <label className="block text-xs text-zinc-500 mb-0.5">Sub-category</label>
-                      <select
+                      <label className="block text-xs text-zinc-500 mb-0.5">
+                        Sub-category
+                        {availableSubs.length > 0 && (
+                          <span className="ml-1 text-zinc-600">
+                            ({availableSubs.length})
+                          </span>
+                        )}
+                      </label>
+                      {/* A text input with a datalist rather than a <select>:
+                          it suggests the sub-categories already defined for this
+                          category, but still accepts a typed value. The old
+                          <select> could only ever offer predefined entries, so a
+                          category with none looked identical to "no sub-category"
+                          and the assignment was easy to miss. */}
+                      <input
+                        list={`sub-options-${idx}`}
                         value={scenario.subCategory}
                         onChange={(e) => updateScenarioSubCategory(idx, e.target.value)}
-                        className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-2 py-1.5 text-xs text-white outline-none focus:border-zinc-500"
-                      >
-                        <option value="">—</option>
-                        {(categories.find((c) => c.name === scenario.category)?.subCategories ?? []).map((sc) => (
-                          <option key={sc} value={sc}>{sc}</option>
+                        placeholder="—"
+                        className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-2 py-1.5 text-xs text-white outline-none placeholder:text-zinc-600 focus:border-zinc-500"
+                      />
+                      <datalist id={`sub-options-${idx}`}>
+                        {availableSubs.map((sc) => (
+                          <option key={sc} value={sc} />
                         ))}
-                      </select>
+                      </datalist>
                     </div>
                   </div>
 
@@ -602,7 +631,8 @@ export default function EditBenchmarkPage({ params }: { params: Promise<{ id: st
                     ))}
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           </div>
 

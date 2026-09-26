@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getSessionAccountId } from "@/lib/session";
-import { sanitizeScenarios, sanitizeCategoryDefs } from "@/lib/benchmarkScenarios";
+import { sanitizeScenarios, sanitizeCategoryDefs, syncSubCategoriesIntoDefs } from "@/lib/benchmarkScenarios";
 import { resetLinkedAccountsBackfill } from "@/lib/resetBackfill";
 
 export async function PUT(
@@ -53,7 +53,16 @@ export async function PUT(
       );
     }
 
-    const categoryDefs = sanitizeCategoryDefs(category_defs);
+    // A sub-category typed into the edit form that isn't in category_defs
+    // yet gets folded in, so the detail table's rail can render it.
+    const categoryDefs = category_defs
+      ? (() => {
+          const parsed = sanitizeCategoryDefs(category_defs);
+          return parsed && scenarios
+            ? syncSubCategoriesIntoDefs(parsed, scenarios)
+            : parsed;
+        })()
+      : undefined;
 
     // Update the benchmark row first and verify it, so a rejected field
     // can't leave the scenario list half-rewritten.

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getSessionAccountId } from "@/lib/session";
-import { sanitizeScenarios, sanitizeCategoryDefs } from "@/lib/benchmarkScenarios";
+import { sanitizeScenarios, sanitizeCategoryDefs, syncSubCategoriesIntoDefs } from "@/lib/benchmarkScenarios";
 import { resetLinkedAccountsBackfill } from "@/lib/resetBackfill";
 
 export async function GET(request: Request) {
@@ -56,6 +56,11 @@ export async function POST(request: Request) {
     }
 
     const scenarioList = sanitizeScenarios(scenarios);
+    const categoryDefs =
+      syncSubCategoriesIntoDefs(
+        sanitizeCategoryDefs(category_defs) ?? [],
+        scenarioList
+      ) ?? [];
 
     const { data: benchmark, error } = await supabaseAdmin
       .from("benchmarks")
@@ -67,7 +72,7 @@ export async function POST(request: Request) {
         rank_names: rank_names || '{"Bronze","Silver","Gold","Platinum","Diamond","Champion","Radiant","Immortal"}',
         rank_colors: rank_colors || '{"#b87333","#c0c0c0","#ffd700","#e5e4e2","#b9f2fe","#ffd700","#ff0000","#9f9f9f"}',
                 rank_thresholds: rank_thresholds || '{"Bronze":0,"Silver":1000,"Gold":2500,"Platinum":5000,"Diamond":10000,"Champion":15000,"Radiant":20000,"Immortal":30000}',
-        category_defs: sanitizeCategoryDefs(category_defs) ?? [],
+        category_defs: categoryDefs,
         user_id: accountId,
         scenario_count:
           scenarioList.length > 0 ? scenarioList.length : scenarioCount || 1,

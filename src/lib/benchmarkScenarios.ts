@@ -102,11 +102,18 @@ export function sanitizeScenarios(input: unknown): ScenarioInput[] {
 }
 
 /**
- * Normalises the `category_defs` array stored on a benchmark: a list of
- * `{ name, color, subCategories }` that drives the category tags rendered
- * on the benchmark detail table. Returns undefined when the caller didn't
- * send the key at all, so the route can tell "leave it alone" apart from
- * "set it to empty".
+ * Folds any sub-category a scenario is tagged with into its parent
+ * category's `subCategories` list.
+ *
+ * The edit form lets you type a sub-category directly (it's a datalist
+ * input, not a fixed <select>), so a sub-category can reach the server
+ * that isn't in `category_defs` yet. Without this the value would still
+ * save onto the scenario, but the benchmark table's sub-category rail
+ * would render blank because the rail reads its labels from
+ * `category_defs`. Keeping the two in sync means the rail always has a
+ * colour and the editor always offers it as a suggestion next time.
+ *
+ * Mutates and returns `defs` for convenience at the call site.
  */
 export function sanitizeCategoryDefs(input: unknown): CategoryDef[] | undefined {
   if (!Array.isArray(input)) return undefined;
@@ -149,6 +156,34 @@ export function sanitizeCategoryDefs(input: unknown): CategoryDef[] | undefined 
     }
 
     defs.push({ name, color, subCategories });
+  }
+
+  return defs;
+}
+
+/**
+ * Ensures every sub-category referenced by `scenarios` also exists in the
+ * matching category's `subCategories`, so the detail table's sub-category
+ * rail has something to render. Categories that no scenario uses are left
+ * untouched, and existing sub-categories keep their order.
+ */
+export function syncSubCategoriesIntoDefs(
+  defs: CategoryDef[],
+  scenarios: ScenarioInput[]
+): CategoryDef[] {
+  if (defs.length === 0 || scenarios.length === 0) return defs;
+
+  const byName = new Map(defs.map((def) => [def.name, def]));
+
+  for (const scenario of scenarios) {
+    if (!scenario.subCategory) continue;
+
+    const def = byName.get(scenario.category);
+    if (!def) continue;
+
+    if (!def.subCategories.includes(scenario.subCategory)) {
+      def.subCategories.push(scenario.subCategory);
+    }
   }
 
   return defs;
