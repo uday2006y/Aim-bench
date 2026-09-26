@@ -198,29 +198,29 @@ export default function BenchmarkClient({
                                   <span className="text-[10px] text-zinc-400 font-medium">{pctStr}</span>
                                 </div>
                               </td>
-                                                            {/* Rank columns with per-rank cutoff bars */}
+                              {/* Rank columns: progress bar, 0-100% of that rank's own cutoff */}
                               {rankOrder.map((r) => {
                                 const cutoff = scenario.cutoffs?.[r.name];
                                 const hasCutoff = typeof cutoff === "number" && cutoff > 0;
                                 const fillPct = hasCutoff
-                                  ? Math.min(100, Math.round((score / cutoff) * 100))
+                                  ? Math.min(100, Math.max(0, Math.round((score / cutoff) * 100)))
                                   : 0;
                                 return (
                                   <td key={r.name} className="text-center px-1.5 py-3 align-middle min-w-[60px]">
                                     <div className="flex flex-col items-center gap-1">
-                                      <div className="w-full min-w-[80px] h-5 rounded-md overflow-hidden bg-zinc-900 shadow-inner relative border border-zinc-800/30 flex items-center">
-                                        <div className="absolute left-1 top-0 bottom-0 z-20 text-[9px] font-mono font-extrabold text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] px-1 leading-5 whitespace-nowrap">
-                                          {hasCutoff ? cutoff.toLocaleString() : "—"}
-                                        </div>
+                                      <div className="w-full min-w-[80px] h-5 rounded-md overflow-hidden bg-white/10 shadow-inner relative border border-zinc-800/30 flex items-center">
                                         {hasCutoff && score > 0 && (
                                           <div
-                                            className="absolute top-0 left-0 h-full rounded-md"
+                                            className="absolute top-0 left-0 h-full rounded-md transition-all"
                                             style={{
                                               width: `${fillPct}%`,
                                               backgroundColor: r.color,
                                             }}
                                           />
                                         )}
+                                        <div className="absolute left-1 top-0 bottom-0 z-20 text-[9px] font-mono font-extrabold text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] px-1 leading-5 whitespace-nowrap">
+                                          {hasCutoff ? cutoff.toLocaleString() : "—"}
+                                        </div>
                                       </div>
                                     </div>
                                   </td>
