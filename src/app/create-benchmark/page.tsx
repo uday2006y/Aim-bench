@@ -222,6 +222,25 @@ export default function CreateBenchmarkPage() {
               />
             </div>
 
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+              <div>
+                <label className="mb-2 block text-sm text-zinc-400">Abbreviation (optional)</label>
+                <input type="text" placeholder="MCB" className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-2 text-sm text-white outline-none focus:border-zinc-500" />
+              </div>
+              <div>
+                <label className="mb-2 block text-sm text-zinc-400">Benchmark Color</label>
+                <input type="color" defaultValue="#b9f2fe" className="w-full h-10 rounded-lg border border-zinc-800 bg-zinc-900 p-1 cursor-pointer" />
+              </div>
+              <div>
+                <label className="mb-2 block text-sm text-zinc-400">Difficulty</label>
+                <select value={difficulty} onChange={(e) => setDifficulty(e.target.value)} className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-2 text-white outline-none focus:border-zinc-500">
+                  <option value="easy">Easy</option>
+                  <option value="medium">Medium</option>
+                  <option value="hard">Hard</option>
+                </select>
+              </div>
+            </div>
+
             <div>
               <label className="mb-2 block text-sm text-zinc-400">
                 Description
