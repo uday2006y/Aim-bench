@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
@@ -79,7 +79,7 @@ export default function BenchmarkClient({
       }
       setNotice(
         `Score submitted: ${data.score.score}${
-          data.score.rank ? ` — ${data.score.rank}` : ""
+          data.score.rank ? ` â€” ${data.score.rank}` : ""
         }`
       );
       setScoreInput("");
@@ -116,7 +116,7 @@ export default function BenchmarkClient({
     <main className="min-h-screen text-white">
       <div className="mx-auto max-w-7xl px-6 py-12">
         <Link href="/benchmarks" className="text-sm text-zinc-500 hover:text-white transition inline-block mb-8">
-          ← Back to benchmarks
+          â† Back to benchmarks
         </Link>
         <div className="space-y-6">
           {/* HEADER CARD */}
@@ -150,7 +150,7 @@ export default function BenchmarkClient({
             </p>
           </div>
 
-          {/* SCENARIO TABLE — evxl.app exact style */}
+          {/* SCENARIO TABLE â€” evxl.app exact style */}
           {hasScenarios && (
             <div className="rounded-3xl border border-zinc-800 bg-zinc-950 overflow-hidden shadow-2xl">
               <div className="px-6 py-5 border-b border-white/5 flex items-center justify-between bg-gradient-to-r from-zinc-950 to-zinc-900/50">
@@ -277,7 +277,7 @@ export default function BenchmarkClient({
                                         </div>
                                       </div>
                                     ) : (
-                                      <span className="text-xs text-zinc-700">—</span>
+                                      <span className="text-xs text-zinc-700">â€”</span>
                                     )}
                                   </td>
                                 ))}
@@ -287,7 +287,6 @@ export default function BenchmarkClient({
                               </tr>
                             );
                           })}
-                        </>
                       ))}
                   </tbody>
                 </table>
