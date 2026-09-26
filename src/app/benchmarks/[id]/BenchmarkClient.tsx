@@ -159,7 +159,15 @@ export default function BenchmarkClient({
                         {catScenarios.map((scenario: BenchmarkScenario, idx: number) => {
                           const score = scenario.best_score ?? 0;
                           const scoreStr = score ? `${score}` : "—";
-                          const pctStr = score ? `${Math.round(Math.random() * 100)}%` : "—";
+                          const topCutoff = Math.max(
+                            ...Object.values(scenario.cutoffs || {}).filter(
+                              (v): v is number => typeof v === "number" && v > 0
+                            ),
+                            1
+                          );
+                          const pctStr = score
+                            ? `${Math.min(100, Math.round((score / topCutoff) * 100))}%`
+                            : "—";
                           return (
                             <tr
                               key={scenario.id}
@@ -190,20 +198,29 @@ export default function BenchmarkClient({
                                   <span className="text-[10px] text-zinc-400 font-medium">{pctStr}</span>
                                 </div>
                               </td>
-                              {/* Rank columns with purple gradient bars */}
+                                                            {/* Rank columns with per-rank cutoff bars */}
                               {rankOrder.map((r) => {
+                                const cutoff = scenario.cutoffs?.[r.name];
+                                const hasCutoff = typeof cutoff === "number" && cutoff > 0;
+                                const fillPct = hasCutoff
+                                  ? Math.min(100, Math.round((score / cutoff) * 100))
+                                  : 0;
                                 return (
                                   <td key={r.name} className="text-center px-1.5 py-3 align-middle min-w-[60px]">
                                     <div className="flex flex-col items-center gap-1">
                                       <div className="w-full min-w-[80px] h-5 rounded-md overflow-hidden bg-zinc-900 shadow-inner relative border border-zinc-800/30 flex items-center">
-                                        <div className="absolute left-1 top-0 bottom-0 z-20 text-[9px] font-mono font-extrabold text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] px-1 leading-5 whitespace-nowrap">{score ? score.toLocaleString() : "—"}</div>
-                                        <div
-                                          className="absolute top-0 left-0 h-full rounded-md "
-                                          style={{
-                                            width: `${Math.min(100, Math.round((score / Math.max(Math.max(...Object.values(scenario.cutoffs || {}), 1), 1)) * 100))}%`,
-                                            backgroundColor: benchmark.rank_colors?.[rankOrder.findIndex((item: {name: string}) => item.name === r.name)] || "#b87333",
-                                          }}
-                                        />
+                                        <div className="absolute left-1 top-0 bottom-0 z-20 text-[9px] font-mono font-extrabold text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] px-1 leading-5 whitespace-nowrap">
+                                          {hasCutoff ? cutoff.toLocaleString() : "—"}
+                                        </div>
+                                        {hasCutoff && score > 0 && (
+                                          <div
+                                            className="absolute top-0 left-0 h-full rounded-md"
+                                            style={{
+                                              width: `${fillPct}%`,
+                                              backgroundColor: r.color,
+                                            }}
+                                          />
+                                        )}
                                       </div>
                                     </div>
                                   </td>
@@ -228,6 +245,7 @@ export default function BenchmarkClient({
     </main>
   );
 }
+
 
 
 
