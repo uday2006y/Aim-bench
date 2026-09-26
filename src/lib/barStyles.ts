@@ -23,6 +23,11 @@ export interface BarStyle {
 
 export const BAR_STYLES: BarStyle[] = [
   {
+    id: "ribbon",
+    label: "Ribbon",
+    description: "Curved left edge, pointed top-right.",
+  },
+  {
     id: "parallelogram",
     label: "Parallelogram",
     description: "Both edges slant, top shifted right.",

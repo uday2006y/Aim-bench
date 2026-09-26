@@ -68,8 +68,7 @@ body {
   height: 1.5rem;
   width: 100%;
   overflow: hidden;
-  border: 1px solid rgb(255 255 255 / 0.06);
-  background: rgb(255 255 255 / 0.04);
+  background: rgb(255 255 255 / 0.07);
 }
 
 .bar-fill {
@@ -77,6 +76,10 @@ body {
   inset-block: 0;
   left: 0;
   transition: width 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+
+  /* Inherits --bar-shape from the track, so the fill is always cut to
+     exactly the same outline as the bar it sits in. */
+  clip-path: var(--bar-shape, none);
 }
 
 .bar-label {
@@ -92,18 +95,33 @@ body {
   z-index: 1;
 }
 
-/* Parallelogram — both edges slant, top edge shifted right.
-   The slant is 14px at the widest; --bar-slant lets a style override it
-   without restating the whole polygon. */
-.bar-parallelogram {
-  --bar-slant: 14px;
+/* Every style sets one --bar-shape on the track. The track applies it to
+   itself and the fill inherits it, so the coloured bar and its unfilled
+   remainder are the same shape — a rectangular track around a slanted
+   fill is what made the corners look square and left a seam. */
+.bar-track {
+  --bar-shape: none;
+  clip-path: var(--bar-shape);
 }
 
-/* .bar-fill is a descendant of the track, so these are plain descendant
-   selectors. The track styles below use compound selectors because
-   .bar-track and the variant class sit on the same element. */
-.bar-parallelogram .bar-fill {
-  clip-path: polygon(
+/* Ribbon — curved left edge sweeping out to a point at the top right.
+   This one needs a real bezier, so it uses an SVG clipPath declared in
+   the root layout with clipPathUnits="objectBoundingBox". Those units
+   are 0..1 in both axes, which means the curve scales with the bar — the
+   reason it can't be done with clip-path: path(), since that only takes
+   absolute px and these bars are width:100% of a variable-width cell. */
+.bar-ribbon {
+  --bar-shape: url(#aim-bar-ribbon);
+}
+
+.bar-ribbon .bar-label {
+  left: 13%;
+}
+
+/* Parallelogram — both edges slant, top edge shifted right */
+.bar-parallelogram {
+  --bar-slant: 14px;
+  --bar-shape: polygon(
     var(--bar-slant) 0,
     100% 0,
     calc(100% - var(--bar-slant)) 100%,
@@ -111,9 +129,18 @@ body {
   );
 }
 
+/* Keep the number clear of the slanted corner */
+.bar-parallelogram .bar-label {
+  left: calc(var(--bar-slant) + 6px);
+}
+
 /* Angled — slanted right edge, straight left */
-.bar-angled .bar-fill {
-  clip-path: polygon(0 0, calc(100% + 12px) 0, 100% 100%, 0 100%);
+.bar-angled {
+  --bar-shape: polygon(0 0, calc(100% + 12px) 0, 100% 100%, 0 100%);
+}
+
+.bar-angled .bar-label {
+  left: 8px;
 }
 
 /* Flat — square corners */
@@ -141,6 +168,10 @@ body {
 
 .bar-segmented .bar-fill {
   border-right: 1px solid rgb(0 0 0 / 0.5);
+}
+
+.bar-segmented .bar-label {
+  left: 8px;
 }
 
 @media (prefers-reduced-motion: reduce) {
