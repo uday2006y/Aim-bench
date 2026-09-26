@@ -307,6 +307,17 @@ export default function BenchmarkClient({
                         const isGroupStart = subIdx === 0 && rowIdx === 0;
                         const isSubStart = rowIdx === 0;
 
+                        // A white rule between categories. It has to live on
+                        // the cells rather than the <tbody>, because the table
+                        // uses border-collapse: collapse, where a border on a
+                        // row group is not painted. Each cell of the first row
+                        // carries it so the line spans the full width,
+                        // including the row-spanning category rail.
+                        const groupDivider =
+                          groupIdx > 0
+                            ? "border-t-2 border-t-white/70"
+                            : "";
+
                         return (
                           <tr
                             key={scenario.id}
@@ -315,7 +326,7 @@ export default function BenchmarkClient({
                             {isGroupStart && (
                               <td
                                 rowSpan={group.rowCount}
-                                className="border-r border-zinc-800/40 px-1 py-2 align-middle"
+                                className={`border-r border-zinc-800/40 px-1 py-2 align-middle ${groupDivider}`}
                               >
                                 <span
                                   className="inline-flex items-center justify-center rounded-sm border px-1 py-2 text-[9px] font-extrabold uppercase tracking-[0.2em]"
@@ -335,7 +346,7 @@ export default function BenchmarkClient({
                             {isSubStart && (
                               <td
                                 rowSpan={groupRows}
-                                className="border-r border-zinc-800/40 px-1 py-2 align-middle"
+                                className={`border-r border-zinc-800/40 px-1 py-2 align-middle ${isGroupStart ? groupDivider : ""}`}
                               >
                                 {subGroup.sub ? (
                                   <span
@@ -354,7 +365,7 @@ export default function BenchmarkClient({
                               </td>
                             )}
 
-                            <td className="px-4 py-2.5 align-middle">
+                            <td className={`px-4 py-2.5 align-middle ${rowIdx === 0 ? groupDivider : ""}`}>
                               <div className="flex flex-col gap-0.5 min-w-[160px]">
                                 <span className="font-semibold text-white text-xs leading-tight truncate">
                                   {scenario.title}
@@ -368,7 +379,7 @@ export default function BenchmarkClient({
                               </div>
                             </td>
 
-                            <td className="px-3 py-2.5 whitespace-nowrap align-middle">
+                            <td className={`px-3 py-2.5 whitespace-nowrap align-middle ${rowIdx === 0 ? groupDivider : ""}`}>
                               <div className="flex items-baseline gap-2">
                                 <span
                                   className="font-mono font-bold text-sm tracking-tight"
@@ -396,7 +407,7 @@ export default function BenchmarkClient({
                               return (
                                 <td
                                   key={rank.name}
-                                  className="px-1.5 py-2 align-middle min-w-[100px]"
+                                  className={`px-1.5 py-2 align-middle min-w-[100px] ${rowIdx === 0 ? groupDivider : ""}`}
                                 >
                                   <div className="relative h-6 w-full overflow-hidden rounded-[3px] border border-white/[0.06] bg-white/[0.04]">
                                     {hasCutoff && score > 0 && (
@@ -423,7 +434,7 @@ export default function BenchmarkClient({
                             {isSubStart && (
                               <td
                                 rowSpan={groupRows}
-                                className="px-3 py-2.5 whitespace-nowrap align-middle"
+                                className={`px-3 py-2.5 whitespace-nowrap align-middle ${isGroupStart ? groupDivider : ""}`}
                               >
                                 <span
                                   className="font-mono font-bold text-xs"

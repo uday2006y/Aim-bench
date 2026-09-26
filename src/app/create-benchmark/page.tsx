@@ -681,38 +681,14 @@ export default function CreateBenchmarkPage() {
               </div>
             </div>
 
-            {/* DIFFICULTIES SECTION (Image 2 style) */}
+            {/* CATEGORIES */}
             <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-6 shadow-2xl">
-              <h2 className="text-xl font-bold tracking-tight mb-4">Difficulties</h2>
-              <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-4 mb-4">
-                <div className="grid grid-cols-3 gap-3 mb-2">
-                  <div>
-                    <label className="text-xs text-zinc-500 block mb-1">Difficulty Name</label>
-                    <input type="text" defaultValue="Easy" className="w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-white outline-none" />
-                  </div>
-                  <div>
-                    <label className="text-xs text-zinc-500 block mb-1">KovaaK's ID</label>
-                    <input type="number" defaultValue={0} className="w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-white outline-none" />
-                  </div>
-                  <div>
-                    <label className="text-xs text-zinc-500 block mb-1">Shortcode</label>
-                    <input type="text" placeholder="KovaaKsShareCodeHere" className="w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-white outline-none" />
-                  </div>
-                </div>
-                <div className="text-xs text-zinc-400 mt-3 mb-3">Ranks</div>
-                <div className="space-y-2">
-                  {DEFAULT_RANKS.map((r, idx) => (
-                    <div key={idx} className="flex items-center gap-2">
-                      <input type="text" value={r.name} readOnly className="w-24 rounded-lg border border-zinc-800 bg-zinc-950 px-2 py-1.5 text-xs text-white" />
-                      <input type="color" value={r.color} readOnly className="w-8 h-8 rounded border border-zinc-700 shrink-0" />
-                      <span className="text-xs font-mono text-zinc-500 truncate">{r.color.toUpperCase()}</span>
-                      <button type="button" className="ml-auto text-xs text-red-400 hover:text-red-300">&#128465;</button>
-                    </div>
-                  ))}
-                </div>
-                <button type="button" className="mt-3 text-xs bg-white text-black px-3 py-1 rounded font-medium hover:bg-zinc-200">+ Add Rank</button>
-
-                                <div className="text-xs text-zinc-400 mt-4 mb-2">Categories</div>
+              <h2 className="text-xl font-bold tracking-tight mb-1">Categories</h2>
+              <p className="mb-4 text-xs text-zinc-600">
+                Group scenarios into categories and sub-categories. These
+                become the coloured rails on the benchmark table.
+              </p>
+              <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-4">
                 <div className="space-y-3">
                   {categories.map((cat, catIdx) => (
                     <div key={catIdx} className="rounded-lg border border-zinc-800 bg-zinc-900/60 p-3">
