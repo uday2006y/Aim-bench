@@ -103,7 +103,7 @@ export default function BenchmarkClient({
           "Radiant",
           "Immortal",
         ];
-  const hasScenarios = (scenarios || []).length > 0;
+  const energy = scenarios.reduce((sum, s) => sum + (s.best_score || 0), 0);
 
   return (
     <main className="min-h-screen text-white">
@@ -156,41 +156,26 @@ export default function BenchmarkClient({
                 </span>
               </div>
               <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="bg-zinc-950/80 text-zinc-300 text-xs uppercase tracking-widest font-bold border-b border-white/5">
+                <table className="w-full text-sm border-collapse">
+                  <thead className="bg-zinc-950/80 text-zinc-300 text-xs uppercase tracking-widest font-extrabold border-b border-white/5">
                     <tr>
-                      <th className="text-left px-6 py-4 font-bold">Scenario</th>
-                      <th className="text-left px-4 py-4 font-bold">Score</th>
+                      <th className="text-left px-4 py-3 font-bold w-12">SCENARIO</th>
+                      <th className="text-left px-4 py-3 font-bold w-32">Score</th>
                       {rankOrder.map((r: string) => (
                         <th
                           key={r}
-                          className="text-center px-3 py-4 font-bold whitespace-nowrap"
+                          className="text-center px-2 py-3 font-bold whitespace-nowrap w-20"
                         >
                           {r}
                         </th>
                       ))}
-                      <th className="text-left px-4 py-4 font-bold">Energy</th>
+                      <th className="text-left px-4 py-3 font-bold w-20">Energy</th>
                     </tr>
                   </thead>
                   <tbody>
                     {scenarios.map((scenario: BenchmarkScenario) => {
                       const score = scenario.best_score ?? 0;
                       const cutoffs = scenario.cutoffs || {};
-                      const rank =
-                        rankOrder.length > 0
-                          ? ((): string | null => {
-                              let achieved: string | null = null;
-                              for (let i = rankOrder.length - 1; i >= 0; i--) {
-                                const needed = cutoffs[rankOrder[i]];
-                                if (needed === undefined) continue;
-                                if (score >= needed) {
-                                  achieved = rankOrder[i];
-                                  break;
-                                }
-                              }
-                              return achieved;
-                            })()
-                          : null;
                       const sorted = rankOrder
                         .map((r: string) => cutoffs[r])
                         .filter((v): v is number => v !== undefined)
@@ -206,80 +191,61 @@ export default function BenchmarkClient({
                         lower = sorted[i];
                         upper = sorted[i];
                       }
-                      const pct =
-                        upper === lower ? 100 : Math.min(100, Math.max(0, ((score - lower) / (upper - lower)) * 100));
+                      const pct = upper === lower ? 100 : Math.min(100, Math.max(0, ((score - lower) / (upper - lower)) * 100));
                       return (
-                        <tr
-                          key={scenario.id}
-                          className="border-b border-white/[0.04] hover:bg-white/[0.03] transition"
-                        >
-                          <td className="px-6 py-5 whitespace-nowrap align-top">
-                            <div className="flex items-start gap-3">
+                        <tr key={scenario.id} className="border-b border-white/[0.06] hover:bg-white/[0.02] transition">
+                          <td className="px-4 py-4 whitespace-nowrap align-top">
+                            <div className="flex items-center gap-2">
                               <span
-                                className="inline-block rounded px-1.5 py-0.5 text-[10px] font-extrabold tracking-wider shrink-0 mt-0.5"
+                                className="inline-block rounded px-1.5 py-0.5 text-[9px] font-extrabold tracking-wider shrink-0"
                                 style={{
                                   backgroundColor: accent,
                                   color: "#0a0a0a",
                                   border: `1px solid ${accent}`,
+                                  writingMode: "vertical-rl",
+                                  textOrientation: "mixed",
+                                  letterSpacing: "0.1em",
+                                  padding: "0.25rem 0.1rem",
                                 }}
                               >
                                 SCENARIO
                               </span>
-                              <div>
-                                <p className="font-bold text-white leading-snug">
-                                  {scenario.title}
-                                </p>
-                              </div>
+                              <p className="font-bold text-white text-sm leading-snug truncate max-w-[180px]">
+                                {scenario.title}
+                              </p>
                             </div>
                           </td>
-                          <td className="px-4 py-5 whitespace-nowrap align-top">
+                          <td className="px-4 py-4 whitespace-nowrap align-top">
                             <div className="flex flex-col gap-0.5">
-                              <span className="font-mono font-extrabold text-white text-base">
-                                {score}
-                              </span>
-                              <span className="text-xs text-zinc-500 font-medium">
-                                {score > 0 ? Math.round(pct) + "%" : "0%"}
-                              </span>
+                              <span className="font-mono font-extrabold text-white text-lg leading-none">{score}</span>
+                              <span className="text-[10px] text-zinc-500 font-medium">{pct > 0 ? Math.round(pct) + "%" : "—"}</span>
                             </div>
                           </td>
                           {rankOrder.map((r: string) => (
-                            <td
-                              key={r}
-                              className="text-center px-3 py-5 align-top"
-                            >
+                            <td key={r} className="text-center px-2 py-4 align-top">
                               {cutoffs[r] !== undefined ? (
-                                <div className="flex flex-col items-center gap-2">
-                                  <span
-                                    className={`text-[10px] font-extrabold tracking-wider uppercase`}
-                                    style={{ color: score >= cutoffs[r] ? accent : "#6b7280" }}
-                                  >
+                                <div className="flex flex-col items-center gap-1.5 min-w-[80px]">
+                                  <span className={`text-[9px] font-extrabold tracking-wider uppercase ${score >= cutoffs[r] ? "text-white" : "text-zinc-600"}`}>
                                     {cutoffs[r]}
                                   </span>
-                                  <div className="w-24 h-2.5 rounded-full bg-zinc-800 overflow-hidden shadow-inner relative">
+                                  <div className="w-16 h-3 rounded-sm bg-zinc-800 overflow-hidden shadow-inner relative mx-auto">
                                     <div
-                                      className={`h-full rounded-full ${score >= cutoffs[r] ? `shadow-[0_0_8px_rgba(34,211,238,0.4)]` : ""}`}
+                                      className={`h-full rounded-sm ${score >= cutoffs[r] ? "shadow-[0_0_4px_rgba(255,255,255,0.2)]" : ""}`}
                                       style={{
                                         width: `${Math.min(100, Math.round((score / Math.max(cutoffs[r] || 1, 1)) * 100))}%`,
-                                        backgroundColor: score >= cutoffs[r]
-                                          ? benchmark.rank_colors?.[rankOrder.indexOf(r)] || "#b9f2fe"
-                                          : "#27272a",
+                                        backgroundColor: score >= cutoffs[r] ? benchmark.rank_colors?.[rankOrder.indexOf(r)] || accent : "#27272a",
+                                        clipPath: "polygon(0 0, 85% 0, 100% 50%, 85% 100%, 0 100%)",
                                       }}
                                     />
                                   </div>
                                 </div>
                               ) : (
-                                <span className="text-xs text-zinc-700">
-                                  —
-                                </span>
+                                <span className="text-xs text-zinc-700">—</span>
                               )}
                             </td>
                           ))}
-                          <td className="px-4 py-5 whitespace-nowrap align-top">
-                            <div className="flex items-center gap-2">
-                              <span className="font-mono font-extrabold text-base text-white">
-                                {score}
-                              </span>
-                            </div>
+                          <td className="px-4 py-4 whitespace-nowrap align-top">
+                            <span className="font-mono font-extrabold text-base text-white">{energy}</span>
                           </td>
                         </tr>
                       );
