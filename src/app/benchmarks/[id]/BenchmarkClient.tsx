@@ -192,17 +192,15 @@ export default function BenchmarkClient({
                               </td>
                               {/* Rank columns with purple gradient bars */}
                               {rankOrder.map((r) => {
-                                const needed = scenario.cutoffs[r.name] ?? 0; const maxThreshold = Math.max(...Object.values(scenario.cutoffs || {}), 1); const progressPct = Math.min(100, Math.round((score / maxThreshold) * 100)) || 0;
                                 return (
                                   <td key={r.name} className="text-center px-1.5 py-3 align-middle min-w-[60px]">
                                     <div className="flex flex-col items-center gap-1">
-                                      <div className="w-14 h-2.5 rounded-full overflow-hidden bg-gradient-to-r from-zinc-900 to-zinc-950 shadow-inner relative border border-zinc-800/50 flex items-center justify-center">
-                                        <span className="absolute z-10 text-[9px] font-mono font-bold text-white drop-shadow-md whitespace-nowrap truncate px-0.5">{needed ? needed.toLocaleString() : "—"}</span>
+                                      <div className="w-full min-w-[80px] h-5 rounded-md overflow-hidden bg-zinc-900 shadow-inner relative border border-zinc-800/30 flex items-center">
+                                        <div className="absolute left-1 top-0 bottom-0 z-20 text-[9px] font-mono font-extrabold text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] px-1 leading-5 whitespace-nowrap">{score ? score.toLocaleString() : "—"}</div>
                                         <div
-                                          className="absolute h-full rounded-full bg-gradient-to-r from-purple-700 via-purple-400 to-purple-200 shadow-[0_0_6px_rgba(168,85,247,0.35)]"
+                                          className="absolute top-0 left-0 h-full rounded-md bg-gradient-to-r from-purple-700 via-purple-500 to-purple-300 shadow-[0_0_10px_rgba(168,85,247,0.5)]"
                                           style={{
-                                            width: `${progressPct}%`,
-                                            clipPath: "polygon(0 0, 90% 0, 100% 50%, 90% 100%, 0 100%)",
+                                            width: `${Math.min(100, Math.round((score / Math.max(Math.max(...Object.values(scenario.cutoffs || {}), 1), 1)) * 100))}%`,
                                           }}
                                         />
                                       </div>
