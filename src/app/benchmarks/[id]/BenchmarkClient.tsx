@@ -120,39 +120,11 @@ export default function BenchmarkClient({
         {/* Top nav bar */}
         <div className="flex items-center justify-between mb-6 px-2">
           <Link href="/" className="text-sm text-zinc-400 hover:text-white transition">← Back</Link>
-          <div className="flex gap-4 text-xs font-medium">
-            <span className="text-zinc-400">Easier</span>
-            <span className="text-zinc-500">Medium</span>
-            <span className="text-zinc-600">Hard</span>
-            <span className="text-zinc-700">Expert</span>
-          </div>
-          <div className="flex gap-3 text-xs font-medium text-zinc-400">
-            <span>Playlist</span>
-            <span>Refresh</span>
-            <span>Sharecode</span>
-            <span>Screenshot</span>
-            <span>Settings</span>
-          </div>
         </div>
 
         {/* Benchmark header */}
         <div className="rounded-2xl border border-zinc-800 bg-[#111] p-6 mb-6 shadow-2xl">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-600 to-purple-900 flex items-center justify-center text-xs font-bold">DH</div>
-              <div>
-                <h1 className="text-xl font-extrabold tracking-tight">{benchmark.title || "Dhiwo"}</h1>
-                <p className="text-xs text-zinc-500">Viscose Benchmarks S2</p>
-              </div>
-            </div>
-            <div className="flex gap-2 text-xs font-medium text-zinc-300">
-              <span className="bg-zinc-800 px-3 py-1 rounded-full">Fox</span>
-              <span className="bg-zinc-800 px-3 py-1 rounded-full">94%</span>
-              <span className="bg-zinc-800 px-3 py-1 rounded-full">10,263</span>
-              <span className="text-zinc-400">Volts <span className="font-mono text-white">3,627</span></span>
-              <span>Calc: <span className="font-mono text-white">basic</span></span>
-            </div>
-          </div>
+          <h1 className="text-2xl font-extrabold tracking-tight">{benchmark.title || "Benchmark"}</h1>
         </div>
 
         {/* Scenario table */}
@@ -220,16 +192,16 @@ export default function BenchmarkClient({
                                 return (
                                   <td key={r.name} className="text-center px-1.5 py-3 align-middle min-w-[60px]">
                                     <div className="flex flex-col items-center gap-1">
-                                      <div className="w-14 h-2 rounded-full overflow-hidden bg-gradient-to-r from-zinc-900 to-zinc-950 shadow-inner relative border border-zinc-800/50">
+                                      <div className="w-14 h-2.5 rounded-full overflow-hidden bg-gradient-to-r from-zinc-900 to-zinc-950 shadow-inner relative border border-zinc-800/50 flex items-center justify-center">
+                                        <span className="absolute z-10 text-[9px] font-mono font-bold text-white drop-shadow-md whitespace-nowrap truncate px-0.5">{needed ? needed.toLocaleString() : "—"}</span>
                                         <div
-                                          className="h-full rounded-full bg-gradient-to-r from-purple-700 via-purple-400 to-purple-200 shadow-[0_0_6px_rgba(168,85,247,0.35)]"
+                                          className="absolute h-full rounded-full bg-gradient-to-r from-purple-700 via-purple-400 to-purple-200 shadow-[0_0_6px_rgba(168,85,247,0.35)]"
                                           style={{
                                             width: `${barPct}%`,
                                             clipPath: "polygon(0 0, 90% 0, 100% 50%, 90% 100%, 0 100%)",
                                           }}
                                         />
                                       </div>
-                                      <span className="text-[9px] font-mono font-bold text-zinc-300">{needed ? needed.toLocaleString() : "—"}</span>
                                     </div>
                                   </td>
                                 );
