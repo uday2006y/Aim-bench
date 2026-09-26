@@ -24,7 +24,26 @@ export async function GET(request: Request) {
 
     if (error) throw error;
 
-    return NextResponse.json({ benchmarks });
+    // Attach the *session user's* latest score per benchmark so the list
+    // cards can show a real rank. Scoped to the caller: the benchmarks
+    // themselves stay public, but nobody else's scores are exposed here.
+    const accountId = await getSessionAccountId();
+    const myScores = await loadLatestScoresFor(accountId, (benchmarks || []).map((b) => (b as { id: string }).id));
+
+    const enriched = (benchmarks || []).map((row) => {
+      const benchmark = row as { id: string };
+      const mine = myScores.get(benchmark.id);
+
+      return {
+        ...benchmark,
+        my_score: mine?.score ?? null,
+        my_rank: mine?.rank ?? null,
+        my_rank_index: mine?.rankIndex ?? null,
+        my_completed_at: mine?.completedAt ?? null,
+      };
+    });
+
+    return NextResponse.json({ benchmarks: enriched });
   } catch (error) {
     console.error("BENCHMARKS ERROR:", error);
     return NextResponse.json(
@@ -32,6 +51,61 @@ export async function GET(request: Request) {
       { status: 500 }
     );
   }
+}
+
+interface LatestScore {
+  score: number;
+  rank: string | null;
+  rankIndex: number | null;
+  completedAt: string;
+}
+
+/**
+ * Most recent benchmark_scores row per benchmark for one account.
+ * benchmark_scores is append-only history, so "latest" is the current
+ * standing. Returns an empty map for anonymous callers.
+ */
+async function loadLatestScoresFor(
+  accountId: string | null,
+  benchmarkIds: string[]
+): Promise<Map<string, LatestScore>> {
+  const latest = new Map<string, LatestScore>();
+
+  if (!accountId || benchmarkIds.length === 0) return latest;
+
+  const { data, error } = await supabaseAdmin
+    .from("benchmark_scores")
+    .select("benchmark_id, score, rank, rank_index, completed_at")
+    .eq("user_id", accountId)
+    .in("benchmark_id", benchmarkIds)
+    .order("completed_at", { ascending: false })
+    .limit(500);
+
+  if (error) {
+    console.error("BENCHMARKS LIST: failed to load caller scores:", error);
+    return latest;
+  }
+
+  for (const row of data || []) {
+    const score = row as {
+      benchmark_id: string;
+      score: number;
+      rank: string | null;
+      rank_index: number | null;
+      completed_at: string;
+    };
+
+    if (latest.has(score.benchmark_id)) continue;
+
+    latest.set(score.benchmark_id, {
+      score: score.score,
+      rank: score.rank,
+      rankIndex: score.rank_index,
+      completedAt: score.completed_at,
+    });
+  }
+
+  return latest;
 }
 
 export async function POST(request: Request) {

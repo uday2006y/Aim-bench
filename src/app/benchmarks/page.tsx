@@ -9,6 +9,7 @@ export default function BenchmarksPage() {
   const [selectedPlatform, setSelectedPlatform] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
+  const [loggedIn, setLoggedIn] = useState(false);
 
   useEffect(() => {
     const timeout = setTimeout(() => {
@@ -17,6 +18,25 @@ export default function BenchmarksPage() {
 
     return () => clearTimeout(timeout);
   }, [searchQuery, selectedPlatform]);
+
+  // The list only attaches my_rank when there is a session, so the card
+  // needs to know which empty state to show.
+  useEffect(() => {
+    let cancelled = false;
+
+    fetch("/api/session")
+      .then((res) => res.json())
+      .then((data) => {
+        if (!cancelled) setLoggedIn(Boolean(data.accountId));
+      })
+      .catch(() => {
+        if (!cancelled) setLoggedIn(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     fetchPlatforms();
@@ -56,6 +76,13 @@ export default function BenchmarksPage() {
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchQuery(e.target.value);
   };
+
+  /** Colour a rank name using the benchmark's own rank_colors ladder. */
+  function rankColorOf(benchmark: any, rankName: string): string {
+    const index = benchmark.rank_names?.indexOf(rankName) ?? -1;
+    if (index < 0) return "#ffffff";
+    return benchmark.rank_colors?.[index] || "#ffffff";
+  }
 
   return (
     <main className="min-h-screen text-white">
@@ -145,14 +172,42 @@ export default function BenchmarksPage() {
                   {benchmark.description || "No description"}
                 </p>
 
-                <div className="mt-4 flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-zinc-400">Score</p>
-                    <p className="text-lg font-medium">{benchmark.rank_names?.[0] || "Unranked"}</p>
+                <div className="mt-5 flex items-end justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-[10px] uppercase tracking-wider text-zinc-500">
+                      Your rank
+                    </p>
+                    {benchmark.my_rank ? (
+                      <>
+                        <p
+                          className="truncate text-lg font-bold"
+                          style={{ color: rankColorOf(benchmark, benchmark.my_rank) }}
+                        >
+                          {benchmark.my_rank}
+                        </p>
+                        <p className="mt-0.5 font-mono text-xs text-zinc-500">
+                          {benchmark.my_score.toLocaleString()}
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        <p className="text-lg font-medium text-zinc-600">Not played</p>
+                        <p className="mt-0.5 text-xs text-zinc-600">
+                          {loggedIn ? "No score yet" : "Log in to track your rank"}
+                        </p>
+                      </>
+                    )}
                   </div>
 
-                  <div className="text-sm text-zinc-500">
-                    {benchmark.created_at ? new Date(benchmark.created_at).toLocaleDateString() : "N/A"}
+                  <div className="shrink-0 text-right">
+                    <p className="text-[10px] uppercase tracking-wider text-zinc-500">
+                      {benchmark.difficulty || "medium"}
+                    </p>
+                    <p className="mt-1 text-sm text-zinc-500">
+                      {benchmark.created_at
+                        ? new Date(benchmark.created_at).toLocaleDateString()
+                        : "N/A"}
+                    </p>
                   </div>
                 </div>
 
