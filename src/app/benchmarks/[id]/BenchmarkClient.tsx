@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { Fragment, useState, useEffect } from "react";
 import Link from "next/link";
 
 interface CategoryDef {
@@ -32,6 +32,30 @@ interface BenchmarkScenario {
   sub_category?: string;
   cutoffs: Record<string, number>;
   best_score?: number;
+}
+
+const DEFAULT_CATEGORY = "Other";
+
+/**
+ * Turns a #rgb / #rrggbb colour into rgba() so we can reuse a category's
+ * colour for its tinted label background. Falls back to a neutral grey for
+ * anything unparseable rather than emitting broken CSS.
+ */
+function withAlpha(hex: string, alpha: number): string {
+  const match = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i.exec((hex || "").trim());
+
+  if (!match) return `rgba(122, 122, 122, ${alpha})`;
+
+  let value = match[1];
+  if (value.length === 3) {
+    value = value
+      .split("")
+      .map((c) => c + c)
+      .join("");
+  }
+
+  const packed = parseInt(value, 16);
+  return `rgba(${(packed >> 16) & 255}, ${(packed >> 8) & 255}, ${packed & 255}, ${alpha})`;
 }
 
 export default function BenchmarkClient({
@@ -118,14 +142,69 @@ export default function BenchmarkClient({
 
   const hasScenarios = (scenarios || []).length > 0;
   const totalEnergy = scenarios.reduce((sum, s) => sum + (s.best_score ?? 0), 0);
-  const categories = Array.from(
-    new Set(scenarios.map((s) => s.category || "Other"))
-  );
 
   function getCategoryColor(catName: string): string {
     const def = benchmark.category_defs?.find((c) => c.name === catName);
     return def?.color || "#7a7a7a";
   }
+
+  // Categories render in the order the benchmark defines them, then any
+  // category a scenario actually uses that isn't in category_defs. Same
+  // idea for sub-categories inside each category. Previously this grouped
+  // with one fallback string and filtered with another, so scenarios with
+  // a blank category were built into the list and then silently dropped.
+  const categoryOrder = (() => {
+    const declared = (benchmark.category_defs ?? []).map((c) => c.name);
+    const used = Array.from(
+      new Set(scenarios.map((s) => s.category || DEFAULT_CATEGORY))
+    );
+
+    return [
+      ...declared.filter((name) => used.includes(name)),
+      ...used.filter((name) => !declared.includes(name)),
+    ];
+  })();
+
+  const groups = categoryOrder
+    .map((categoryName) => {
+      const inCategory = scenarios.filter(
+        (s) => (s.category || DEFAULT_CATEGORY) === categoryName
+      );
+
+      const declaredSubs =
+        benchmark.category_defs?.find((c) => c.name === categoryName)
+          ?.subCategories ?? [];
+      const usedSubs = Array.from(
+        new Set(inCategory.map((s) => s.sub_category || ""))
+      );
+
+      const subOrder = [
+        ...declaredSubs.filter((s) => usedSubs.includes(s)),
+        ...usedSubs.filter((s) => !declaredSubs.includes(s)),
+      ];
+
+      const subGroups = subOrder
+        .map((subName) => {
+          const rows = inCategory.filter(
+            (s) => (s.sub_category || "") === subName
+          );
+          return {
+            sub: subName,
+            rows,
+            energy: rows.reduce((sum, s) => sum + (s.best_score ?? 0), 0),
+          };
+        })
+        .filter((group) => group.rows.length > 0);
+
+      return {
+        category: categoryName,
+        color: getCategoryColor(categoryName),
+        rowCount: inCategory.length,
+        energy: inCategory.reduce((sum, s) => sum + (s.best_score ?? 0), 0),
+        subGroups,
+      };
+    })
+    .filter((group) => group.rowCount > 0);
 
   return (
     <main className="min-h-screen bg-[#0a0a0a] text-white">
@@ -143,6 +222,21 @@ export default function BenchmarkClient({
               <Link href={`/benchmarks/${id}/edit`} className="text-xs bg-white text-black px-3 py-1 rounded font-medium hover:bg-zinc-200">Edit Benchmark</Link>
             ) : null}
           </div>
+
+          {hasScenarios && (
+            <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1 text-[10px] uppercase tracking-wider text-zinc-500">
+              <span>
+                {scenarios.length} scenario{scenarios.length === 1 ? "" : "s"}
+              </span>
+              <span>{groups.length} categor{groups.length === 1 ? "y" : "ies"}</span>
+              <span>
+                Total energy{" "}
+                <span className="font-mono text-zinc-300">
+                  {totalEnergy.toLocaleString()}
+                </span>
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Scenario table */}
@@ -152,126 +246,199 @@ export default function BenchmarkClient({
               <table className="w-full text-xs border-collapse min-w-[1200px]">
                 <thead className="bg-[#0a0a0a] text-zinc-300 text-[10px] uppercase tracking-wider font-extrabold border-b border-zinc-800">
                   <tr>
+                    {/* Spacers for the vertical category / sub-category rails */}
+                    <th className="w-6" />
+                    <th className="w-6" />
                     <th className="text-left px-4 py-3 whitespace-nowrap">SCENARIO</th>
                     <th className="text-left px-3 py-3 whitespace-nowrap">SCORE</th>
                     {rankOrder.map((r) => (
-                      <th key={r.name} className="text-center px-2 py-3 whitespace-nowrap text-[10px] tracking-wide">
-                        {r.name}
+                      <th
+                        key={r.name}
+                        className="text-center px-2 py-3 whitespace-nowrap text-[10px] tracking-wide"
+                        style={{ color: r.color }}
+                      >
+                        {r.name.toUpperCase()}
                       </th>
                     ))}
                     <th className="text-left px-3 py-3 whitespace-nowrap">ENERGY</th>
                   </tr>
                 </thead>
-                <tbody>
-                  {categories.map((cat) => {
-                    const catScenarios = scenarios.filter(
-                      (s) => (s.category || "CONTROL TRACKING") === cat
-                    );
-                    return (
-                      <>
-                        {catScenarios.map((scenario: BenchmarkScenario, idx: number) => {
-                          const score = scenario.best_score ?? 0;
-                          const scoreStr = score ? `${score}` : "—";
-                          const topCutoff = Math.max(
-                            ...Object.values(scenario.cutoffs || {}).filter(
-                              (v): v is number => typeof v === "number" && v > 0
-                            ),
-                            1
-                          );
-                          const pctStr = score
-                            ? `${Math.min(100, Math.round((score / topCutoff) * 100))}%`
-                            : "—";
-                          return (
-                            <tr
-                              key={scenario.id}
-                              className="border-b border-zinc-800/40 hover:bg-zinc-900/20 transition-colors"
-                            >
-                              {/* Vertical category + sub-category label + Scenario name */}
-                              <td className="px-2 py-3 whitespace-nowrap align-middle">
-                                <div className="flex items-center gap-1.5">
+
+                {groups.map((group, groupIdx) => (
+                  <tbody
+                    key={group.category}
+                    className={
+                      groupIdx % 2 === 0 ? "bg-white/[0.015]" : "bg-transparent"
+                    }
+                  >
+                    {group.subGroups.map((subGroup, subIdx) => {
+                      const groupRows = subGroup.rows.length;
+
+                      return subGroup.rows.map((scenario, rowIdx) => {
+                        const score = scenario.best_score ?? 0;
+
+                        const topCutoff = Math.max(
+                          ...Object.values(scenario.cutoffs || {}).filter(
+                            (v): v is number => typeof v === "number" && v > 0
+                          ),
+                          1
+                        );
+                        const pctStr = score
+                          ? `${Math.min(100, Math.round((score / topCutoff) * 100))}%`
+                          : "—";
+
+                        // Colour the score with the highest rank it actually
+                        // clears, so a 2,394 that beats the Platinum cutoff
+                        // reads as Platinum rather than plain white.
+                        let achieved = -1;
+                        rankOrder.forEach((rank, index) => {
+                          const cutoff = scenario.cutoffs?.[rank.name];
+                          if (
+                            typeof cutoff === "number" &&
+                            cutoff > 0 &&
+                            score >= cutoff
+                          ) {
+                            achieved = index;
+                          }
+                        });
+                        const scoreColor =
+                          achieved >= 0 ? rankOrder[achieved].color : undefined;
+
+                        const isGroupStart = subIdx === 0 && rowIdx === 0;
+                        const isSubStart = rowIdx === 0;
+
+                        return (
+                          <tr
+                            key={scenario.id}
+                            className="border-b border-zinc-800/40 last:border-b-0 hover:bg-white/[0.03] transition-colors"
+                          >
+                            {isGroupStart && (
+                              <td
+                                rowSpan={group.rowCount}
+                                className="border-r border-zinc-800/40 px-1 py-2 align-middle"
+                              >
+                                <span
+                                  className="inline-flex items-center justify-center rounded-sm border px-1 py-2 text-[9px] font-extrabold uppercase tracking-[0.2em]"
+                                  style={{
+                                    writingMode: "vertical-rl",
+                                    textOrientation: "mixed",
+                                    color: group.color,
+                                    borderColor: group.color,
+                                    backgroundColor: withAlpha(group.color, 0.1),
+                                  }}
+                                >
+                                  {group.category.toUpperCase()}
+                                </span>
+                              </td>
+                            )}
+
+                            {isSubStart && (
+                              <td
+                                rowSpan={groupRows}
+                                className="border-r border-zinc-800/40 px-1 py-2 align-middle"
+                              >
+                                {subGroup.sub ? (
                                   <span
-                                    className="inline-flex items-center justify-center rounded px-1 py-1 text-[8px] font-extrabold tracking-[0.15em] uppercase border"
+                                    className="inline-flex items-center justify-center rounded-sm border px-1 py-2 text-[9px] font-bold uppercase tracking-[0.15em]"
                                     style={{
                                       writingMode: "vertical-rl",
                                       textOrientation: "mixed",
-                                      letterSpacing: "0.05em",
-                                      color: getCategoryColor(cat),
-                                      borderColor: getCategoryColor(cat),
-                                      backgroundColor: `${getCategoryColor(cat)}1a`,
+                                      color: withAlpha(group.color, 0.85),
+                                      borderColor: withAlpha(group.color, 0.35),
+                                      backgroundColor: "transparent",
                                     }}
                                   >
-                                    {cat.toUpperCase()}
+                                    {subGroup.sub.toUpperCase()}
                                   </span>
-                                  {scenario.sub_category ? (
-                                    <span
-                                      className="inline-flex items-center justify-center rounded px-1 py-1 text-[8px] font-bold tracking-[0.1em] uppercase border"
-                                      style={{
-                                        writingMode: "vertical-rl",
-                                        textOrientation: "mixed",
-                                        letterSpacing: "0.05em",
-                                        color: getCategoryColor(cat),
-                                        borderColor: `${getCategoryColor(cat)}55`,
-                                        backgroundColor: "transparent",
-                                      }}
-                                    >
-                                      {scenario.sub_category.toUpperCase()}
+                                ) : null}
+                              </td>
+                            )}
+
+                            <td className="px-4 py-2.5 align-middle">
+                              <div className="flex flex-col gap-0.5 min-w-[160px]">
+                                <span className="font-semibold text-white text-xs leading-tight truncate">
+                                  {scenario.title}
+                                </span>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-[9px] text-zinc-500">
+                                    {scenario.easyaim_scenario_id}
+                                  </span>
+                                  <span className="text-[8px] text-zinc-600">▶</span>
+                                </div>
+                              </div>
+                            </td>
+
+                            <td className="px-3 py-2.5 whitespace-nowrap align-middle">
+                              <div className="flex items-baseline gap-2">
+                                <span
+                                  className="font-mono font-bold text-sm tracking-tight"
+                                  style={{ color: scoreColor || "#ffffff" }}
+                                >
+                                  {score ? score.toLocaleString() : "—"}
+                                </span>
+                                <span className="text-[10px] font-medium text-zinc-500">
+                                  {pctStr}
+                                </span>
+                              </div>
+                            </td>
+
+                            {rankOrder.map((rank) => {
+                              const cutoff = scenario.cutoffs?.[rank.name];
+                              const hasCutoff =
+                                typeof cutoff === "number" && cutoff > 0;
+                              const fillPct = hasCutoff
+                                ? Math.min(
+                                    100,
+                                    Math.max(0, Math.round((score / cutoff) * 100))
+                                  )
+                                : 0;
+
+                              return (
+                                <td
+                                  key={rank.name}
+                                  className="px-1.5 py-2 align-middle min-w-[100px]"
+                                >
+                                  <div className="relative h-6 w-full overflow-hidden rounded-[3px] border border-white/[0.06] bg-white/[0.04]">
+                                    {hasCutoff && score > 0 && (
+                                      <div
+                                        className="absolute inset-y-0 left-0 transition-all"
+                                        style={{
+                                          width: `${fillPct}%`,
+                                          backgroundColor: rank.color,
+                                          // Slanted right edge instead of a
+                                          // rounded cap, evxl-style.
+                                          clipPath:
+                                            "polygon(0 0, calc(100% + 12px) 0, 100% 100%, 0 100%)",
+                                        }}
+                                      />
+                                    )}
+                                    <span className="absolute inset-y-0 left-2 flex items-center text-[10px] font-mono font-bold text-white">
+                                      {hasCutoff ? cutoff.toLocaleString() : "—"}
                                     </span>
-                                  ) : null}
-                                  <div className="flex flex-col gap-0.5 min-w-[160px]">
-                                    <span className="font-semibold text-white text-xs leading-tight truncate">{scenario.title}</span>
-                                    <div className="flex items-center gap-2">
-                                      <span className="text-[9px] text-zinc-500">{scenario.easyaim_scenario_id}</span>
-                                      <span className="text-[8px] text-zinc-600">▶</span>
-                                    </div>
                                   </div>
-                                </div>
+                                </td>
+                              );
+                            })}
+
+                            {isSubStart && (
+                              <td
+                                rowSpan={groupRows}
+                                className="px-3 py-2.5 whitespace-nowrap align-middle"
+                              >
+                                <span
+                                  className="font-mono font-bold text-xs"
+                                  style={{ color: withAlpha(group.color, 0.95) }}
+                                >
+                                  {subGroup.energy.toLocaleString()}
+                                </span>
                               </td>
-                              {/* Score + % */}
-                              <td className="px-3 py-3 whitespace-nowrap align-middle">
-                                <div className="flex flex-col gap-0.5">
-                                  <span className="font-mono font-bold text-sm text-white tracking-tight">{scoreStr}</span>
-                                  <span className="text-[10px] text-zinc-400 font-medium">{pctStr}</span>
-                                </div>
-                              </td>
-                              {/* Rank columns: progress bar, 0-100% of that rank's own cutoff */}
-                              {rankOrder.map((r) => {
-                                const cutoff = scenario.cutoffs?.[r.name];
-                                const hasCutoff = typeof cutoff === "number" && cutoff > 0;
-                                const fillPct = hasCutoff
-                                  ? Math.min(100, Math.max(0, Math.round((score / cutoff) * 100)))
-                                  : 0;
-                                return (
-                                  <td key={r.name} className="text-center px-1.5 py-3 align-middle min-w-[60px]">
-                                    <div className="flex flex-col items-center gap-1">
-                                      <div className="w-full min-w-[80px] h-5 rounded-md overflow-hidden bg-white/10 shadow-inner relative border border-zinc-800/30 flex items-center">
-                                        {hasCutoff && score > 0 && (
-                                          <div
-                                            className="absolute top-0 left-0 h-full rounded-md transition-all"
-                                            style={{
-                                              width: `${fillPct}%`,
-                                              backgroundColor: r.color,
-                                            }}
-                                          />
-                                        )}
-                                        <div className="absolute left-1 top-0 bottom-0 z-20 text-[9px] font-mono font-extrabold text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] px-1 leading-5 whitespace-nowrap">
-                                          {hasCutoff ? cutoff.toLocaleString() : "—"}
-                                        </div>
-                                      </div>
-                                    </div>
-                                  </td>
-                                );
-                              })}
-                              {/* Energy column */}
-                              <td className="px-3 py-3 whitespace-nowrap align-middle">
-                                <span className="font-mono font-bold text-xs text-zinc-300">{score}</span>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </>
-                    );
-                  })}
-                </tbody>
+                            )}
+                          </tr>
+                        );
+                      });
+                    })}
+                  </tbody>
+                ))}
               </table>
             </div>
           </div>
@@ -280,16 +447,3 @@ export default function BenchmarkClient({
     </main>
   );
 }
-
-
-
-
-
-
-
-
-
-
-
-
-

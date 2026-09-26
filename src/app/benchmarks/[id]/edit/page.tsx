@@ -17,14 +17,22 @@ const DEFAULT_RANKS = [
   { name: "Immortal", color: "#9f9f9f" },
 ];
 
-const RANK_NAMES = [
-  "Bronze", "Silver", "Gold", "Platinum", "Diamond", "Champion", "Radiant", "Immortal",
+interface CategoryDef {
+  name: string;
+  color: string;
+  subCategories: string[];
+}
+
+const DEFAULT_CATEGORIES: CategoryDef[] = [
+  { name: "Other", color: "#7a7a7a", subCategories: [] },
 ];
 
 interface Scenario {
   id: number;
   title: string;
   cutoffs: Record<string, number | string | undefined>;
+  category: string;
+  subCategory: string;
 }
 
 export default function EditBenchmarkPage({ params }: { params: Promise<{ id: string }> }) {
@@ -43,6 +51,7 @@ export default function EditBenchmarkPage({ params }: { params: Promise<{ id: st
   const [note, setNote] = useState("");
   const [useCustomRankCalc, setUseCustomRankCalc] = useState(false);
   const [scenarios, setScenarios] = useState<Scenario[]>([]);
+  const [categories, setCategories] = useState<CategoryDef[]>(DEFAULT_CATEGORIES);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [searching, setSearching] = useState(false);
@@ -82,11 +91,20 @@ export default function EditBenchmarkPage({ params }: { params: Promise<{ id: st
         setDescription(benchmarkData.description || "");
         setPlatform(benchmarkData.platform || "easyaim");
         setDifficulty(benchmarkData.difficulty || "medium");
+        setCategories(
+          Array.isArray(benchmarkData.category_defs) &&
+            benchmarkData.category_defs.length > 0
+            ? benchmarkData.category_defs
+            : DEFAULT_CATEGORIES
+        );
+
         setScenarios(
           (data.scenarios || []).map((s: any) => ({
             id: s.easyaim_scenario_id,
             title: s.title,
             cutoffs: s.cutoffs || {},
+            category: s.category || "Other",
+            subCategory: s.sub_category || "",
           }))
         );
       } else {
@@ -126,18 +144,144 @@ export default function EditBenchmarkPage({ params }: { params: Promise<{ id: st
   function addScenarioFromResult(scenario: any) {
     setScenarios((prev) => {
       if (prev.some((s) => s.id === scenario.id)) return prev;
-      return [...prev, { id: scenario.id, title: scenario.title, cutoffs: {} }];
+      return [
+        ...prev,
+        {
+          id: scenario.id,
+          title: scenario.title,
+          cutoffs: {},
+          category: categories[0]?.name ?? "Other",
+          subCategory: "",
+        },
+      ];
     });
     setSearchQuery("");
     setSearchResults([]);
   }
 
-  function addScenario() {
-    setScenarios((prev) => [...prev, { id: Date.now(), title: "New Scenario", cutoffs: {} }]);
-  }
-
   function removeScenario(index: number) {
     setScenarios((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  function updateScenarioCategory(index: number, categoryName: string) {
+    setScenarios((prev) =>
+      prev.map((s, i) =>
+        i === index ? { ...s, category: categoryName, subCategory: "" } : s
+      )
+    );
+  }
+
+  function updateScenarioSubCategory(index: number, subCategoryName: string) {
+    setScenarios((prev) =>
+      prev.map((s, i) => (i === index ? { ...s, subCategory: subCategoryName } : s))
+    );
+  }
+
+  function addCategory() {
+    setCategories((prev) => [
+      ...prev,
+      {
+        name: `Category ${prev.length + 1}`,
+        color: "#ffffff",
+        subCategories: [],
+      },
+    ]);
+  }
+
+  function removeCategory(index: number) {
+    const removedName = categories[index].name;
+    setCategories((prev) => prev.filter((_, i) => i !== index));
+    setScenarios((prev) =>
+      prev.map((s) =>
+        s.category === removedName
+          ? { ...s, category: "Other", subCategory: "" }
+          : s
+      )
+    );
+  }
+
+  function updateCategoryName(index: number, value: string) {
+    const oldName = categories[index].name;
+    const newName = value.trim() || `Category ${index + 1}`;
+    setCategories((prev) =>
+      prev.map((c, i) => (i === index ? { ...c, name: newName } : c))
+    );
+    setScenarios((prev) =>
+      prev.map((s) => (s.category === oldName ? { ...s, category: newName } : s))
+    );
+  }
+
+  function updateCategoryColor(index: number, color: string) {
+    setCategories((prev) =>
+      prev.map((c, i) => (i === index ? { ...c, color } : c))
+    );
+  }
+
+  function addSubCategory(catIndex: number) {
+    setCategories((prev) =>
+      prev.map((c, i) =>
+        i === catIndex
+          ? {
+              ...c,
+              subCategories: [
+                ...c.subCategories,
+                `Sub ${c.subCategories.length + 1}`,
+              ],
+            }
+          : c
+      )
+    );
+  }
+
+  function updateSubCategoryName(catIndex: number, subIndex: number, value: string) {
+    const oldName = categories[catIndex].subCategories[subIndex];
+    const newName = value.trim() || `Sub ${subIndex + 1}`;
+    const categoryName = categories[catIndex].name;
+
+    setCategories((prev) =>
+      prev.map((c, i) =>
+        i === catIndex
+          ? {
+              ...c,
+              subCategories: c.subCategories.map((sc, si) =>
+                si === subIndex ? newName : sc
+              ),
+            }
+          : c
+      )
+    );
+
+    setScenarios((prev) =>
+      prev.map((s) =>
+        s.category === categoryName && s.subCategory === oldName
+          ? { ...s, subCategory: newName }
+          : s
+      )
+    );
+  }
+
+  function removeSubCategory(catIndex: number, subIndex: number) {
+    const removedName = categories[catIndex].subCategories[subIndex];
+    const categoryName = categories[catIndex].name;
+
+    setCategories((prev) =>
+      prev.map((c, i) =>
+        i === catIndex
+          ? {
+              ...c,
+              subCategories: c.subCategories.filter((_, si) => si !== subIndex),
+            }
+          : c
+      )
+    );
+
+    setScenarios((prev) =>
+      prev.map((s) =>
+        s.category === categoryName && s.subCategory === removedName
+          ? { ...s, subCategory: "" }
+          : s
+      )
+    );
   }
 
   function updateCutoff(index: number, rank: string, value: string) {
@@ -185,9 +329,12 @@ export default function EditBenchmarkPage({ params }: { params: Promise<{ id: st
         platform,
         rank_names: ranks.map((r) => r.name),
         rank_colors: ranks.map((r) => r.color),
+        category_defs: categories,
         scenarios: scenarios.map((s) => ({
           id: s.id,
           title: s.title,
+          category: s.category || "Other",
+          subCategory: s.subCategory || "",
           cutoffs: Object.fromEntries(
             Object.entries(s.cutoffs).filter(([, v]) => v !== undefined && v !== "")
           ),
@@ -233,18 +380,20 @@ export default function EditBenchmarkPage({ params }: { params: Promise<{ id: st
 
           <div>
             <label className="block text-sm text-zinc-400 mb-2">Platform</label>
-            <select value={platform} onChange={(e) => setPlatform(e.target.value)} className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-3 text-white focus:border-zinc-500 outline-none">
-              <option value="easyaim">easyaim</option>
+            <select
+              value={scenarios.length > 0 ? "easyaim" : platform}
+              onChange={(e) => setPlatform(e.target.value)}
+              disabled={scenarios.length > 0}
+              className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-3 text-white focus:border-zinc-500 outline-none disabled:opacity-60"
+            >
+              <option value="easyaim">EasyAim</option>
             </select>
-          </div>
-
-          <div>
-            <label className="block text-sm text-zinc-400 mb-2">Difficulty</label>
-            <select value={difficulty} onChange={(e) => setDifficulty(e.target.value)} className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-3 text-white focus:border-zinc-500 outline-none">
-              <option value="easy">Easy</option>
-              <option value="medium">Medium</option>
-              <option value="hard">Hard</option>
-            </select>
+            {scenarios.length > 0 && (
+              <p className="mt-2 text-xs text-zinc-600">
+                Platform is set to EasyAim because this benchmark uses
+                EasyAim scenarios.
+              </p>
+            )}
           </div>
 
           <div>
@@ -310,9 +459,69 @@ export default function EditBenchmarkPage({ params }: { params: Promise<{ id: st
                     <input type="text" value={r.name} readOnly className="w-24 rounded-lg border border-zinc-800 bg-zinc-950 px-2 py-1.5 text-xs text-white" />
                     <input type="color" value={r.color} readOnly className="w-8 h-8 rounded border border-zinc-700 shrink-0" />
                     <span className="text-xs font-mono text-zinc-500">{r.color.toUpperCase()}</span>
+                    <button type="button" className="ml-auto text-xs text-red-400 hover:text-red-300">&#128465;</button>
                   </div>
                 ))}
               </div>
+              <button type="button" className="mt-3 text-xs bg-white text-black px-3 py-1 rounded font-medium hover:bg-zinc-200">+ Add Rank</button>
+
+              <div className="text-xs text-zinc-400 mt-4 mb-2">Categories</div>
+              <div className="space-y-3">
+                {categories.map((cat, catIdx) => (
+                  <div key={catIdx} className="rounded-lg border border-zinc-800 bg-zinc-900/60 p-3">
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={cat.name}
+                        onChange={(e) => updateCategoryName(catIdx, e.target.value)}
+                        className="flex-1 rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-white outline-none"
+                      />
+                      <input
+                        type="color"
+                        value={cat.color}
+                        onChange={(e) => updateCategoryColor(catIdx, e.target.value)}
+                        className="w-8 h-8 rounded border border-zinc-700 shrink-0 cursor-pointer p-1"
+                      />
+                      <span className="text-xs font-mono text-zinc-500 truncate">{cat.color.toUpperCase()}</span>
+                      <button
+                        type="button"
+                        onClick={() => removeCategory(catIdx)}
+                        className="text-xs text-red-400 hover:text-red-300"
+                        disabled={categories.length <= 1}
+                      >
+                        &#128465;
+                      </button>
+                    </div>
+                    <div className="mt-2 pl-3 space-y-1.5">
+                      {cat.subCategories.map((sub, subIdx) => (
+                        <div key={subIdx} className="flex items-center gap-2">
+                          <input
+                            type="text"
+                            value={sub}
+                            onChange={(e) => updateSubCategoryName(catIdx, subIdx, e.target.value)}
+                            className="flex-1 rounded-lg border border-zinc-800 bg-zinc-950 px-2 py-1 text-xs text-white outline-none"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => removeSubCategory(catIdx, subIdx)}
+                            className="text-xs text-red-400 hover:text-red-300"
+                          >
+                            &#10005;
+                          </button>
+                        </div>
+                      ))}
+                      <button
+                        type="button"
+                        onClick={() => addSubCategory(catIdx)}
+                        className="text-xs border border-zinc-600 text-white px-2 py-1 rounded font-medium hover:bg-zinc-800"
+                      >
+                        + Add Subcategory
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <button type="button" onClick={addCategory} className="mt-3 text-xs border border-zinc-600 text-white px-3 py-1 rounded font-medium hover:bg-zinc-800">+ Add Category</button>
             </div>
             <button type="button" className="w-full rounded-lg border border-zinc-700 bg-zinc-950 px-4 py-3 text-sm font-medium text-white hover:bg-zinc-900">+ Add Difficulty</button>
           </div>
@@ -324,8 +533,11 @@ export default function EditBenchmarkPage({ params }: { params: Promise<{ id: st
             {searchResults.length > 0 && (
               <div className="mt-2 max-h-48 overflow-y-auto rounded-lg border border-zinc-800 bg-zinc-900">
                 {searchResults.map((r: any) => (
-                  <button key={r.id} type="button" onClick={() => addScenarioFromResult(r)} className="w-full text-left px-4 py-2 text-sm hover:bg-zinc-800 border-b border-zinc-800 last:border-0">
-                    {r.title}
+                  <button key={r.id} type="button" onClick={() => addScenarioFromResult(r)} className="flex w-full items-center justify-between gap-4 border-b border-white/5 px-4 py-3 text-left text-sm last:border-0 hover:bg-white/5">
+                    <span className="truncate">{r.title}</span>
+                    <span className="shrink-0 text-xs text-zinc-500">
+                      {r.author ? `by ${r.author}` : ""}
+                    </span>
                   </button>
                 ))}
               </div>
@@ -335,7 +547,6 @@ export default function EditBenchmarkPage({ params }: { params: Promise<{ id: st
           <div>
             <div className="flex items-center justify-between mb-3">
               <label className="text-sm text-zinc-400">Scenarios</label>
-              <button type="button" onClick={addScenario} className="text-xs bg-white text-black px-3 py-1 rounded font-medium hover:bg-zinc-200">+ Add Scenario</button>
             </div>
             <div className="space-y-3">
               {scenarios.map((scenario, idx) => (
@@ -344,6 +555,35 @@ export default function EditBenchmarkPage({ params }: { params: Promise<{ id: st
                     <input value={scenario.title} onChange={(e) => setScenarios((prev) => prev.map((s, i) => i === idx ? { ...s, title: e.target.value } : s))} className="flex-1 rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-white outline-none" placeholder="Scenario title" />
                     <button type="button" onClick={() => removeScenario(idx)} className="text-xs text-red-400 hover:text-red-300">Remove</button>
                   </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-xs text-zinc-500 mb-0.5">Category</label>
+                      <select
+                        value={scenario.category}
+                        onChange={(e) => updateScenarioCategory(idx, e.target.value)}
+                        className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-2 py-1.5 text-xs text-white outline-none focus:border-zinc-500"
+                      >
+                        {categories.map((c) => (
+                          <option key={c.name} value={c.name}>{c.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs text-zinc-500 mb-0.5">Sub-category</label>
+                      <select
+                        value={scenario.subCategory}
+                        onChange={(e) => updateScenarioSubCategory(idx, e.target.value)}
+                        className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-2 py-1.5 text-xs text-white outline-none focus:border-zinc-500"
+                      >
+                        <option value="">—</option>
+                        {(categories.find((c) => c.name === scenario.category)?.subCategories ?? []).map((sc) => (
+                          <option key={sc} value={sc}>{sc}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
                   <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
                     {ranks.map((rankDef, rIdx) => (
                       <div key={`${scenario.id}-${rankDef.name}-${rIdx}`} className="block">
