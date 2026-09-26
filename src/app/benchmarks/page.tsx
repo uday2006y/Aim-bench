@@ -71,7 +71,6 @@ export default function BenchmarksPage() {
               <Link href="/benchmarks" className="text-white">Benchmarks</Link>
               <Link href="/leaderboard" className="hover:text-white">Leaderboard</Link>
               <Link href="/rank-history" className="hover:text-white">Rank History</Link>
-              <Link href="/theme-settings" className="text-white">Theme</Link>
             </nav>
 
             <div className="flex gap-3">
@@ -122,10 +121,11 @@ export default function BenchmarksPage() {
               <p className="mt-2 text-zinc-600">Create your first benchmark</p>
             </div>
           ) : (
-            benchmarks.map((benchmark) => (
+            benchmarks.map((benchmark, i) => (
               <div
                 key={benchmark.id}
-                className="group rounded-2xl border border-white/10 bg-white/[0.02] p-6 transition hover:border-white/20 hover:bg-white/[0.04]"
+                className="animate-card-in hover-lift group rounded-2xl border border-white/10 bg-white/[0.02] p-6 hover:border-white/25 hover:bg-white/[0.05]"
+                style={{ animationDelay: `${Math.min(i, 8) * 45}ms` }}
               >
                 <div className="mb-4 flex items-center justify-between">
                   <span className="rounded-full border border-white/10 px-3 py-1 text-xs text-zinc-400">

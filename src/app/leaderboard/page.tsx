@@ -60,7 +60,6 @@ export default function LeaderboardPage() {
               <Link href="/benchmarks" className="hover:text-white">Benchmarks</Link>
               <Link href="/leaderboard" className="text-white">Leaderboard</Link>
               <Link href="/rank-history" className="hover:text-white">Rank History</Link>
-              <Link href="/theme-settings" className="hover:text-white">Theme</Link>
             </nav>
 
             <div className="flex gap-3">

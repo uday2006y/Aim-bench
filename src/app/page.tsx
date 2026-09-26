@@ -34,7 +34,6 @@ export default async function Home() {
             <Link href="/benchmarks" className="text-white">Benchmarks</Link>
             <Link href="/leaderboard" className="hover:text-white">Leaderboard</Link>
             <Link href="/rank-history" className="hover:text-white">Rank History</Link>
-            <Link href="/theme-settings" className="hover:text-white">Theme</Link>
           </nav>
 
           <div className="flex gap-3">
@@ -77,7 +76,7 @@ export default async function Home() {
 
       {/* HERO */}
       <section className="mx-auto max-w-7xl px-6 pb-20 pt-24">
-        <div className="max-w-3xl">
+        <div className="animate-card-in max-w-3xl">
           <p className="mb-4 text-sm font-medium uppercase tracking-[0.25em] text-zinc-500">
             Aim Benchmark Platform
           </p>
@@ -141,10 +140,11 @@ export default async function Home() {
           </div>
         ) : (
           <div className="grid gap-4 md:grid-cols-3">
-            {benchmarks.map((benchmark) => (
+            {benchmarks.map((benchmark, i) => (
               <div
                 key={benchmark.id}
-                className="group rounded-2xl border border-white/10 bg-white/[0.02] p-6 transition hover:border-white/20 hover:bg-white/[0.04]"
+                className="animate-card-in hover-lift group rounded-2xl border border-white/10 bg-white/[0.02] p-6 hover:border-white/25 hover:bg-white/[0.05]"
+                style={{ animationDelay: `${Math.min(i, 8) * 45}ms` }}
               >
                 <div className="mb-8 flex items-center justify-between">
                   <span className="rounded-full border border-white/10 px-3 py-1 text-xs text-zinc-400">
@@ -184,7 +184,7 @@ export default async function Home() {
         <div className="grid gap-4 md:grid-cols-2">
           <Link
             href="/benchmarks"
-            className="group rounded-2xl border border-white/10 bg-white/[0.02] p-6 transition hover:border-white/20 hover:bg-white/[0.04]"
+            className="hover-lift group rounded-2xl border border-white/10 bg-white/[0.02] p-6 hover:border-white/25 hover:bg-white/[0.05]"
           >
             <h3 className="text-lg font-semibold mb-2">Browse All Benchmarks</h3>
             <p className="text-sm text-zinc-500">
@@ -194,7 +194,7 @@ export default async function Home() {
 
           <Link
             href="/create-benchmark"
-            className="group rounded-2xl border border-white/10 bg-white/[0.02] p-6 transition hover:border-white/20 hover:bg-white/[0.04]"
+            className="hover-lift group rounded-2xl border border-white/10 bg-white/[0.02] p-6 hover:border-white/25 hover:bg-white/[0.05]"
           >
             <h3 className="text-lg font-semibold mb-2">Create Benchmark</h3>
             <p className="text-sm text-zinc-500">
