@@ -192,8 +192,7 @@ export default function BenchmarkClient({
                               </td>
                               {/* Rank columns with purple gradient bars */}
                               {rankOrder.map((r) => {
-                                const needed = scenario.cutoffs[r.name] ?? 0;
-                                const barPct = needed ? Math.min(100, Math.round((score / Math.max(needed || 1, 1)) * 100)) : 0;
+                                const needed = scenario.cutoffs[r.name] ?? 0; const maxThreshold = Math.max(...Object.values(scenario.cutoffs || {}), 1); const progressPct = Math.min(100, Math.round((score / maxThreshold) * 100)) || 0;
                                 return (
                                   <td key={r.name} className="text-center px-1.5 py-3 align-middle min-w-[60px]">
                                     <div className="flex flex-col items-center gap-1">
@@ -202,7 +201,7 @@ export default function BenchmarkClient({
                                         <div
                                           className="absolute h-full rounded-full bg-gradient-to-r from-purple-700 via-purple-400 to-purple-200 shadow-[0_0_6px_rgba(168,85,247,0.35)]"
                                           style={{
-                                            width: `${barPct}%`,
+                                            width: `${progressPct}%`,
                                             clipPath: "polygon(0 0, 90% 0, 100% 50%, 90% 100%, 0 100%)",
                                           }}
                                         />
@@ -230,3 +229,5 @@ export default function BenchmarkClient({
     </main>
   );
 }
+
+
