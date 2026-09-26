@@ -63,7 +63,15 @@ export default function CreateBenchmarkPage() {
   const [scenarioCount, setScenarioCount] = useState<number>(1);
   const [scenarios, setScenarios] = useState<AddedScenario[]>([]);
   const [ranks, setRanks] = useState<RankDef[]>(DEFAULT_RANKS);
-  const [categories, setCategories] = useState<CategoryDef[]>(DEFAULT_CATEGORIES);
+  const [categories, setCategories] = useState<CategoryDef[]>(
+    DEFAULT_CATEGORIES
+  );
+  // Preselect the first category so the add-destination picker is never
+  // blank on a fresh benchmark.
+  const [addTargetCategory, setAddTargetCategory] = useState(
+    DEFAULT_CATEGORIES[0].name
+  );
+  const [addTargetSubCategory, setAddTargetSubCategory] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [results, setResults] = useState<ScenarioResult[]>([]);
   const [searching, setSearching] = useState(false);
@@ -97,7 +105,16 @@ export default function CreateBenchmarkPage() {
     return () => clearTimeout(timeout);
   }, [searchQuery]);
 
-    function addScenario(scenario: ScenarioResult) {
+  const addTargetSubs =
+    categories.find((c) => c.name === addTargetCategory)?.subCategories ?? [];
+
+  function addScenario(scenario: ScenarioResult) {
+    // Scenarios land in whichever category/sub-category is selected in the
+    // "Add scenarios to" picker above the search box, so you can file them
+    // straight into a group instead of fixing every one afterwards.
+    const targetCategory = addTargetCategory || "Other";
+    const targetSubCategory = addTargetSubCategory.trim();
+
     setScenarios((current) => {
       if (current.some((s) => s.id === scenario.id)) return current;
       return [
@@ -106,8 +123,8 @@ export default function CreateBenchmarkPage() {
           id: scenario.id,
           title: scenario.title,
           cutoffs: {},
-          category: categories[0]?.name ?? "Other",
-          subCategory: "",
+          category: targetCategory,
+          subCategory: targetSubCategory,
         },
       ];
     });
@@ -117,9 +134,22 @@ export default function CreateBenchmarkPage() {
 
   function updateScenarioCategory(id: number, categoryName: string) {
     setScenarios((current) =>
-      current.map((s) =>
-        s.id === id ? { ...s, category: categoryName, subCategory: "" } : s
-      )
+      current.map((s) => {
+        if (s.id !== id) return s;
+
+        // Only drop the sub-category if it isn't valid under the new
+        // category. Clearing it unconditionally meant re-picking the same
+        // category after choosing a sub-category threw it away silently.
+        const stillValid = (
+          categories.find((c) => c.name === categoryName)?.subCategories ?? []
+        ).includes(s.subCategory);
+
+        return {
+          ...s,
+          category: categoryName,
+          subCategory: stillValid ? s.subCategory : "",
+        };
+      })
     );
   }
 
@@ -140,12 +170,20 @@ export default function CreateBenchmarkPage() {
 
   function removeCategory(index: number) {
     const removedName = categories[index].name;
-    setCategories((prev) => prev.filter((_, i) => i !== index));
+    const remaining = categories.filter((_, i) => i !== index);
+
+    setCategories(remaining);
     setScenarios((prev) =>
       prev.map((s) =>
         s.category === removedName ? { ...s, category: "Other", subCategory: "" } : s
       )
     );
+
+    // Don't leave the add-destination pointing at a category that's gone.
+    if (addTargetCategory === removedName) {
+      setAddTargetCategory(remaining[0]?.name ?? "Other");
+      setAddTargetSubCategory("");
+    }
   }
 
   function updateCategoryName(index: number, value: string) {
@@ -155,6 +193,10 @@ export default function CreateBenchmarkPage() {
     setScenarios((prev) =>
       prev.map((s) => (s.category === oldName ? { ...s, category: newName } : s))
     );
+    // Keep the add-destination pointed at the same category after a rename.
+    if (addTargetCategory === oldName) {
+      setAddTargetCategory(newName);
+    }
   }
 
   function updateCategoryColor(index: number, color: string) {
@@ -419,6 +461,58 @@ export default function CreateBenchmarkPage() {
                 EasyAim.
               </p>
 
+              {/* Pick the destination group first, then search. Scenarios
+                  added from the results below are filed straight into this
+                  category and sub-category. */}
+              <div className="mb-3 grid grid-cols-2 gap-2 rounded-xl border border-zinc-800 bg-zinc-950 p-3">
+                <div>
+                  <label className="block text-xs text-zinc-500 mb-0.5">
+                    Add scenarios to
+                  </label>
+                  <select
+                    value={addTargetCategory}
+                    onChange={(e) => {
+                      setAddTargetCategory(e.target.value);
+                      setAddTargetSubCategory("");
+                    }}
+                    className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-2 py-1.5 text-xs text-white outline-none focus:border-zinc-500"
+                  >
+                    {categories.map((c) => (
+                      <option key={c.name} value={c.name}>{c.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs text-zinc-500 mb-0.5">
+                    Sub-category
+                    {addTargetSubs.length > 0 && (
+                      <span className="ml-1 text-zinc-600">
+                        ({addTargetSubs.length})
+                      </span>
+                    )}
+                  </label>
+                  <input
+                    list="add-sub-options"
+                    value={addTargetSubCategory}
+                    onChange={(e) => setAddTargetSubCategory(e.target.value)}
+                    placeholder="—"
+                    className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-2 py-1.5 text-xs text-white outline-none placeholder:text-zinc-600 focus:border-zinc-500"
+                  />
+                  <datalist id="add-sub-options">
+                    {addTargetSubs.map((sc) => (
+                      <option key={sc} value={sc} />
+                    ))}
+                  </datalist>
+                </div>
+                <p className="col-span-2 text-[10px] text-zinc-600">
+                  {addTargetCategory}
+                  {addTargetSubCategory.trim()
+                    ? ` / ${addTargetSubCategory.trim()}`
+                    : ""}
+                  {" · new scenarios go here. You can change it per scenario below."}
+                </p>
+              </div>
+
               <input
                 type="text"
                 value={searchQuery}
@@ -442,19 +536,28 @@ export default function CreateBenchmarkPage() {
                     >
                       <span className="truncate">{result.title}</span>
                       <span className="shrink-0 text-xs text-zinc-500">
-                        {result.author ? `by ${result.author}` : ""}
+                        {addTargetCategory}
+                        {addTargetSubCategory.trim()
+                          ? ` / ${addTargetSubCategory.trim()}`
+                          : ""}
+                        {result.author ? ` · by ${result.author}` : ""}
                       </span>
                     </button>
                   ))}
                 </div>
               )}
 
-              {scenarios.map((scenario) => (
+              {scenarios.map((scenario) => {
+                const availableSubs =
+                  categories.find((c) => c.name === scenario.category)
+                    ?.subCategories ?? [];
+
+                return (
                 <div
                   key={scenario.id}
                   className="mt-4 rounded-xl border border-zinc-800 bg-zinc-900/60 p-4"
                 >
-                                    <div className="flex items-center justify-between gap-4">
+                    <div className="flex items-center justify-between gap-4">
                     <span className="truncate text-sm font-medium">
                       {scenario.title}
                     </span>
@@ -481,17 +584,29 @@ export default function CreateBenchmarkPage() {
                       </select>
                     </div>
                     <div>
-                      <label className="block text-xs text-zinc-500 mb-0.5">Sub-category</label>
-                      <select
+                      <label className="block text-xs text-zinc-500 mb-0.5">
+                        Sub-category
+                        {availableSubs.length > 0 && (
+                          <span className="ml-1 text-zinc-600">
+                            ({availableSubs.length})
+                          </span>
+                        )}
+                      </label>
+                      {/* Text input with a datalist rather than a <select>:
+                          it suggests the sub-categories already defined for
+                          this category, but still accepts a typed value. */}
+                      <input
+                        list={`sub-options-${scenario.id}`}
                         value={scenario.subCategory}
                         onChange={(e) => updateScenarioSubCategory(scenario.id, e.target.value)}
-                        className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-2 py-1.5 text-xs text-white outline-none focus:border-zinc-500"
-                      >
-                        <option value="">—</option>
-                        {(categories.find((c) => c.name === scenario.category)?.subCategories ?? []).map((sc) => (
-                          <option key={sc} value={sc}>{sc}</option>
+                        placeholder="—"
+                        className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-2 py-1.5 text-xs text-white outline-none placeholder:text-zinc-600 focus:border-zinc-500"
+                      />
+                      <datalist id={`sub-options-${scenario.id}`}>
+                        {availableSubs.map((sc) => (
+                          <option key={sc} value={sc} />
                         ))}
-                      </select>
+                      </datalist>
                     </div>
                   </div>
 
@@ -526,7 +641,8 @@ export default function CreateBenchmarkPage() {
                     ))}
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
 
             {/* RANK CONFIG */}
@@ -654,7 +770,6 @@ export default function CreateBenchmarkPage() {
                 </div>
                 <button type="button" onClick={addCategory} className="mt-3 text-xs border border-zinc-600 text-white px-3 py-1 rounded font-medium hover:bg-zinc-800">+ Add Category</button>
               </div>
-              <button type="button" className="w-full rounded-lg border border-zinc-700 bg-zinc-950 px-4 py-3 text-sm font-medium text-white hover:bg-zinc-900">+ Add Difficulty</button>
             </div>
 
             <div>

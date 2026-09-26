@@ -52,6 +52,9 @@ export default function EditBenchmarkPage({ params }: { params: Promise<{ id: st
   const [useCustomRankCalc, setUseCustomRankCalc] = useState(false);
   const [scenarios, setScenarios] = useState<Scenario[]>([]);
   const [categories, setCategories] = useState<CategoryDef[]>(DEFAULT_CATEGORIES);
+  // Where the next scenario picked from EasyAim search will be filed.
+  const [addTargetCategory, setAddTargetCategory] = useState("");
+  const [addTargetSubCategory, setAddTargetSubCategory] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [searching, setSearching] = useState(false);
@@ -91,12 +94,14 @@ export default function EditBenchmarkPage({ params }: { params: Promise<{ id: st
         setDescription(benchmarkData.description || "");
         setPlatform(benchmarkData.platform || "easyaim");
         setDifficulty(benchmarkData.difficulty || "medium");
-        setCategories(
+        const loadedCategories =
           Array.isArray(benchmarkData.category_defs) &&
-            benchmarkData.category_defs.length > 0
+          benchmarkData.category_defs.length > 0
             ? benchmarkData.category_defs
-            : DEFAULT_CATEGORIES
-        );
+            : DEFAULT_CATEGORIES;
+
+        setCategories(loadedCategories);
+        setAddTargetCategory(loadedCategories[0]?.name ?? "Other");
 
         setScenarios(
           (data.scenarios || []).map((s: any) => ({
@@ -142,6 +147,12 @@ export default function EditBenchmarkPage({ params }: { params: Promise<{ id: st
   }, [searchQuery]);
 
   function addScenarioFromResult(scenario: any) {
+    // Scenarios land in whichever category/sub-category is selected in the
+    // "Add scenarios to" picker above the search box, so you can file them
+    // straight into a group instead of fixing every one afterwards.
+    const targetCategory = addTargetCategory || "Other";
+    const targetSubCategory = addTargetSubCategory.trim();
+
     setScenarios((prev) => {
       if (prev.some((s) => s.id === scenario.id)) return prev;
       return [
@@ -150,8 +161,8 @@ export default function EditBenchmarkPage({ params }: { params: Promise<{ id: st
           id: scenario.id,
           title: scenario.title,
           cutoffs: {},
-          category: categories[0]?.name ?? "Other",
-          subCategory: "",
+          category: targetCategory,
+          subCategory: targetSubCategory,
         },
       ];
     });
@@ -186,6 +197,9 @@ export default function EditBenchmarkPage({ params }: { params: Promise<{ id: st
     );
   }
 
+  const addTargetSubs =
+    categories.find((c) => c.name === addTargetCategory)?.subCategories ?? [];
+
   function addCategory() {
     setCategories((prev) => [
       ...prev,
@@ -199,7 +213,9 @@ export default function EditBenchmarkPage({ params }: { params: Promise<{ id: st
 
   function removeCategory(index: number) {
     const removedName = categories[index].name;
-    setCategories((prev) => prev.filter((_, i) => i !== index));
+    const remaining = categories.filter((_, i) => i !== index);
+
+    setCategories(remaining);
     setScenarios((prev) =>
       prev.map((s) =>
         s.category === removedName
@@ -207,6 +223,12 @@ export default function EditBenchmarkPage({ params }: { params: Promise<{ id: st
           : s
       )
     );
+
+    // Don't leave the add-destination pointing at a category that's gone.
+    if (addTargetCategory === removedName) {
+      setAddTargetCategory(remaining[0]?.name ?? "Other");
+      setAddTargetSubCategory("");
+    }
   }
 
   function updateCategoryName(index: number, value: string) {
@@ -218,6 +240,10 @@ export default function EditBenchmarkPage({ params }: { params: Promise<{ id: st
     setScenarios((prev) =>
       prev.map((s) => (s.category === oldName ? { ...s, category: newName } : s))
     );
+    // Keep the add-destination pointed at the same category after a rename.
+    if (addTargetCategory === oldName) {
+      setAddTargetCategory(newName);
+    }
   }
 
   function updateCategoryColor(index: number, color: string) {
@@ -532,11 +558,63 @@ export default function EditBenchmarkPage({ params }: { params: Promise<{ id: st
               </div>
               <button type="button" onClick={addCategory} className="mt-3 text-xs border border-zinc-600 text-white px-3 py-1 rounded font-medium hover:bg-zinc-800">+ Add Category</button>
             </div>
-            <button type="button" className="w-full rounded-lg border border-zinc-700 bg-zinc-950 px-4 py-3 text-sm font-medium text-white hover:bg-zinc-900">+ Add Difficulty</button>
           </div>
 
           <div>
             <label className="text-sm text-zinc-400 mb-2">Add EasyAim Scenario (optional)</label>
+
+            {/* Pick the destination group first, then search. Scenarios
+                added from the results below are filed straight into this
+                category and sub-category. */}
+            <div className="mb-3 grid grid-cols-2 gap-2 rounded-xl border border-zinc-800 bg-zinc-950 p-3">
+              <div>
+                <label className="block text-xs text-zinc-500 mb-0.5">
+                  Add scenarios to
+                </label>
+                <select
+                  value={addTargetCategory}
+                  onChange={(e) => {
+                    setAddTargetCategory(e.target.value);
+                    setAddTargetSubCategory("");
+                  }}
+                  className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-2 py-1.5 text-xs text-white outline-none focus:border-zinc-500"
+                >
+                  {categories.map((c) => (
+                    <option key={c.name} value={c.name}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs text-zinc-500 mb-0.5">
+                  Sub-category
+                  {addTargetSubs.length > 0 && (
+                    <span className="ml-1 text-zinc-600">
+                      ({addTargetSubs.length})
+                    </span>
+                  )}
+                </label>
+                <input
+                  list="add-sub-options"
+                  value={addTargetSubCategory}
+                  onChange={(e) => setAddTargetSubCategory(e.target.value)}
+                  placeholder="—"
+                  className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-2 py-1.5 text-xs text-white outline-none placeholder:text-zinc-600 focus:border-zinc-500"
+                />
+                <datalist id="add-sub-options">
+                  {addTargetSubs.map((sc) => (
+                    <option key={sc} value={sc} />
+                  ))}
+                </datalist>
+              </div>
+              <p className="col-span-2 text-[10px] text-zinc-600">
+                {addTargetCategory}
+                {addTargetSubCategory.trim()
+                  ? ` / ${addTargetSubCategory.trim()}`
+                  : ""}
+                {" · new scenarios go here. You can change it per scenario below."}
+              </p>
+            </div>
+
             <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Search EasyAim scenarios..." className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-3 text-white focus:border-zinc-500 outline-none" />
             {searching && <p className="text-xs text-zinc-500 mt-2">Searching...</p>}
             {searchResults.length > 0 && (
@@ -545,7 +623,11 @@ export default function EditBenchmarkPage({ params }: { params: Promise<{ id: st
                   <button key={r.id} type="button" onClick={() => addScenarioFromResult(r)} className="flex w-full items-center justify-between gap-4 border-b border-white/5 px-4 py-3 text-left text-sm last:border-0 hover:bg-white/5">
                     <span className="truncate">{r.title}</span>
                     <span className="shrink-0 text-xs text-zinc-500">
-                      {r.author ? `by ${r.author}` : ""}
+                      {addTargetCategory}
+                      {addTargetSubCategory.trim()
+                        ? ` / ${addTargetSubCategory.trim()}`
+                        : ""}
+                      {r.author ? ` · by ${r.author}` : ""}
                     </span>
                   </button>
                 ))}
