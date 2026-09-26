@@ -6,6 +6,17 @@ import { useState, useEffect, use } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
+const DEFAULT_RANKS = [
+  { name: "Bronze", color: "#b87333" },
+  { name: "Silver", color: "#c0c0c0" },
+  { name: "Gold", color: "#ffd700" },
+  { name: "Platinum", color: "#e5e4e2" },
+  { name: "Diamond", color: "#b9f2fe" },
+  { name: "Champion", color: "#ffd700" },
+  { name: "Radiant", color: "#ff0000" },
+  { name: "Immortal", color: "#9f9f9f" },
+];
+
 const RANK_NAMES = [
   "Bronze", "Silver", "Gold", "Platinum", "Diamond", "Champion", "Radiant", "Immortal",
 ];
@@ -24,6 +35,13 @@ export default function EditBenchmarkPage({ params }: { params: Promise<{ id: st
   const [description, setDescription] = useState("");
   const [platform, setPlatform] = useState("easyaim");
   const [difficulty, setDifficulty] = useState("medium");
+  const [abbreviation, setAbbreviation] = useState("");
+  const [benchmarkColor, setBenchmarkColor] = useState("#b9f2fe");
+  const [spreadsheetUrl, setSpreadsheetUrl] = useState("");
+  const [dateAdded, setDateAdded] = useState("");
+  const [lastUpdated, setLastUpdated] = useState("");
+  const [note, setNote] = useState("");
+  const [useCustomRankCalc, setUseCustomRankCalc] = useState(false);
   const [scenarios, setScenarios] = useState<Scenario[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<any[]>([]);
@@ -227,6 +245,76 @@ export default function EditBenchmarkPage({ params }: { params: Promise<{ id: st
               <option value="medium">Medium</option>
               <option value="hard">Hard</option>
             </select>
+          </div>
+
+          <div>
+            <label className="block text-sm text-zinc-400 mb-2">Difficulty</label>
+            <select value={difficulty} onChange={(e) => setDifficulty(e.target.value)} className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-3 text-white focus:border-zinc-500 outline-none">
+              <option value="easy">Easy</option>
+              <option value="medium">Medium</option>
+              <option value="hard">Hard</option>
+            </select>
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm text-zinc-400 mb-2">Abbreviation</label>
+              <input type="text" value={abbreviation} onChange={(e) => setAbbreviation(e.target.value)} className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-2 text-sm text-white focus:border-zinc-500 outline-none" />
+            </div>
+            <div>
+              <label className="block text-sm text-zinc-400 mb-2">Color</label>
+              <input type="color" value={benchmarkColor} onChange={(e) => setBenchmarkColor(e.target.value)} className="w-full h-10 rounded-lg border border-zinc-800 bg-zinc-900 p-1 cursor-pointer" />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm text-zinc-400 mb-2">Spreadsheet URL</label>
+              <input type="url" value={spreadsheetUrl} onChange={(e) => setSpreadsheetUrl(e.target.value)} placeholder="https://..." className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-2 text-sm text-white focus:border-zinc-500 outline-none" />
+            </div>
+            <div>
+              <label className="block text-sm text-zinc-400 mb-2">Date Added</label>
+              <input type="date" value={dateAdded} onChange={(e) => setDateAdded(e.target.value)} className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-2 text-sm text-white focus:border-zinc-500 outline-none" />
+            </div>
+            <div>
+              <label className="block text-sm text-zinc-400 mb-2">Last Updated</label>
+              <input type="date" value={lastUpdated} onChange={(e) => setLastUpdated(e.target.value)} className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-2 text-sm text-white focus:border-zinc-500 outline-none" />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm text-zinc-400 mb-2">Note</label>
+            <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={3} className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-3 text-white focus:border-zinc-500 outline-none resize-none" />
+          </div>
+
+          <div>
+            <label className="flex items-center gap-2 text-sm text-zinc-400">
+              <input type="checkbox" checked={useCustomRankCalc} onChange={(e) => setUseCustomRankCalc(e.target.checked)} className="rounded border-zinc-600 bg-zinc-900 text-white" />
+              Use Custom Rank Calculation
+            </label>
+          </div>
+
+          {/* DIFFICULTIES STUB */}
+          <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-6 shadow-2xl">
+            <h2 className="text-xl font-bold tracking-tight mb-4">Difficulties</h2>
+            <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-4 mb-4">
+              <div className="grid grid-cols-3 gap-3 mb-2">
+                <input className="w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-white outline-none" defaultValue="Easy" />
+                <input type="number" className="w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-white outline-none" defaultValue={0} />
+                <input className="w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-white outline-none" placeholder="Shortcode" />
+              </div>
+              <div className="text-xs text-zinc-400 mt-3 mb-3">Ranks</div>
+              <div className="space-y-2">
+                {DEFAULT_RANKS.map((r, idx) => (
+                  <div key={idx} className="flex items-center gap-2">
+                    <input type="text" value={r.name} readOnly className="w-24 rounded-lg border border-zinc-800 bg-zinc-950 px-2 py-1.5 text-xs text-white" />
+                    <input type="color" value={r.color} readOnly className="w-8 h-8 rounded border border-zinc-700 shrink-0" />
+                    <span className="text-xs font-mono text-zinc-500">{r.color.toUpperCase()}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <button type="button" className="w-full rounded-lg border border-zinc-700 bg-zinc-950 px-4 py-3 text-sm font-medium text-white hover:bg-zinc-900">+ Add Difficulty</button>
           </div>
 
           <div>

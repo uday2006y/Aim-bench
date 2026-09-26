@@ -41,6 +41,13 @@ export default function CreateBenchmarkPage() {
   const [description, setDescription] = useState("");
   const [platform, setPlatform] = useState("EasyAim");
   const [difficulty, setDifficulty] = useState("medium");
+  const [abbreviation, setAbbreviation] = useState("");
+  const [benchmarkColor, setBenchmarkColor] = useState("#b9f2fe");
+  const [spreadsheetUrl, setSpreadsheetUrl] = useState("");
+  const [dateAdded, setDateAdded] = useState("");
+  const [lastUpdated, setLastUpdated] = useState("");
+  const [note, setNote] = useState("");
+  const [useCustomRankCalc, setUseCustomRankCalc] = useState(false);
   const [scenarioCount, setScenarioCount] = useState<number>(1);
   const [scenarios, setScenarios] = useState<AddedScenario[]>([]);
   const [ranks, setRanks] = useState<RankDef[]>(DEFAULT_RANKS);
@@ -225,11 +232,11 @@ export default function CreateBenchmarkPage() {
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
               <div>
                 <label className="mb-2 block text-sm text-zinc-400">Abbreviation (optional)</label>
-                <input type="text" placeholder="MCB" className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-2 text-sm text-white outline-none focus:border-zinc-500" />
+                <input type="text" value={abbreviation} onChange={(e) => setAbbreviation(e.target.value)} placeholder="MCB" className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-2 text-sm text-white outline-none focus:border-zinc-500" />
               </div>
               <div>
                 <label className="mb-2 block text-sm text-zinc-400">Benchmark Color</label>
-                <input type="color" defaultValue="#b9f2fe" className="w-full h-10 rounded-lg border border-zinc-800 bg-zinc-900 p-1 cursor-pointer" />
+                <input type="color" value={benchmarkColor} onChange={(e) => setBenchmarkColor(e.target.value)} className="w-full h-10 rounded-lg border border-zinc-800 bg-zinc-900 p-1 cursor-pointer" />
               </div>
               <div>
                 <label className="mb-2 block text-sm text-zinc-400">Difficulty</label>
@@ -252,6 +259,34 @@ export default function CreateBenchmarkPage() {
                 className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-3 text-white outline-none placeholder:text-zinc-600 focus:border-zinc-500 resize-none"
                 rows={3}
               />
+            </div>
+
+            {/* GENERAL INFO EXTRAS (Image 1) */}
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+              <div>
+                <label className="mb-2 block text-sm text-zinc-400">Spreadsheet URL (Optional)</label>
+                <input type="url" value={spreadsheetUrl} onChange={(e) => setSpreadsheetUrl(e.target.value)} placeholder="https://..." className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-2 text-sm text-white outline-none focus:border-zinc-500" />
+              </div>
+              <div>
+                <label className="mb-2 block text-sm text-zinc-400">Date Added</label>
+                <input type="date" value={dateAdded} onChange={(e) => setDateAdded(e.target.value)} className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-2 text-sm text-white outline-none focus:border-zinc-500" />
+              </div>
+              <div>
+                <label className="mb-2 block text-sm text-zinc-400">Last Updated (Optional)</label>
+                <input type="date" value={lastUpdated} onChange={(e) => setLastUpdated(e.target.value)} className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-2 text-sm text-white outline-none focus:border-zinc-500" />
+              </div>
+            </div>
+
+            <div>
+              <label className="mb-2 block text-sm text-zinc-400">Note / Description (Extended)</label>
+              <textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="Additional notes..." rows={3} className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-3 text-white outline-none placeholder:text-zinc-600 focus:border-zinc-500 resize-none" />
+            </div>
+
+            <div>
+              <label className="flex items-center gap-2 text-sm text-zinc-400">
+                <input type="checkbox" checked={useCustomRankCalc} onChange={(e) => setUseCustomRankCalc(e.target.checked)} className="rounded border-zinc-600 bg-zinc-900 text-white" />
+                Use Custom Rank Calculation
+              </label>
             </div>
 
             {/* EASYAIM SCENARIOS */}
@@ -382,6 +417,60 @@ export default function CreateBenchmarkPage() {
                   </div>
                 ))}
               </div>
+            </div>
+
+            {/* DIFFICULTIES SECTION (Image 2 style) */}
+            <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-6 shadow-2xl">
+              <h2 className="text-xl font-bold tracking-tight mb-4">Difficulties</h2>
+              <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-4 mb-4">
+                <div className="grid grid-cols-3 gap-3 mb-2">
+                  <div>
+                    <label className="text-xs text-zinc-500 block mb-1">Difficulty Name</label>
+                    <input type="text" defaultValue="Easy" className="w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-white outline-none" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-zinc-500 block mb-1">KovaaK's ID</label>
+                    <input type="number" defaultValue={0} className="w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-white outline-none" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-zinc-500 block mb-1">Shortcode</label>
+                    <input type="text" placeholder="KovaaKsShareCodeHere" className="w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-white outline-none" />
+                  </div>
+                </div>
+                <div className="text-xs text-zinc-400 mt-3 mb-3">Ranks</div>
+                <div className="space-y-2">
+                  {DEFAULT_RANKS.map((r, idx) => (
+                    <div key={idx} className="flex items-center gap-2">
+                      <input type="text" value={r.name} readOnly className="w-24 rounded-lg border border-zinc-800 bg-zinc-950 px-2 py-1.5 text-xs text-white" />
+                      <input type="color" value={r.color} readOnly className="w-8 h-8 rounded border border-zinc-700 shrink-0" />
+                      <span className="text-xs font-mono text-zinc-500 truncate">{r.color.toUpperCase()}</span>
+                      <button type="button" className="ml-auto text-xs text-red-400 hover:text-red-300">&#128465;</button>
+                    </div>
+                  ))}
+                </div>
+                <button type="button" className="mt-3 text-xs bg-white text-black px-3 py-1 rounded font-medium hover:bg-zinc-200">+ Add Rank</button>
+
+                <div className="text-xs text-zinc-400 mt-4 mb-2">Categories</div>
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <input type="text" defaultValue="Clicking" className="flex-1 rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-white outline-none" />
+                    <input type="color" defaultValue="#FF5733" className="w-8 h-8 rounded border border-zinc-700 shrink-0" />
+                    <span className="text-xs font-mono text-zinc-500 truncate">#FF5733</span>
+                    <button type="button" className="text-xs text-red-400 hover:text-red-300">&#128465;</button>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input type="text" defaultValue="Static" className="flex-1 rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-white outline-none" />
+                    <span className="text-xs text-zinc-500">Scenario count:</span>
+                    <input type="number" defaultValue={1} className="w-16 rounded-lg border border-zinc-800 bg-zinc-950 px-2 py-1.5 text-xs text-white outline-none" />
+                    <input type="color" defaultValue="#FFC300" className="w-8 h-8 rounded border border-zinc-700 shrink-0" />
+                    <span className="text-xs font-mono text-zinc-500 truncate">#FFC300</span>
+                    <button type="button" className="text-xs text-red-400 hover:text-red-300">&#10005;</button>
+                  </div>
+                </div>
+                <button type="button" className="mt-3 text-xs border border-zinc-600 text-white px-3 py-1 rounded font-medium hover:bg-zinc-800">+ Add Subcategory</button>
+                <button type="button" className="mt-3 ml-2 text-xs border border-zinc-600 text-white px-3 py-1 rounded font-medium hover:bg-zinc-800">+ Add Category</button>
+              </div>
+              <button type="button" className="w-full rounded-lg border border-zinc-700 bg-zinc-950 px-4 py-3 text-sm font-medium text-white hover:bg-zinc-900">+ Add Difficulty</button>
             </div>
 
             <div>
