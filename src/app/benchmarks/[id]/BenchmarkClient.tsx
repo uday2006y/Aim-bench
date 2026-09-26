@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState, useEffect } from "react";
 import { Fragment } from "react";
@@ -26,6 +26,17 @@ interface BenchmarkScenario {
   cutoffs: Record<string, number>;
   best_score?: number;
 }
+
+const DEFAULT_RANKS = [
+  { name: "Bronze", color: "#b87333" },
+  { name: "Silver", color: "#c0c0c0" },
+  { name: "Gold", color: "#ffd700" },
+  { name: "Platinum", color: "#e5e4e2" },
+  { name: "Diamond", color: "#b9f2fe" },
+  { name: "Champion", color: "#ffd700" },
+  { name: "Radiant", color: "#ff0000" },
+  { name: "Immortal", color: "#9f9f9f" },
+];
 
 export default function BenchmarkClient({
   id,
@@ -80,7 +91,7 @@ export default function BenchmarkClient({
       }
       setNotice(
         `Score submitted: ${data.score.score}${
-          data.score.rank ? ` â€” ${data.score.rank}` : ""
+          data.score.rank ? ` — ${data.score.rank}` : ""
         }`
       );
       setScoreInput("");
@@ -92,7 +103,20 @@ export default function BenchmarkClient({
     }
   }
 
-  const rankOrder =
+  const extraRanks = [
+    { name: "Lemming", color: "#9b59b6" },
+    { name: "Hare", color: "#8e44ad" },
+    { name: "Ermine", color: "#7d3c98" },
+    { name: "Puffin", color: "#6c3483" },
+    { name: "Penguin", color: "#5b2c6f" },
+    { name: "Fox", color: "#4a235a" },
+    { name: "Mammoth", color: "#3a1b45" },
+    { name: "Orca", color: "#2a1530" },
+    { name: "Seal", color: "#1a0f1b" },
+  ];
+  const displayRanks = benchmark.rank_names?.length ? benchmark.rank_names.map((name, i) => ({
+    name, color: benchmark.rank_colors?.[i] || "#b87333"
+  })) : DEFAULT_RANKS;
     benchmark.rank_names?.length
       ? benchmark.rank_names
       : [
@@ -117,7 +141,7 @@ export default function BenchmarkClient({
     <main className="min-h-screen text-white">
       <div className="mx-auto max-w-7xl px-6 py-12">
         <Link href="/benchmarks" className="text-sm text-zinc-500 hover:text-white transition inline-block mb-8">
-          â† Back to benchmarks
+          ← Back to benchmarks
         </Link>
         <div className="space-y-6">
           {/* HEADER CARD */}
@@ -142,16 +166,18 @@ export default function BenchmarkClient({
             <h1 className="text-4xl font-extrabold tracking-tight">
               {benchmark.title}
             </h1>
+            <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-3 text-xs text-zinc-300">
+              <div><span className="text-zinc-500">Platform:</span> <span className="font-medium">{benchmark.platform}</span></div>
+              <div><span className="text-zinc-500">Difficulty:</span> <span className="font-medium">{benchmark.difficulty}</span></div>
+              <div><span className="text-zinc-500">Scenarios:</span> <span className="font-medium">{benchmark.scenario_count}</span></div>
+              <div><span className="text-zinc-500">Energy:</span> <span className="font-medium">{scenarios.reduce((sum, s) => sum + (s.best_score ?? 0), 0)}</span></div>
+            </div>
             <p className="mt-3 text-zinc-400 text-base leading-relaxed max-w-2xl">
               {benchmark.description || "No description"}
             </p>
-            <p className="mt-2 text-sm text-zinc-600">
-              {benchmark.scenario_count} scenario
-              {benchmark.scenario_count === 1 ? "" : "s"}
-            </p>
           </div>
 
-          {/* SCENARIO TABLE â€” evxl.app exact style */}
+          {/* SCENARIO TABLE — evxl.app exact style */}
           {hasScenarios && (
             <div className="rounded-3xl border border-zinc-800 bg-zinc-950 overflow-hidden shadow-2xl">
               <div className="px-6 py-5 border-b border-white/5 flex items-center justify-between bg-gradient-to-r from-zinc-950 to-zinc-900/50">
@@ -184,9 +210,9 @@ export default function BenchmarkClient({
                     <tr>
                       <th className="text-left px-5 py-3 font-bold whitespace-nowrap">Scenario</th>
                       <th className="text-left px-3 py-3 font-bold whitespace-nowrap">Score</th>
-                      {rankOrder.map((r: string) => (
-                        <th key={r} className="text-center px-3 py-3 font-bold whitespace-nowrap text-[10px] tracking-[0.1em]">
-                          {r}
+                      {displayRanks.map((r: { name: string; color: string }) => (
+                        <th key={r.name} className="text-center px-3 py-3 font-bold whitespace-nowrap text-[10px] tracking-[0.1em]">
+                          {r.name}
                         </th>
                       ))}
                       <th className="text-left px-3 py-3 font-bold whitespace-nowrap">Energy</th>
@@ -195,9 +221,10 @@ export default function BenchmarkClient({
                   <tbody>
                     {scenarios.map((scenario: BenchmarkScenario) => {
                       const score = scenario.best_score ?? 0;
+                      const catLabel = scenario.category || "Other";
                             const cutoffs = scenario.cutoffs || {};
-                            const sorted = rankOrder
-                              .map((r: string) => cutoffs[r])
+                            const sorted = displayRanks
+                              .map((r: { name: string; color: string }) => cutoffs[r.name])
                               .filter((v): v is number => v !== undefined)
                               .sort((a: number, b: number) => a - b);
                             let lower = 0;
@@ -237,20 +264,20 @@ export default function BenchmarkClient({
                                     <span className="text-[10px] text-zinc-500 font-medium">{pct > 0 ? Math.round(pct) + "%" : "0%"}</span>
                                   </div>
                                 </td>
-                                {rankOrder.map((r: string) => (
-                                  <td key={r} className="text-center px-2 py-4 align-top min-w-[70px]">
-                                    {cutoffs[r] !== undefined ? (
+                                {displayRanks.map((r: { name: string; color: string }) => (
+                                  <td key={r.name} className="text-center px-2 py-4 align-top min-w-[70px]">
+                                    {cutoffs[r.name] !== undefined ? (
                                       <div className="flex flex-col items-center gap-1.5">
-                                        <span className={`text-[9px] font-extrabold tracking-[0.1em] uppercase ${score >= cutoffs[r] ? "text-white" : "text-zinc-500"}`}>
-                                          {cutoffs[r]}
+                                        <span className={`text-[9px] font-extrabold tracking-[0.1em] uppercase ${score >= cutoffs[r.name] ? "text-white" : "text-zinc-500"}`}>
+                                          {cutoffs[r.name]}
                                         </span>
                                         <div className="w-16 h-3 rounded-sm bg-zinc-800 overflow-hidden shadow-inner relative mx-auto">
                                           <div
-                                            className={`h-full rounded-sm ${score >= cutoffs[r] ? "shadow-[0_0_4px_rgba(255,255,255,0.15)]" : ""}`}
+                                            className={`h-full rounded-sm ${score >= cutoffs[r.name] ? "shadow-[0_0_4px_rgba(255,255,255,0.15)]" : ""}`}
                                             style={{
-                                              width: `${Math.min(100, Math.round((score / Math.max(cutoffs[r] || 1, 1)) * 100))}%`,
-                                              backgroundColor: score >= cutoffs[r]
-                                                ? benchmark.rank_colors?.[rankOrder.indexOf(r)] || accent
+                                              width: `${Math.min(100, Math.round((score / Math.max(cutoffs[r.name] || 1, 1)) * 100))}%`,
+                                              backgroundColor: score >= cutoffs[r.name]
+                                                ? benchmark.rank_colors?.[displayRanks.findIndex((item) => item.name === r.name)] || accent
                                                 : "#27272a",
                                               clipPath: "polygon(0 0, 88% 0, 100% 50%, 88% 100%, 0 100%)",
                                             }}
@@ -258,7 +285,7 @@ export default function BenchmarkClient({
                                         </div>
                                       </div>
                                     ) : (
-                                      <span className="text-xs text-zinc-700">â€”</span>
+                                      <span className="text-xs text-zinc-700">—</span>
                                     )}
                                   </td>
                                 ))}
@@ -278,4 +305,5 @@ export default function BenchmarkClient({
     </main>
   );
 }
+
 
