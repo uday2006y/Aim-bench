@@ -124,7 +124,12 @@ export default function BenchmarkClient({
 
         {/* Benchmark header */}
         <div className="rounded-2xl border border-zinc-800 bg-[#111] p-6 mb-6 shadow-2xl">
-          <h1 className="text-2xl font-extrabold tracking-tight">{benchmark.title || "Benchmark"}</h1>
+          <div className="flex items-center justify-between mb-2">
+            <h1 className="text-2xl font-extrabold tracking-tight">{benchmark.title || "Benchmark"}</h1>
+            {isAuthorized ? (
+              <Link href={`/benchmarks/${id}/edit`} className="text-xs bg-white text-black px-3 py-1 rounded font-medium hover:bg-zinc-200">Edit Benchmark</Link>
+            ) : null}
+          </div>
         </div>
 
         {/* Scenario table */}
