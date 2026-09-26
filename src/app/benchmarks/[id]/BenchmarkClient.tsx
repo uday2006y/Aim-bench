@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useState, useEffect } from "react";
+import { useState } from "react";
 import Link from "next/link";
 
 interface CategoryDef {
@@ -75,19 +75,6 @@ export default function BenchmarkClient({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
-  const [accent, setAccent] = useState("#b87333");
-
-  useEffect(() => {
-    try {
-      const stored = localStorage.getItem("aimbench-theme");
-      if (stored) {
-        const t = JSON.parse(stored);
-        if (t.accent) setAccent(t.accent);
-      }
-    } catch {
-      // ignore
-    }
-  }, []);
 
   async function handleSubmitScore() {
     setError("");
@@ -206,20 +193,48 @@ export default function BenchmarkClient({
     })
     .filter((group) => group.rowCount > 0);
 
+  // Row offset for the staggered load-in animation. Precomputed rather
+  // than a mutable counter during render, so the markup stays a pure
+  // function of props.
+  const rowOffsets = groups.map((group, index) => {
+    const before = groups
+      .slice(0, index)
+      .reduce((sum, g) => sum + g.rowCount, 0);
+    const subOffsets = group.subGroups.map((_, subIndex) =>
+      group.subGroups
+        .slice(0, subIndex)
+        .reduce((sum, g) => sum + g.rows.length, 0)
+    );
+    return { before, subOffsets };
+  });
+
   return (
-    <main className="min-h-screen bg-[#0a0a0a] text-white">
+    <main className="min-h-screen bg-app text-white">
       <div className="mx-auto max-w-full px-4 py-6">
         {/* Top nav bar */}
-        <div className="flex items-center justify-between mb-6 px-2">
-          <Link href="/" className="text-sm text-zinc-400 hover:text-white transition">← Back</Link>
+        <div className="mb-6 flex items-center justify-between px-2">
+          <Link
+            href="/"
+            className="group inline-flex items-center gap-1.5 text-sm text-zinc-400 transition-colors hover:text-white"
+          >
+            <span className="transition-transform duration-200 group-hover:-translate-x-0.5">←</span>
+            Back
+          </Link>
         </div>
 
         {/* Benchmark header */}
-        <div className="rounded-2xl border border-zinc-800 bg-[#111] p-6 mb-6 shadow-2xl">
-          <div className="flex items-center justify-between mb-2">
-            <h1 className="text-2xl font-extrabold tracking-tight">{benchmark.title || "Benchmark"}</h1>
+        <div className="animate-card-in mb-6 rounded-2xl border border-zinc-800 bg-surface p-6 shadow-2xl">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <h1 className="text-3xl font-extrabold tracking-tight">
+              {benchmark.title || "Benchmark"}
+            </h1>
             {isAuthorized ? (
-              <Link href={`/benchmarks/${id}/edit`} className="text-xs bg-white text-black px-3 py-1 rounded font-medium hover:bg-zinc-200">Edit Benchmark</Link>
+              <Link
+                href={`/benchmarks/${id}/edit`}
+                className="rounded bg-white px-3 py-1.5 text-xs font-medium text-black transition hover:bg-zinc-200"
+              >
+                Edit Benchmark
+              </Link>
             ) : null}
           </div>
 
@@ -241,10 +256,10 @@ export default function BenchmarkClient({
 
         {/* Scenario table */}
         {hasScenarios && (
-          <div className="rounded-2xl border border-zinc-800 bg-[#0d0d0f] overflow-hidden shadow-2xl">
+          <div className="animate-fade-in overflow-hidden rounded-2xl border border-zinc-800 bg-raised shadow-2xl">
             <div className="overflow-x-auto">
-              <table className="w-full text-xs border-collapse min-w-[1200px]">
-                <thead className="bg-[#0a0a0a] text-zinc-300 text-[10px] uppercase tracking-wider font-extrabold border-b border-zinc-800">
+              <table className="w-full border-collapse text-xs min-w-[1200px]">
+                <thead className="border-b border-zinc-800 bg-app text-[10px] font-extrabold uppercase tracking-wider text-zinc-300">
                   <tr>
                     {/* Spacers for the vertical category / sub-category rails */}
                     <th className="w-6" />
@@ -276,6 +291,10 @@ export default function BenchmarkClient({
 
                       return subGroup.rows.map((scenario, rowIdx) => {
                         const score = scenario.best_score ?? 0;
+                        const staggerIndex =
+                          rowOffsets[groupIdx].before +
+                          rowOffsets[groupIdx].subOffsets[subIdx] +
+                          rowIdx;
 
                         const topCutoff = Math.max(
                           ...Object.values(scenario.cutoffs || {}).filter(
@@ -321,7 +340,8 @@ export default function BenchmarkClient({
                         return (
                           <tr
                             key={scenario.id}
-                            className="border-b border-zinc-800/40 last:border-b-0 hover:bg-white/[0.03] transition-colors"
+                            className="animate-row-in border-b border-zinc-800/40 last:border-b-0 transition-colors hover:bg-white/[0.04]"
+                            style={{ animationDelay: `${Math.min(staggerIndex, 14) * 22}ms` }}
                           >
                             {isGroupStart && (
                               <td
@@ -366,23 +386,23 @@ export default function BenchmarkClient({
                             )}
 
                             <td className={`px-4 py-2.5 align-middle ${rowIdx === 0 ? groupDivider : ""}`}>
-                              <div className="flex flex-col gap-0.5 min-w-[160px]">
-                                <span className="font-semibold text-white text-xs leading-tight truncate">
+                              <div className="flex min-w-[160px] flex-col gap-0.5">
+                                <span className="truncate text-sm font-semibold leading-tight text-white">
                                   {scenario.title}
                                 </span>
                                 <div className="flex items-center gap-2">
-                                  <span className="text-[9px] text-zinc-500">
+                                  <span className="font-mono text-[10px] text-zinc-500">
                                     {scenario.easyaim_scenario_id}
                                   </span>
-                                  <span className="text-[8px] text-zinc-600">▶</span>
+                                  <span className="text-[9px] text-zinc-600">▶</span>
                                 </div>
                               </div>
                             </td>
 
-                            <td className={`px-3 py-2.5 whitespace-nowrap align-middle ${rowIdx === 0 ? groupDivider : ""}`}>
+                            <td className={`px-3 py-2.5 align-middle whitespace-nowrap ${rowIdx === 0 ? groupDivider : ""}`}>
                               <div className="flex items-baseline gap-2">
                                 <span
-                                  className="font-mono font-bold text-sm tracking-tight"
+                                  className="font-mono text-base font-bold tracking-tight"
                                   style={{ color: scoreColor || "#ffffff" }}
                                 >
                                   {score ? score.toLocaleString() : "—"}
@@ -437,7 +457,7 @@ export default function BenchmarkClient({
                                 className={`px-3 py-2.5 whitespace-nowrap align-middle ${isGroupStart ? groupDivider : ""}`}
                               >
                                 <span
-                                  className="font-mono font-bold text-xs"
+                                  className="font-mono text-sm font-bold"
                                   style={{ color: withAlpha(group.color, 0.95) }}
                                 >
                                   {subGroup.energy.toLocaleString()}
