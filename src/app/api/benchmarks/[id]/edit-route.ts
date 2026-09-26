@@ -15,7 +15,7 @@ export async function PUT(
     const { id } = await params;
     const body = await request.json();
 
-    const { title, description, difficulty, scenarios, platform } = body;
+    const { title, description, difficulty, scenarios, platform, category_defs } = body;
 
     // Verify ownership
     const { data: benchmark, error: fetchErr } = await supabaseAdmin
@@ -40,6 +40,7 @@ export async function PUT(
         description: description !== undefined ? description : (benchmark as any).description,
         difficulty: difficulty || (benchmark as any).difficulty,
         platform: platform || (benchmark as any).platform,
+        category_defs: category_defs !== undefined ? category_defs : (benchmark as any).category_defs,
       })
       .eq("id", id)
       .select()
@@ -61,6 +62,8 @@ export async function PUT(
           easyaim_scenario_id: Number(s.id) || s.easyaim_scenario_id,
           title: s.title || `Scenario ${s.id || s.easyaim_scenario_id}`,
           position: index,
+          category: s.category || "Other",
+          sub_category: s.subCategory || null,
           cutoffs: s.cutoffs || {},
         }));
         await supabaseAdmin.from("benchmark_scenarios").insert(scenarioInserts);

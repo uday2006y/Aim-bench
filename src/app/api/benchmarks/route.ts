@@ -35,6 +35,8 @@ export async function GET(request: Request) {
 interface ScenarioInput {
   easyaimScenarioId: number;
   title: string;
+  category: string;
+  subCategory: string;
   cutoffs: Record<string, number>;
 }
 
@@ -66,12 +68,20 @@ function sanitizeScenarios(input: unknown): ScenarioInput[] {
       }
     }
 
-    const title =
+        const title =
       typeof record.title === "string" && record.title.trim()
         ? record.title.trim().slice(0, 200)
         : `EasyAim Scenario ${id}`;
 
-    scenarios.push({ easyaimScenarioId: id, title, cutoffs });
+    const catRecord = item as { category?: unknown; subCategory?: unknown };
+    const category =
+      typeof catRecord.category === "string" && catRecord.category.trim()
+        ? catRecord.category.trim().slice(0, 100)
+        : "Other";
+    const subCategory =
+      typeof catRecord.subCategory === "string" ? catRecord.subCategory.trim().slice(0, 100) : "";
+
+    scenarios.push({ easyaimScenarioId: id, title, category, subCategory, cutoffs });
   }
 
   return scenarios.slice(0, 50);
@@ -79,7 +89,7 @@ function sanitizeScenarios(input: unknown): ScenarioInput[] {
 
 export async function POST(request: Request) {
   try {
-    const { title, description, platform, difficulty, scenarioCount, scenarios, rank_names, rank_colors, rank_thresholds } =
+        const { title, description, platform, difficulty, scenarioCount, scenarios, rank_names, rank_colors, rank_thresholds, category_defs } =
       await request.json();
 
     if (!title) {
@@ -109,7 +119,8 @@ export async function POST(request: Request) {
         difficulty: difficulty || "medium",
         rank_names: rank_names || '{"Bronze","Silver","Gold","Platinum","Diamond","Champion","Radiant","Immortal"}',
         rank_colors: rank_colors || '{"#b87333","#c0c0c0","#ffd700","#e5e4e2","#b9f2fe","#ffd700","#ff0000","#9f9f9f"}',
-        rank_thresholds: rank_thresholds || '{"Bronze":0,"Silver":1000,"Gold":2500,"Platinum":5000,"Diamond":10000,"Champion":15000,"Radiant":20000,"Immortal":30000}',
+                rank_thresholds: rank_thresholds || '{"Bronze":0,"Silver":1000,"Gold":2500,"Platinum":5000,"Diamond":10000,"Champion":15000,"Radiant":20000,"Immortal":30000}',
+        category_defs: category_defs || [],
         user_id: accountId,
         scenario_count:
           scenarioList.length > 0 ? scenarioList.length : scenarioCount || 1,
@@ -123,11 +134,13 @@ export async function POST(request: Request) {
       const { error: scenariosError } = await supabaseAdmin
         .from("benchmark_scenarios")
         .insert(
-          scenarioList.map((scenario, index) => ({
+                    scenarioList.map((scenario, index) => ({
             benchmark_id: benchmark.id,
             easyaim_scenario_id: scenario.easyaimScenarioId,
             title: scenario.title,
             position: index,
+            category: scenario.category,
+            sub_category: scenario.subCategory || null,
             cutoffs: scenario.cutoffs,
           }))
         );

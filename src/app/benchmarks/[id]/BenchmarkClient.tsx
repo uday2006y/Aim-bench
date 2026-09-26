@@ -3,6 +3,12 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 
+interface CategoryDef {
+  name: string;
+  color: string;
+  subCategories: string[];
+}
+
 interface Benchmark {
   id: string;
   title: string;
@@ -14,6 +20,7 @@ interface Benchmark {
   rank_thresholds: Record<string, number>;
   scenario_count: number;
   user_id?: string;
+  category_defs?: CategoryDef[];
 }
 
 interface BenchmarkScenario {
@@ -22,6 +29,7 @@ interface BenchmarkScenario {
   title: string;
   position: number;
   category: string;
+  sub_category?: string;
   cutoffs: Record<string, number>;
   best_score?: number;
 }
@@ -111,8 +119,13 @@ export default function BenchmarkClient({
   const hasScenarios = (scenarios || []).length > 0;
   const totalEnergy = scenarios.reduce((sum, s) => sum + (s.best_score ?? 0), 0);
   const categories = Array.from(
-    new Set(scenarios.map((s) => s.category || "CONTROL TRACKING"))
+    new Set(scenarios.map((s) => s.category || "Other"))
   );
+
+  function getCategoryColor(catName: string): string {
+    const def = benchmark.category_defs?.find((c) => c.name === catName);
+    return def?.color || "#7a7a7a";
+  }
 
   return (
     <main className="min-h-screen bg-[#0a0a0a] text-white">
@@ -173,15 +186,37 @@ export default function BenchmarkClient({
                               key={scenario.id}
                               className="border-b border-zinc-800/40 hover:bg-zinc-900/20 transition-colors"
                             >
-                              {/* Vertical category label + Scenario name */}
+                              {/* Vertical category + sub-category label + Scenario name */}
                               <td className="px-2 py-3 whitespace-nowrap align-middle">
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-1.5">
                                   <span
-                                    className="inline-flex items-center justify-center rounded px-1 py-0.5 text-[8px] font-extrabold tracking-[0.15em] uppercase bg-zinc-800 text-zinc-300 border border-zinc-700"
-                                    style={{ writingMode: "vertical-rl", textOrientation: "mixed", letterSpacing: "0.05em" }}
+                                    className="inline-flex items-center justify-center rounded px-1 py-1 text-[8px] font-extrabold tracking-[0.15em] uppercase border"
+                                    style={{
+                                      writingMode: "vertical-rl",
+                                      textOrientation: "mixed",
+                                      letterSpacing: "0.05em",
+                                      color: getCategoryColor(cat),
+                                      borderColor: getCategoryColor(cat),
+                                      backgroundColor: `${getCategoryColor(cat)}1a`,
+                                    }}
                                   >
                                     {cat.toUpperCase()}
                                   </span>
+                                  {scenario.sub_category ? (
+                                    <span
+                                      className="inline-flex items-center justify-center rounded px-1 py-1 text-[8px] font-bold tracking-[0.1em] uppercase border"
+                                      style={{
+                                        writingMode: "vertical-rl",
+                                        textOrientation: "mixed",
+                                        letterSpacing: "0.05em",
+                                        color: getCategoryColor(cat),
+                                        borderColor: `${getCategoryColor(cat)}55`,
+                                        backgroundColor: "transparent",
+                                      }}
+                                    >
+                                      {scenario.sub_category.toUpperCase()}
+                                    </span>
+                                  ) : null}
                                   <div className="flex flex-col gap-0.5 min-w-[160px]">
                                     <span className="font-semibold text-white text-xs leading-tight truncate">{scenario.title}</span>
                                     <div className="flex items-center gap-2">

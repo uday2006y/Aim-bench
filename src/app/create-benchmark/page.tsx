@@ -20,6 +20,16 @@ interface RankDef {
   color: string;
 }
 
+interface CategoryDef {
+  name: string;
+  color: string;
+  subCategories: string[];
+}
+
+const DEFAULT_CATEGORIES: CategoryDef[] = [
+  { name: "Other", color: "#7a7a7a", subCategories: [] },
+];
+
 interface ScenarioResult {
   id: number;
   title: string;
@@ -32,6 +42,8 @@ interface AddedScenario {
   id: number;
   title: string;
   cutoffs: Record<string, string>;
+  category: string;
+  subCategory: string;
 }
 
 export default function CreateBenchmarkPage() {
@@ -51,6 +63,7 @@ export default function CreateBenchmarkPage() {
   const [scenarioCount, setScenarioCount] = useState<number>(1);
   const [scenarios, setScenarios] = useState<AddedScenario[]>([]);
   const [ranks, setRanks] = useState<RankDef[]>(DEFAULT_RANKS);
+  const [categories, setCategories] = useState<CategoryDef[]>(DEFAULT_CATEGORIES);
   const [searchQuery, setSearchQuery] = useState("");
   const [results, setResults] = useState<ScenarioResult[]>([]);
   const [searching, setSearching] = useState(false);
@@ -84,16 +97,118 @@ export default function CreateBenchmarkPage() {
     return () => clearTimeout(timeout);
   }, [searchQuery]);
 
-  function addScenario(scenario: ScenarioResult) {
+    function addScenario(scenario: ScenarioResult) {
     setScenarios((current) => {
       if (current.some((s) => s.id === scenario.id)) return current;
       return [
         ...current,
-        { id: scenario.id, title: scenario.title, cutoffs: {} },
+        {
+          id: scenario.id,
+          title: scenario.title,
+          cutoffs: {},
+          category: categories[0]?.name ?? "Other",
+          subCategory: "",
+        },
       ];
     });
     setSearchQuery("");
     setResults([]);
+  }
+
+  function updateScenarioCategory(id: number, categoryName: string) {
+    setScenarios((current) =>
+      current.map((s) =>
+        s.id === id ? { ...s, category: categoryName, subCategory: "" } : s
+      )
+    );
+  }
+
+  function updateScenarioSubCategory(id: number, subCategoryName: string) {
+    setScenarios((current) =>
+      current.map((s) =>
+        s.id === id ? { ...s, subCategory: subCategoryName } : s
+      )
+    );
+  }
+
+  function addCategory() {
+    setCategories((prev) => [
+      ...prev,
+      { name: `Category ${prev.length + 1}`, color: "#ffffff", subCategories: [] },
+    ]);
+  }
+
+  function removeCategory(index: number) {
+    const removedName = categories[index].name;
+    setCategories((prev) => prev.filter((_, i) => i !== index));
+    setScenarios((prev) =>
+      prev.map((s) =>
+        s.category === removedName ? { ...s, category: "Other", subCategory: "" } : s
+      )
+    );
+  }
+
+  function updateCategoryName(index: number, value: string) {
+    const oldName = categories[index].name;
+    const newName = value.trim() || `Category ${index + 1}`;
+    setCategories((prev) => prev.map((c, i) => (i === index ? { ...c, name: newName } : c)));
+    setScenarios((prev) =>
+      prev.map((s) => (s.category === oldName ? { ...s, category: newName } : s))
+    );
+  }
+
+  function updateCategoryColor(index: number, color: string) {
+    setCategories((prev) => prev.map((c, i) => (i === index ? { ...c, color } : c)));
+  }
+
+  function addSubCategory(catIndex: number) {
+    setCategories((prev) =>
+      prev.map((c, i) =>
+        i === catIndex
+          ? { ...c, subCategories: [...c.subCategories, `Sub ${c.subCategories.length + 1}`] }
+          : c
+      )
+    );
+  }
+
+  function updateSubCategoryName(catIndex: number, subIndex: number, value: string) {
+    const oldName = categories[catIndex].subCategories[subIndex];
+    const newName = value.trim() || `Sub ${subIndex + 1}`;
+    setCategories((prev) =>
+      prev.map((c, i) =>
+        i === catIndex
+          ? {
+              ...c,
+              subCategories: c.subCategories.map((sc, si) => (si === subIndex ? newName : sc)),
+            }
+          : c
+      )
+    );
+    setScenarios((prev) =>
+      prev.map((s) =>
+        s.category === categories[catIndex].name && s.subCategory === oldName
+          ? { ...s, subCategory: newName }
+          : s
+      )
+    );
+  }
+
+  function removeSubCategory(catIndex: number, subIndex: number) {
+    const removedName = categories[catIndex].subCategories[subIndex];
+    setCategories((prev) =>
+      prev.map((c, i) =>
+        i === catIndex
+          ? { ...c, subCategories: c.subCategories.filter((_, si) => si !== subIndex) }
+          : c
+      )
+    );
+    setScenarios((prev) =>
+      prev.map((s) =>
+        s.category === categories[catIndex].name && s.subCategory === removedName
+          ? { ...s, subCategory: "" }
+          : s
+      )
+    );
   }
 
   function removeScenario(id: number) {
@@ -149,9 +264,11 @@ export default function CreateBenchmarkPage() {
     setLoading(true);
 
     try {
-      const payloadScenarios = scenarios.map((scenario) => ({
+            const payloadScenarios = scenarios.map((scenario) => ({
         id: scenario.id,
         title: scenario.title,
+        category: scenario.category || "Other",
+        subCategory: scenario.subCategory || "",
         cutoffs: Object.fromEntries(
           Object.entries(scenario.cutoffs)
             .filter(([, value]) => value.trim() !== "")
@@ -172,6 +289,7 @@ export default function CreateBenchmarkPage() {
           rank_names: ranks.map((r) => r.name),
           rank_colors: ranks.map((r) => r.color),
           rank_thresholds: {},
+          category_defs: categories,
           scenarioCount:
             scenarios.length > 0 ? scenarios.length : scenarioCount,
           scenarios: payloadScenarios,
@@ -336,7 +454,7 @@ export default function CreateBenchmarkPage() {
                   key={scenario.id}
                   className="mt-4 rounded-xl border border-zinc-800 bg-zinc-900/60 p-4"
                 >
-                  <div className="flex items-center justify-between gap-4">
+                                    <div className="flex items-center justify-between gap-4">
                     <span className="truncate text-sm font-medium">
                       {scenario.title}
                     </span>
@@ -347,6 +465,34 @@ export default function CreateBenchmarkPage() {
                     >
                       Remove
                     </button>
+                  </div>
+
+                  <div className="mt-3 grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-xs text-zinc-500 mb-0.5">Category</label>
+                      <select
+                        value={scenario.category}
+                        onChange={(e) => updateScenarioCategory(scenario.id, e.target.value)}
+                        className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-2 py-1.5 text-xs text-white outline-none focus:border-zinc-500"
+                      >
+                        {categories.map((c) => (
+                          <option key={c.name} value={c.name}>{c.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs text-zinc-500 mb-0.5">Sub-category</label>
+                      <select
+                        value={scenario.subCategory}
+                        onChange={(e) => updateScenarioSubCategory(scenario.id, e.target.value)}
+                        className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-2 py-1.5 text-xs text-white outline-none focus:border-zinc-500"
+                      >
+                        <option value="">—</option>
+                        {(categories.find((c) => c.name === scenario.category)?.subCategories ?? []).map((sc) => (
+                          <option key={sc} value={sc}>{sc}</option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
 
                   <div className="mt-3 grid grid-cols-2 gap-2 md:grid-cols-4">
@@ -450,25 +596,63 @@ export default function CreateBenchmarkPage() {
                 </div>
                 <button type="button" className="mt-3 text-xs bg-white text-black px-3 py-1 rounded font-medium hover:bg-zinc-200">+ Add Rank</button>
 
-                <div className="text-xs text-zinc-400 mt-4 mb-2">Categories</div>
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <input type="text" defaultValue="Clicking" className="flex-1 rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-white outline-none" />
-                    <input type="color" defaultValue="#FF5733" className="w-8 h-8 rounded border border-zinc-700 shrink-0" />
-                    <span className="text-xs font-mono text-zinc-500 truncate">#FF5733</span>
-                    <button type="button" className="text-xs text-red-400 hover:text-red-300">&#128465;</button>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <input type="text" defaultValue="Static" className="flex-1 rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-white outline-none" />
-                    <span className="text-xs text-zinc-500">Scenario count:</span>
-                    <input type="number" defaultValue={1} className="w-16 rounded-lg border border-zinc-800 bg-zinc-950 px-2 py-1.5 text-xs text-white outline-none" />
-                    <input type="color" defaultValue="#FFC300" className="w-8 h-8 rounded border border-zinc-700 shrink-0" />
-                    <span className="text-xs font-mono text-zinc-500 truncate">#FFC300</span>
-                    <button type="button" className="text-xs text-red-400 hover:text-red-300">&#10005;</button>
-                  </div>
+                                <div className="text-xs text-zinc-400 mt-4 mb-2">Categories</div>
+                <div className="space-y-3">
+                  {categories.map((cat, catIdx) => (
+                    <div key={catIdx} className="rounded-lg border border-zinc-800 bg-zinc-900/60 p-3">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          value={cat.name}
+                          onChange={(e) => updateCategoryName(catIdx, e.target.value)}
+                          className="flex-1 rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-white outline-none"
+                        />
+                        <input
+                          type="color"
+                          value={cat.color}
+                          onChange={(e) => updateCategoryColor(catIdx, e.target.value)}
+                          className="w-8 h-8 rounded border border-zinc-700 shrink-0 cursor-pointer p-1"
+                        />
+                        <span className="text-xs font-mono text-zinc-500 truncate">{cat.color.toUpperCase()}</span>
+                        <button
+                          type="button"
+                          onClick={() => removeCategory(catIdx)}
+                          className="text-xs text-red-400 hover:text-red-300"
+                          disabled={categories.length <= 1}
+                        >
+                          &#128465;
+                        </button>
+                      </div>
+                      <div className="mt-2 pl-3 space-y-1.5">
+                        {cat.subCategories.map((sub, subIdx) => (
+                          <div key={subIdx} className="flex items-center gap-2">
+                            <input
+                              type="text"
+                              value={sub}
+                              onChange={(e) => updateSubCategoryName(catIdx, subIdx, e.target.value)}
+                              className="flex-1 rounded-lg border border-zinc-800 bg-zinc-950 px-2 py-1 text-xs text-white outline-none"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => removeSubCategory(catIdx, subIdx)}
+                              className="text-xs text-red-400 hover:text-red-300"
+                            >
+                              &#10005;
+                            </button>
+                          </div>
+                        ))}
+                        <button
+                          type="button"
+                          onClick={() => addSubCategory(catIdx)}
+                          className="text-xs border border-zinc-600 text-white px-2 py-1 rounded font-medium hover:bg-zinc-800"
+                        >
+                          + Add Subcategory
+                        </button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-                <button type="button" className="mt-3 text-xs border border-zinc-600 text-white px-3 py-1 rounded font-medium hover:bg-zinc-800">+ Add Subcategory</button>
-                <button type="button" className="mt-3 ml-2 text-xs border border-zinc-600 text-white px-3 py-1 rounded font-medium hover:bg-zinc-800">+ Add Category</button>
+                <button type="button" onClick={addCategory} className="mt-3 text-xs border border-zinc-600 text-white px-3 py-1 rounded font-medium hover:bg-zinc-800">+ Add Category</button>
               </div>
               <button type="button" className="w-full rounded-lg border border-zinc-700 bg-zinc-950 px-4 py-3 text-sm font-medium text-white hover:bg-zinc-900">+ Add Difficulty</button>
             </div>
