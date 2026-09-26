@@ -58,6 +58,98 @@ body {
 }
 
 /* ============================================================
+   Scenario bar styles
+   Selected per user in /settings. The `.bar-fill` colour still comes
+   from the benchmark's rank_colors and its width from the real cutoffs,
+   so the style only changes the shape, never the data.
+   ============================================================ */
+.bar-track {
+  position: relative;
+  height: 1.5rem;
+  width: 100%;
+  overflow: hidden;
+  border: 1px solid rgb(255 255 255 / 0.06);
+  background: rgb(255 255 255 / 0.04);
+}
+
+.bar-fill {
+  position: absolute;
+  inset-block: 0;
+  left: 0;
+  transition: width 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.bar-label {
+  position: absolute;
+  inset-block: 0;
+  left: 0.5rem;
+  display: flex;
+  align-items: center;
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 10px;
+  font-weight: 700;
+  color: #fff;
+  z-index: 1;
+}
+
+/* Parallelogram — both edges slant, top edge shifted right.
+   The slant is 14px at the widest; --bar-slant lets a style override it
+   without restating the whole polygon. */
+.bar-parallelogram {
+  --bar-slant: 14px;
+}
+
+/* .bar-fill is a descendant of the track, so these are plain descendant
+   selectors. The track styles below use compound selectors because
+   .bar-track and the variant class sit on the same element. */
+.bar-parallelogram .bar-fill {
+  clip-path: polygon(
+    var(--bar-slant) 0,
+    100% 0,
+    calc(100% - var(--bar-slant)) 100%,
+    0 100%
+  );
+}
+
+/* Angled — slanted right edge, straight left */
+.bar-angled .bar-fill {
+  clip-path: polygon(0 0, calc(100% + 12px) 0, 100% 100%, 0 100%);
+}
+
+/* Flat — square corners */
+.bar-track.bar-flat,
+.bar-flat .bar-fill {
+  border-radius: 2px;
+}
+
+/* Rounded — pill */
+.bar-track.bar-rounded,
+.bar-rounded .bar-fill {
+  border-radius: 9999px;
+}
+
+/* Segmented — notched track so partial progress reads as steps */
+.bar-track.bar-segmented {
+  background-image: repeating-linear-gradient(
+    90deg,
+    rgb(0 0 0 / 0.55) 0px,
+    rgb(0 0 0 / 0.55) 1px,
+    transparent 1px,
+    transparent 10%
+  );
+}
+
+.bar-segmented .bar-fill {
+  border-right: 1px solid rgb(0 0 0 / 0.5);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bar-fill {
+    transition: none;
+  }
+}
+
+/* ============================================================
    Motion
    Small, purposeful transitions: the table settling in on load and
    cards lifting on hover. All of it is opt-out via

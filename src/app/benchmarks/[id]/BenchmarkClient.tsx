@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
+import { readBarStyle, DEFAULT_BAR_STYLE } from "@/lib/barStyles";
 
 interface CategoryDef {
   name: string;
@@ -75,6 +76,14 @@ export default function BenchmarkClient({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [barStyle, setBarStyle] = useState(DEFAULT_BAR_STYLE);
+
+  // Read after mount so the server-rendered markup matches the default and
+  // hydration doesn't mismatch; the stored preference applies immediately
+  // after. Re-read when this component remounts via a different benchmark.
+  useEffect(() => {
+    setBarStyle(readBarStyle());
+  }, [id]);
 
   async function handleSubmitScore() {
     setError("");
@@ -456,21 +465,17 @@ export default function BenchmarkClient({
                                   key={rank.name}
                                   className={`px-1.5 py-2 align-middle min-w-[100px] ${rowIdx === 0 ? groupDivider : ""}`}
                                 >
-                                  <div className="relative h-6 w-full overflow-hidden rounded-[3px] border border-white/[0.06] bg-white/[0.04]">
+                                  <div className={`bar-track bar-${barStyle}`}>
                                     {hasCutoff && score > 0 && (
                                       <div
-                                        className="absolute inset-y-0 left-0 transition-all"
+                                        className="bar-fill"
                                         style={{
                                           width: `${fillPct}%`,
                                           backgroundColor: rank.color,
-                                          // Slanted right edge instead of a
-                                          // rounded cap, evxl-style.
-                                          clipPath:
-                                            "polygon(0 0, calc(100% + 12px) 0, 100% 100%, 0 100%)",
                                         }}
                                       />
                                     )}
-                                    <span className="absolute inset-y-0 left-2 flex items-center text-[10px] font-mono font-bold text-white">
+                                    <span className="bar-label">
                                       {hasCutoff ? cutoff.toLocaleString() : "—"}
                                     </span>
                                   </div>

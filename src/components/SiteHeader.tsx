@@ -21,6 +21,7 @@ const NAV = [
   { href: "/benchmarks", label: "Benchmarks" },
   { href: "/leaderboard", label: "Leaderboard" },
   { href: "/rank-history", label: "Rank History" },
+  { href: "/settings", label: "Settings" },
 ] as const;
 
 export default function SiteHeader({
