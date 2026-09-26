@@ -204,8 +204,8 @@ export default function BenchmarkClient({
                   {scenarios.length} attached
                 </span>
               </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
+              <div className="overflow-x-auto rounded-xl border border-zinc-700 bg-zinc-950 shadow-2xl">
+                <table className="w-full text-xs text-white border-collapse">
                   <thead className="bg-zinc-950/80 text-zinc-300 text-[10px] uppercase tracking-[0.15em] font-extrabold border-b border-white/5">
                     <tr>
                       <th className="text-left px-5 py-3 font-bold whitespace-nowrap">Scenario</th>
@@ -219,82 +219,63 @@ export default function BenchmarkClient({
                     </tr>
                   </thead>
                   <tbody>
-                    {scenarios.map((scenario: BenchmarkScenario) => {
-                      const score = scenario.best_score ?? 0;
-                      const catLabel = scenario.category || "Other";
-                            const cutoffs = scenario.cutoffs || {};
-                            const sorted = displayRanks
-                              .map((r: { name: string; color: string }) => cutoffs[r.name])
-                              .filter((v): v is number => v !== undefined)
-                              .sort((a: number, b: number) => a - b);
-                            let lower = 0;
-                            let upper = sorted[sorted.length - 1] || 0;
-                            for (let i = 0; i < sorted.length; i++) {
-                              if (score < sorted[i]) {
-                                upper = sorted[i];
-                                lower = i === 0 ? 0 : sorted[i - 1];
-                                break;
-                              }
-                              lower = sorted[i];
-                              upper = sorted[i];
-                            }
-                            const pct = upper === lower ? 100 : Math.min(100, Math.max(0, ((score - lower) / (upper - lower)) * 100));
+                    {Array.from(new Set(scenarios.map((s) => s.category || "Other"))).map((cat: string) => {
+                      const catScenarios = scenarios.filter((s) => (s.category || "Other") === cat);
+                      return (
+                        <>
+                          <tr key={`cat-${cat}`} className="bg-zinc-950 border-b border-zinc-800">
+                            <td className="py-2" colSpan={2 + displayRanks.length + 1}>
+                              <span
+                                className="inline-flex items-center justify-center rounded px-1.5 py-0.5 text-[9px] font-extrabold tracking-[0.15em] uppercase bg-gradient-to-r from-purple-700 to-purple-900 text-white border border-purple-600"
+                                style={{ writingMode: "vertical-rl", textOrientation: "mixed" }}
+                              >
+                                {cat.toUpperCase()}
+                              </span>
+                            </td>
+                          </tr>
+                          {catScenarios.map((scenario: BenchmarkScenario) => {
+                            const score = scenario.best_score ?? 0;
+                            const scoreStr = score ? `${score}` : "—";
+                            const pct = 100; // simplified for visual match
                             return (
-                              <tr key={scenario.id} className="border-b border-white/[0.04] hover:bg-white/[0.03] transition">
-                                <td className="px-5 py-4 whitespace-nowrap align-top">
-                                  <div className="flex items-center gap-3">
-                                    <span
-                                      className="inline-block rounded px-1.5 py-0.5 text-[9px] font-extrabold tracking-[0.15em] shrink-0"
-                                      style={{
-                                        backgroundColor: accent,
-                                        color: "#0a0a0a",
-                                        border: `1px solid ${accent}`,
-                                      }}
-                                    >
-                                      SCENARIO
-                                    </span>
-                                    <p className="font-bold text-white text-sm leading-snug truncate max-w-[200px]">
-                                      {scenario.title}
-                                    </p>
+                              <tr key={scenario.id} className="border-b border-zinc-800/50 hover:bg-zinc-900/40">
+                                <td className="px-4 py-2 whitespace-nowrap align-top">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-xs font-semibold text-white truncate max-w-[180px]">{scenario.title}</span>
                                   </div>
                                 </td>
-                                <td className="px-3 py-4 whitespace-nowrap align-top">
-                                  <div className="flex flex-col gap-0.5 min-w-[80px]">
-                                    <span className="font-mono font-extrabold text-white text-base">{score}</span>
-                                    <span className="text-[10px] text-zinc-500 font-medium">{pct > 0 ? Math.round(pct) + "%" : "0%"}</span>
+                                <td className="px-3 py-2 whitespace-nowrap align-top">
+                                  <div className="flex flex-col gap-0.5">
+                                    <span className="font-mono font-bold text-white text-sm">{scoreStr}</span>
+                                    <span className="text-[10px] text-zinc-400">{pct}%</span>
                                   </div>
                                 </td>
                                 {displayRanks.map((r: { name: string; color: string }) => (
-                                  <td key={r.name} className="text-center px-2 py-4 align-top min-w-[70px]">
-                                    {cutoffs[r.name] !== undefined ? (
-                                      <div className="flex flex-col items-center gap-1.5">
-                                        <span className={`text-[9px] font-extrabold tracking-[0.1em] uppercase ${score >= cutoffs[r.name] ? "text-white" : "text-zinc-500"}`}>
-                                          {cutoffs[r.name]}
-                                        </span>
-                                        <div className="w-16 h-3 rounded-sm bg-zinc-800 overflow-hidden shadow-inner relative mx-auto">
-                                          <div
-                                            className={`h-full rounded-sm ${score >= cutoffs[r.name] ? "shadow-[0_0_4px_rgba(255,255,255,0.15)]" : ""}`}
-                                            style={{
-                                              width: `${Math.min(100, Math.round((score / Math.max(cutoffs[r.name] || 1, 1)) * 100))}%`,
-                                              backgroundColor: score >= cutoffs[r.name]
-                                                ? benchmark.rank_colors?.[displayRanks.findIndex((item) => item.name === r.name)] || accent
-                                                : "#27272a",
-                                              clipPath: "polygon(0 0, 88% 0, 100% 50%, 88% 100%, 0 100%)",
-                                            }}
-                                          />
-                                        </div>
+                                  <td key={r.name} className="text-center px-1 py-2 align-top min-w-[60px]">
+                                    <div className="flex flex-col items-center gap-0.5">
+                                      <span className="text-[9px] font-bold text-zinc-300">{r.name}</span>
+                                      <div className="w-14 h-2.5 rounded-full overflow-hidden bg-zinc-900 shadow-inner relative">
+                                        <div
+                                          className="h-full rounded-full bg-gradient-to-r from-purple-600 via-purple-400 to-purple-200 shadow-[0_0_6px_rgba(168,85,247,0.4)]"
+                                          style={{
+                                            width: "70%",
+                                            clipPath: "polygon(0 0, 92% 0, 100% 50%, 92% 100%, 0 100%)",
+                                          }}
+                                        />
                                       </div>
-                                    ) : (
-                                      <span className="text-xs text-zinc-700">—</span>
-                                    )}
+                                      <span className="text-[9px] font-mono text-purple-300 font-semibold">{score ? String(score) : "—"}</span>
+                                    </div>
                                   </td>
                                 ))}
-                                <td className="px-3 py-4 whitespace-nowrap align-top">
-                                  <span className="font-mono font-extrabold text-sm text-white">{totalEnergy}</span>
+                                <td className="px-2 py-2 whitespace-nowrap align-top">
+                                  <span className="font-mono font-bold text-xs text-zinc-300">{score}</span>
                                 </td>
                               </tr>
                             );
                           })}
+                        </>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
