@@ -21,6 +21,7 @@ interface BenchmarkScenario {
   easyaim_scenario_id: number;
   title: string;
   position: number;
+  category: string;
   cutoffs: Record<string, number>;
   best_score?: number;
 }

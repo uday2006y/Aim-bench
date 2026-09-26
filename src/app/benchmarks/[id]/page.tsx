@@ -29,7 +29,7 @@ export default async function BenchmarkDetailPage({
 
   const { data: scenarioRows } = await supabaseAdmin
     .from("benchmark_scenarios")
-    .select("id, easyaim_scenario_id, title, position, cutoffs")
+    .select("id, easyaim_scenario_id, title, position, category, cutoffs")
     .eq("benchmark_id", id)
     .order("position", { ascending: true });
 
@@ -38,6 +38,7 @@ export default async function BenchmarkDetailPage({
     easyaim_scenario_id: s.easyaim_scenario_id,
     title: s.title,
     position: s.position,
+    category: s.category || "Other",
     cutoffs: s.cutoffs || {},
     best_score: 0,
   }));

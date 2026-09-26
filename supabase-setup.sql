@@ -110,6 +110,7 @@ create table if not exists public.benchmark_scenarios (
   easyaim_scenario_id text not null,
   title text not null,
   position integer not null default 0,
+  category text not null default 'Other',
   cutoffs jsonb not null default '{}'::jsonb,
   created_at timestamp with time zone default timezone('utc'::text, now()) not null,
   unique (benchmark_id, easyaim_scenario_id)
