@@ -43,7 +43,7 @@ export default function BenchmarkClient({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
-  const [accent, setAccent] = useState("#8b5cf6");
+  const [accent, setAccent] = useState("#b87333");
 
   useEffect(() => {
     try {
@@ -198,9 +198,10 @@ export default function BenchmarkClient({
                                       <div className="w-full min-w-[80px] h-5 rounded-md overflow-hidden bg-zinc-900 shadow-inner relative border border-zinc-800/30 flex items-center">
                                         <div className="absolute left-1 top-0 bottom-0 z-20 text-[9px] font-mono font-extrabold text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] px-1 leading-5 whitespace-nowrap">{score ? score.toLocaleString() : "—"}</div>
                                         <div
-                                          className="absolute top-0 left-0 h-full rounded-md bg-gradient-to-r from-purple-700 via-purple-500 to-purple-300 shadow-[0_0_10px_rgba(168,85,247,0.5)]"
+                                          className="absolute top-0 left-0 h-full rounded-md "
                                           style={{
                                             width: `${Math.min(100, Math.round((score / Math.max(Math.max(...Object.values(scenario.cutoffs || {}), 1), 1)) * 100))}%`,
+                                            backgroundColor: benchmark.rank_colors?.[rankOrder.findIndex((item: {name: string}) => item.name === r.name)] || "#b87333",
                                           }}
                                         />
                                       </div>
@@ -227,6 +228,7 @@ export default function BenchmarkClient({
     </main>
   );
 }
+
 
 
 
