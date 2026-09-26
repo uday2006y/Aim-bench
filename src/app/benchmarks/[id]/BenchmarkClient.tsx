@@ -1,6 +1,7 @@
 ﻿"use client";
 
 import { useState, useEffect } from "react";
+import { Fragment } from "react";
 import Link from "next/link";
 
 interface Benchmark {
@@ -192,28 +193,8 @@ export default function BenchmarkClient({
                     </tr>
                   </thead>
                   <tbody>
-                    {categories.map((cat) => {
-                      const catScenarios = scenarios.filter((s) => (s.category || "Other") === cat);
-                      return (
-                        <>
-                          {/* Category label row */}
-                          <tr key={`cat-${cat}`} className="bg-zinc-900/40 border-b border-white/[0.03]">
-                            <td colSpan={2 + rankOrder.length + 1} className="px-5 py-2">
-                              <span
-                                className="inline-block rounded px-2 py-0.5 text-[9px] font-extrabold tracking-[0.15em] uppercase"
-                                style={{
-                                  backgroundColor: accent,
-                                  color: "#0a0a0a",
-                                  border: `1px solid ${accent}`,
-                                }}
-                              >
-                                {cat}
-                              </span>
-                            </td>
-                          </tr>
-                          {/* Scenario rows */}
-                          {catScenarios.map((scenario: BenchmarkScenario) => {
-                            const score = scenario.best_score ?? 0;
+                    {scenarios.map((scenario: BenchmarkScenario) => {
+                      const score = scenario.best_score ?? 0;
                             const cutoffs = scenario.cutoffs || {};
                             const sorted = rankOrder
                               .map((r: string) => cutoffs[r])
@@ -282,14 +263,19 @@ export default function BenchmarkClient({
                                   </td>
                                 ))}
                                 <td className="px-3 py-4 whitespace-nowrap align-top">
-                                  <span className="font-mono font-extrabold text-sm text-white">{energy}</span>
+                                  <span className="font-mono font-extrabold text-sm text-white">{totalEnergy}</span>
                                 </td>
                               </tr>
                             );
                           })}
-                      ))}
                   </tbody>
                 </table>
               </div>
             </div>
           )}
+        </div>
+      </div>
+    </main>
+  );
+}
+

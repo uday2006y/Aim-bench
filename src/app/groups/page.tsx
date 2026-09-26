@@ -28,6 +28,20 @@ export default function GroupsPage() {
   return (
     <main className="min-h-screen text-white">
       <div className="mx-auto max-w-6xl px-6 py-16">
+        <header className="border-b border-white/10 mb-8">
+          <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
+            <Link href="/" className="text-xl font-bold tracking-tight">
+              AIM<span className="text-zinc-500">BENCH</span>
+            </Link>
+            <nav className="hidden gap-8 text-sm text-zinc-400 md:flex">
+              <Link href="/benchmarks" className="hover:text-white">Benchmarks</Link>
+              <Link href="/leaderboard" className="hover:text-white">Leaderboard</Link>
+              <Link href="/rank-history" className="hover:text-white">Rank History</Link>
+              <Link href="/groups" className="text-white">Groups</Link>
+            </nav>
+            <Link href="/profile" className="rounded-lg bg-white px-4 py-2 text-sm font-medium text-black">Profile</Link>
+          </div>
+        </header>
         <Link href="/" className="text-sm text-zinc-500 hover:text-white transition mb-8 inline-block">← Back</Link>
         <h1 className="text-5xl font-extrabold tracking-tight mb-4">Browse Groups</h1>
         <p className="text-lg text-zinc-400 mb-12 max-w-2xl">Select an aim trainer platform to view benchmarks made for that community.</p>

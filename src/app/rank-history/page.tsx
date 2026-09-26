@@ -64,12 +64,6 @@ export default function RankHistoryPage() {
             <div className="flex gap-3">
               <Link
                 href="/profile"
-                className="rounded-lg px-4 py-2 text-sm text-zinc-400 hover:text-white"
-              >
-                Profile
-              </Link>
-              <Link
-                href="/profile"
                 className="rounded-lg bg-white px-4 py-2 text-sm font-medium text-black"
               >
                 Profile

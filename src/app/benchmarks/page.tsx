@@ -6,7 +6,7 @@ import Link from "next/link";
 export default function BenchmarksPage() {
   const [benchmarks, setBenchmarks] = useState<any[]>([]);
   const [platforms, setPlatforms] = useState<string[]>(["easyaim"]);
-  const [selectedPlatform, setSelectedPlatform] = useState("easyaim");
+  const [selectedPlatform, setSelectedPlatform] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
 
@@ -77,12 +77,6 @@ export default function BenchmarksPage() {
             <div className="flex gap-3">
               <Link
                 href="/profile"
-                className="rounded-lg px-4 py-2 text-sm text-zinc-400 hover:text-white"
-              >
-                Profile
-              </Link>
-              <Link
-                href="/profile"
                 className="rounded-lg bg-white px-4 py-2 text-sm font-medium text-black"
               >
                 Profile
@@ -108,7 +102,10 @@ export default function BenchmarksPage() {
               }}
               className="rounded-xl border border-white/10 px-4 py-2 text-white background-transparent focus:outline-none focus:border-white/20"
             >
-              <option value="easyaim">easyaim</option>
+              <option value="all">All Platforms</option>
+              {platforms.map((p) => (
+                <option key={p} value={p}>{p}</option>
+              ))}
             </select>
           </div>
         </div>

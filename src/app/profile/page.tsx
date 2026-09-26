@@ -101,12 +101,6 @@ export default async function ProfilePage() {
             </nav>
 
             <div className="flex gap-3">
-              <Link
-                href="/profile"
-                className="rounded-lg px-4 py-2 text-sm text-zinc-400 hover:text-white"
-              >
-                Profile
-              </Link>
               <form action="/api/auth/logout" method="post">
                 <button
                   type="submit"
@@ -130,6 +124,22 @@ export default async function ProfilePage() {
               ? new Date(account.created_at).toLocaleDateString()
               : "—"}
           </p>
+        </div>
+
+        {/* STATS */}
+        <div className="mb-6 grid grid-cols-3 gap-4">
+          <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4 text-center">
+            <p className="text-xs text-zinc-500">Benchmarks</p>
+            <p className="text-xl font-bold">{userBenchmarks?.length ?? 0}</p>
+          </div>
+          <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4 text-center">
+            <p className="text-xs text-zinc-500">PBs</p>
+            <p className="text-xl font-bold">{pbs.length}</p>
+          </div>
+          <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4 text-center">
+            <p className="text-xs text-zinc-500">Account ID</p>
+            <p className="text-xs font-mono text-zinc-400 truncate">{accountId}</p>
+          </div>
         </div>
 
         {/* EASYAIM LINK */}
