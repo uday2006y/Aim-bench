@@ -92,12 +92,11 @@ body {
    whole track, so what sits behind it changes within one bar — on the
    colour at a high fill, on the dark remainder at zero.
 
-   The fix is a real outline rather than a soft blur: four shadows at zero
-   offset, one in each direction, draw a hard dark edge around every glyph
-   so the letterform keeps its interior *and* its silhouette against any
-   fill. A blurred drop shadow only rescues the edges, which is why the
-   light rungs stayed unreadable. The blurred layer underneath is kept only
-   to lift the number off the bar. */
+   The shadow is a soft offset drop rather than an outline: clean white
+   glyph edges, one dark blur sitting under the number to lift it off the
+   bar. Kept a little heavier than a stock `0 2px 2px` so it still reads
+   against the pale rungs — Platinum's fill is #e5e4e2, where a light
+   shadow disappears entirely. */
 .bar-label {
   position: absolute;
   inset: 0;
@@ -110,13 +109,7 @@ body {
   font-weight: 700;
   line-height: 1;
   color: #fff;
-  text-shadow:
-    1px 0 0 rgb(0 0 0 / 0.85),
-    -1px 0 0 rgb(0 0 0 / 0.85),
-    0 1px 0 rgb(0 0 0 / 0.85),
-    0 -1px 0 rgb(0 0 0 / 0.85),
-    0 0 2px rgb(0 0 0 / 0.9),
-    0 2px 5px rgb(0 0 0 / 0.55);
+  text-shadow: 0 2px 4px rgb(0 0 0 / 0.8);
   z-index: 1;
 }
 
@@ -125,9 +118,7 @@ body {
   font-family: var(--font-brunson), var(--font-geist-mono), ui-monospace,
     monospace;
   color: #fff;
-  text-shadow:
-    1px 0 0 rgb(0 0 0 / 0.85), -1px 0 0 rgb(0 0 0 / 0.85),
-    0 1px 0 rgb(0 0 0 / 0.85), 0 -1px 0 rgb(0 0 0 / 0.85);
+  text-shadow: 0 2px 4px rgb(0 0 0 / 0.8);
 }
 
 /* Every style sets one --bar-shape on the track. The track applies it to
