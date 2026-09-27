@@ -14,49 +14,23 @@ export default function BenchmarksPage() {
   const [loggedIn, setLoggedIn] = useState(false);
 
   useEffect(() => {
+    // Debounce only what the visitor is typing. The first load used to sit
+    // behind this same 300ms, which was a third of a second of pure waiting
+    // before the request that already takes over a second went out at all.
+    const isFirstRun = searchQuery === "" && selectedPlatform === "all";
+
+    if (isFirstRun) {
+      fetchBenchmarks("", selectedPlatform);
+      return;
+    }
+
     const timeout = setTimeout(() => {
       fetchBenchmarks(searchQuery, selectedPlatform);
     }, 300);
 
     return () => clearTimeout(timeout);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchQuery, selectedPlatform]);
-
-  // The list only attaches my_rank when there is a session, so the card
-  // needs to know which empty state to show.
-  useEffect(() => {
-    let cancelled = false;
-
-    fetch("/api/session")
-      .then((res) => res.json())
-      .then((data) => {
-        if (!cancelled) setLoggedIn(Boolean(data.accountId));
-      })
-      .catch(() => {
-        if (!cancelled) setLoggedIn(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  useEffect(() => {
-    fetchPlatforms();
-  }, []);
-
-  async function fetchPlatforms() {
-    try {
-      const response = await fetch("/api/benchmarks?platform=all");
-      const data = (await response.json()) as { benchmarks: any[] };
-      const uniquePlatforms = [
-        ...new Set((data.benchmarks || []).map((b: any) => b.platform)),
-      ].filter(Boolean) as string[];
-
-      setPlatforms(uniquePlatforms.length ? uniquePlatforms : ["easyaim"]);
-    } catch (error) {
-      console.error("Failed to fetch platforms:", error);
-    }
-  }
 
   async function fetchBenchmarks(query: string, platform: string) {
     setLoading(true);
@@ -66,8 +40,19 @@ export default function BenchmarksPage() {
       if (query) url.searchParams.set("q", query);
 
       const response = await fetch(url);
-      const data = (await response.json()) as { benchmarks: any[] };
+      const data = (await response.json()) as {
+        benchmarks: any[];
+        platforms?: string[];
+        loggedIn?: boolean;
+      };
+
       setBenchmarks(data.benchmarks || []);
+
+      // Both of these used to be separate requests: the platform list came
+      // from a second full call to this same endpoint, and loggedIn from
+      // /api/session. Both now ride along with the list.
+      if (data.platforms?.length) setPlatforms(data.platforms);
+      if (typeof data.loggedIn === "boolean") setLoggedIn(data.loggedIn);
     } catch (error) {
       console.error("Failed to fetch benchmarks:", error);
     } finally {

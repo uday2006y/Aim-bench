@@ -4,8 +4,20 @@ import { getSessionAccountId } from "@/lib/session";
 import { sanitizeScenarios, sanitizeCategoryDefs, syncSubCategoriesIntoDefs } from "@/lib/benchmarkScenarios";
 import { resetLinkedAccountsBackfill } from "@/lib/resetBackfill";
 import { recordAggregateFor } from "@/lib/easyaimSync";
-import { computeAggregatesFor } from "@/lib/aggregates";
-import { loadViewerPins } from "@/lib/pins";
+import {
+  computeAggregates,
+  type RankSource,
+  type ScenarioCutoffs,
+} from "@/lib/aggregates";
+
+/** Distinct platforms for the filter dropdown. */
+const PLATFORM_SCAN_LIMIT = 200;
+
+/**
+ * Upper bound on the scenario rows read for rank cutoffs. Comfortably above
+ * any realistic benchmark site, and checked below rather than trusted.
+ */
+const SCENARIO_SCAN_LIMIT = 5000;
 
 export async function GET(request: Request) {
   try {
@@ -13,49 +25,135 @@ export async function GET(request: Request) {
     const platform = searchParams.get("platform") || "easyaim";
     const q = searchParams.get("q");
 
-    let query = supabaseAdmin.from("benchmarks").select("*");
-
-    if (platform && platform !== "all") {
-      query = query.eq("platform", platform);
-    }
-
-    if (q) {
-      query = query.ilike("title", `%${q}%`);
-    }
-
-    const { data: benchmarks, error } = await query;
-
-    if (error) throw error;
-
-    // Attach the *session user's* standing per benchmark so the list cards
-    // can show a real rank. Derived from their stored PBs rather than from
-    // benchmark_scores, so the card is correct the moment a PB exists and
-    // does not depend on a sync having run. Scoped to the caller: the
-    // benchmarks themselves stay public, nobody else's scores are exposed.
     const accountId = await getSessionAccountId();
-    const aggregates = await computeAggregatesFor(
-      accountId,
-      (benchmarks || []).map((b) => (b as { id: string }).id)
-    );
 
-    const ids = (benchmarks || []).map((b) => (b as { id: string }).id);
-    const myPins = await loadViewerPins(accountId);
+    // One round trip, not five. Every one of these used to be awaited in
+    // sequence, and each await is a full HTTPS round trip to Postgres from
+    // a serverless function — roughly a third of a second each regardless
+    // of how little data comes back. Five in a row was most of the two and
+    // a half seconds this endpoint took to answer.
+    //
+    // None of them actually depend on each other:
+    //   - the caller's personal bests are keyed by account, not by scenario,
+    //     so they do not need the scenario ids that come back below
+    //   - the viewer's pins and the platform list are independent entirely
+    // so the only ordering left is: fetch everything, then join in memory.
+    const [benchmarksResult, scenarioResult, pbResult, pinResult, platformResult] =
+      await Promise.all([
+        (() => {
+          let query = supabaseAdmin.from("benchmarks").select("*");
 
-    const enriched = (benchmarks || []).map((row) => {
-      const benchmark = row as { id: string };
-      const mine = aggregates.get(benchmark.id);
+          if (platform && platform !== "all") {
+            query = query.eq("platform", platform);
+          }
+
+          if (q) {
+            query = query.ilike("title", `%${q}%`);
+          }
+
+          return query;
+        })(),
+
+        // Cutoffs for every benchmark, not just the visible ones. The list
+        // has no pagination, so this is the whole table. The cap is a guard
+        // against a pathological dataset, and hitting it is logged rather
+        // than ignored: a truncated read here would quietly produce wrong
+        // ranks, which is worse than a slow page.
+        supabaseAdmin
+          .from("benchmark_scenarios")
+          .select("benchmark_id, easyaim_scenario_id, cutoffs")
+          .limit(SCENARIO_SCAN_LIMIT),
+
+        accountId
+          ? supabaseAdmin
+              .from("easyaim_pbs")
+              .select("scenario_id, score")
+              .eq("account_id", accountId)
+          : null,
+
+        accountId
+          ? supabaseAdmin
+              .from("benchmark_pins")
+              .select("benchmark_id")
+              .eq("account_id", accountId)
+          : null,
+
+        supabaseAdmin
+          .from("benchmarks")
+          .select("platform")
+          .limit(PLATFORM_SCAN_LIMIT),
+      ]);
+
+    if (benchmarksResult.error) throw benchmarksResult.error;
+    if (scenarioResult.error) {
+      console.error("BENCHMARKS: failed to load scenarios:", scenarioResult.error);
+    }
+
+    const scenarioRowCount = scenarioResult.data?.length ?? 0;
+
+    if (scenarioRowCount >= SCENARIO_SCAN_LIMIT) {
+      // Ranks derived from a truncated scenario set are wrong in a way
+      // nothing on the page would reveal, so make it loud in the logs.
+      console.error(
+        `BENCHMARKS: hit the ${SCENARIO_SCAN_LIMIT}-row scenario cap — ranks may be wrong. ` +
+          "Raise SCENARIO_SCAN_LIMIT, or scope the query to the visible benchmarks."
+      );
+    }
+    if (pbResult?.error) {
+      console.error("BENCHMARKS: failed to load personal bests:", pbResult.error);
+    }
+    if (pinResult?.error) {
+      console.error("BENCHMARKS: failed to load pins:", pinResult.error);
+    }
+
+    const rows = (benchmarksResult.data || []) as RankSource[];
+
+    const pbByScenario = new Map<number, number>();
+    for (const row of pbResult?.data || []) {
+      const pb = row as { scenario_id: number; score: number };
+      pbByScenario.set(Number(pb.scenario_id), pb.score);
+    }
+
+    const myPins = new Set<string>();
+    for (const row of pinResult?.data || []) {
+      myPins.add((row as { benchmark_id: string }).benchmark_id);
+    }
+
+    const scenarios = (scenarioResult.data || []) as unknown as ScenarioCutoffs[];
+
+    const aggregates = computeAggregates(rows, scenarios, pbByScenario);
+
+    const benchmarks = rows.map((row) => {
+      const mine = aggregates.get(row.id);
 
       return {
-        ...benchmark,
+        ...row,
         my_score: mine && mine.score > 0 ? mine.score : null,
         my_rank: mine?.rank ?? null,
         my_rank_index: mine?.rankIndex ?? null,
         my_maxed: mine?.maxed ?? false,
-        my_pinned: myPins.has(benchmark.id),
+        my_pinned: myPins.has(row.id),
       };
     });
 
-    return NextResponse.json({ benchmarks: enriched });
+    // The platform list rides along with the list itself. The page used to
+    // ask for this with a second full call to this same endpoint, which
+    // doubled the query count on page load to read one field off each row.
+    const platforms = [
+      ...new Set(
+        (platformResult.data || [])
+          .map((row) => (row as { platform: string }).platform)
+          .filter(Boolean)
+      ),
+    ];
+
+    return NextResponse.json({
+      benchmarks,
+      platforms: platforms.length > 0 ? platforms : ["easyaim"],
+      // Saves the page a separate /api/session round trip to decide which
+      // empty state a card should show.
+      loggedIn: Boolean(accountId),
+    });
   } catch (error) {
     console.error("BENCHMARKS ERROR:", error);
     return NextResponse.json(
