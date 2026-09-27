@@ -6,6 +6,13 @@ export interface Aggregate {
   score: number;
   rank: string | null;
   rankIndex: number | null;
+  /**
+   * True only when the viewer reached the top rank that has cutoffs
+   * defined. "Complete" is reserved for this: clearing a middle rank is
+   * progress, not completion, so a card showing "Gold" on a benchmark whose
+   * top rank is Platinum should not also claim to be complete.
+   */
+  maxed: boolean;
 }
 
 /**
@@ -152,7 +159,12 @@ export async function computeAggregatesFor(
     const scenarios = scenariosByBenchmark.get(benchmark.id) ?? [];
 
     if (scenarios.length === 0) {
-      result.set(benchmark.id, { score: 0, rank: null, rankIndex: null });
+      result.set(benchmark.id, {
+        score: 0,
+        rank: null,
+        rankIndex: null,
+        maxed: false,
+      });
       continue;
     }
 
@@ -174,7 +186,18 @@ export async function computeAggregatesFor(
         ? resolveRank(rankNames, withPbs)
         : { rank: null, rankIndex: null };
 
-    result.set(benchmark.id, { score, rank, rankIndex });
+    // The top rank that actually has cutoffs — the ceiling for "Complete".
+    const scorable = rankNames.filter((name) =>
+      withPbs.some((scenario) => typeof scenario.cutoffs?.[name] === "number")
+    );
+    const topRank = scorable.length > 0 ? scorable[scorable.length - 1] : null;
+
+    result.set(benchmark.id, {
+      score,
+      rank,
+      rankIndex,
+      maxed: rank !== null && rank === topRank,
+    });
   }
 
   return result;

@@ -46,6 +46,7 @@ export async function GET(request: Request) {
         my_score: mine && mine.score > 0 ? mine.score : null,
         my_rank: mine?.rank ?? null,
         my_rank_index: mine?.rankIndex ?? null,
+        my_maxed: mine?.maxed ?? false,
       };
     });
 
