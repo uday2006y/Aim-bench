@@ -312,14 +312,31 @@ export default function BenchmarkClient({
         {hasScenarios && (
           <div className="animate-fade-in overflow-hidden rounded-2xl border border-zinc-800 bg-raised shadow-2xl">
             <div className="overflow-x-auto">
-              <table className="w-full border-collapse text-xs min-w-[1200px]">
+              {/* table-fixed, because under the default auto layout every
+                  column sizes itself to its own header text: CHAMPION is
+                  eight characters and BRONZE is six, so the bars came out
+                  different widths and the ladder did not read as a ladder.
+
+                  The rank columns are deliberately left with no width. Under
+                  fixed layout, columns that specify no width split what is
+                  left over equally, so they stay identical at any ladder
+                  length and any screen size. Pinning them to a fixed
+                  150px each looked right at six rungs and overflowed at
+                  eight, squeezing the scenario name to zero width. The
+                  columns that do have a fixed width are the ones whose
+                  content is a known length. */}
+              {/* min-width sized so the widest default ladder — eight
+                  rungs — still gets a column wide enough for its cutoff
+                  number. Below this the table scrolls sideways, which it
+                  already did. */}
+              <table className="w-full table-fixed border-collapse text-xs min-w-[1440px]">
                 <thead className="border-b border-zinc-800 bg-app text-xs font-extrabold uppercase tracking-wider text-zinc-300">
                   <tr>
                     {/* Spacers for the vertical category / sub-category rails */}
                     <th className="w-6" />
                     <th className="w-6" />
-                    <th className="text-left px-4 py-3 whitespace-nowrap">SCENARIO</th>
-                    <th className="text-left px-3 py-3 whitespace-nowrap">SCORE</th>
+                    <th className="w-[260px] text-left px-4 py-3 whitespace-nowrap">SCENARIO</th>
+                    <th className="w-[168px] text-left px-3 py-3 whitespace-nowrap">SCORE</th>
                     {rankOrder.map((r) => (
                       <th
                         key={r.name}
@@ -329,7 +346,7 @@ export default function BenchmarkClient({
                         {r.name.toUpperCase()}
                       </th>
                     ))}
-                    <th className="text-left px-3 py-3 whitespace-nowrap">ENERGY</th>
+                    <th className="w-[124px] text-left px-3 py-3 whitespace-nowrap">ENERGY</th>
                   </tr>
                 </thead>
 
@@ -485,7 +502,7 @@ export default function BenchmarkClient({
                               return (
                                 <td
                                   key={rank.name}
-                                  className={`px-1.5 py-2 align-middle min-w-[100px] ${rowIdx === 0 ? groupDivider : ""}`}
+                                  className={`w-[150px] px-1.5 py-2 align-middle ${rowIdx === 0 ? groupDivider : ""}`}
                                 >
                                   <div className={`bar-track bar-${barStyle}`}>
                                     {hasCutoff && score > 0 && (
@@ -498,7 +515,9 @@ export default function BenchmarkClient({
                                       />
                                     )}
                                     <span className="bar-label">
-                                      {hasCutoff ? cutoff.toLocaleString() : "—"}
+                                      <span>
+                                        {hasCutoff ? cutoff.toLocaleString() : "—"}
+                                      </span>
                                     </span>
                                   </div>
                                 </td>

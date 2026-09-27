@@ -86,27 +86,47 @@ body {
    a label for the whole column rather than as a caption pinned to the
    left edge, which the ribbon's curved corner would otherwise crowd.
 
-   The number sits on top of a fill whose colour is chosen by the benchmark
-   author, and that set spans near-white Platinum to pale blue Diamond, so
-   plain white text disappeared on the light rungs. The dark drop plus the
-   tight light rim is what makes one style legible on both ends of a
-   ladder nobody controls from here: the shadow separates it from a light
-   fill, the rim separates it from the dark unfilled remainder. */
+   The number sits on top of a fill whose colour the benchmark author
+   chose, and that set runs from near-white Platinum to pale blue Diamond,
+   so white text disappeared on the light rungs. A text-shadow alone cannot
+   fix that: it rescues the glyph edges while the interior of the letter is
+   still white on white.
+
+   Worse, the number is centred over the whole track, so what sits behind it
+   changes within a single bar — at 97% fill it is on the colour, at 0% it
+   is on the dark remainder. Any per-rank text colour would have to be
+   chosen per fill percentage, which is not knowable in CSS.
+
+   So the number carries its own background. A dark plate makes white text
+   legible over any fill at any percentage, and over the unfilled remainder
+   it is invisible as a shape because it is already that colour. */
 .bar-label {
   position: absolute;
   inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
+  z-index: 1;
+}
+
+.bar-label > span {
   font-family: var(--font-geist-mono), ui-monospace, monospace;
   font-size: 12px;
   font-weight: 700;
+  line-height: 1;
   color: #fff;
-  text-shadow:
-    0 1px 2px rgb(0 0 0 / 0.65),
-    0 0 3px rgb(0 0 0 / 0.4),
-    0 -1px 0 rgb(255 255 255 / 0.25);
-  z-index: 1;
+  padding: 0.25rem 0.4rem;
+  border-radius: 0.3rem;
+  background: rgb(0 0 0 / 0.62);
+  /* Readable even where the plate lands on an already-dark remainder. */
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.5);
+  /* Cutoffs are author-supplied and can be wide. The track clips anyway,
+     but clipping the plate here stops a long number from spilling over
+     the bar's edge on a narrow screen. */
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* Every style sets one --bar-shape on the track. The track applies it to
