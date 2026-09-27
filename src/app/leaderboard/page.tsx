@@ -77,7 +77,7 @@ export default function LeaderboardPage() {
               <thead>
                 <tr className="border-b border-white/10">
                   <th className="text-left text-sm text-zinc-500 p-4 ranking-type">
-                    Rank
+                    #
                   </th>
                   <th className="text-left text-sm text-zinc-500 p-4">
                     Player
@@ -95,13 +95,16 @@ export default function LeaderboardPage() {
                     Platform
                   </th>
                   <th className="text-left text-sm text-zinc-500 p-4">
-                    Date
+                    Last improved
                   </th>
                 </tr>
               </thead>
               <tbody>
                 {leaderboard.map((entry, index) => (
-                  <tr key={entry.id} className="border-b border-white/10">
+                  <tr
+                    key={`${entry.account_id}:${entry.benchmark_id}`}
+                    className="border-b border-white/10"
+                  >
                     <td className="p-4 text-zinc-400">{index + 1}</td>
                     <td className="p-4">
                       <div className="flex items-center gap-3">
@@ -115,16 +118,26 @@ export default function LeaderboardPage() {
                       {entry.benchmark_title || "—"}
                     </td>
                     <td className="p-4 font-medium text-white">
-                      {entry.score}
+                      {entry.score?.toLocaleString()}
                     </td>
-                    <td className="p-4 text-zinc-400 small">
+                    {/* Coloured from the benchmark's own rank_colors ladder,
+                        so renaming or recolouring a rank shows up here too. */}
+                    <td
+                      className="p-4 small font-medium"
+                      style={{ color: entry.rank_color }}
+                    >
                       {entry.rank || "—"}
+                      {entry.maxed ? (
+                        <span className="ml-1 text-zinc-600">✓</span>
+                      ) : null}
                     </td>
                     <td className="p-4 text-zinc-500 small">
                       {entry.platform || "—"}
                     </td>
                     <td className="p-4 text-zinc-500 small">
-                      {entry.completed_at ? new Date(entry.completed_at).toLocaleDateString() : "—"}
+                      {entry.last_improved_at
+                        ? new Date(entry.last_improved_at).toLocaleDateString()
+                        : "—"}
                     </td>
                   </tr>
                 ))}

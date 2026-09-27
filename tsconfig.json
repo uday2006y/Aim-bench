@@ -11,6 +11,11 @@
     "moduleResolution": "bundler",
     "resolveJsonModule": true,
     "isolatedModules": true,
+    // Node's built-in type stripping resolves imports by their real
+    // extension, so test files have to write "./aggregates.ts" rather than
+    // "./aggregates". Valid here only because noEmit is set, which the
+    // bundler-style resolution above already required.
+    "allowImportingTsExtensions": true,
     "jsx": "react-jsx",
     "incremental": true,
     "plugins": [

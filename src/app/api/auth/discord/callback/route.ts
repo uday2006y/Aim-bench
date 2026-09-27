@@ -3,6 +3,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { createSession } from "@/lib/session";
 import { getPlayer, lookupPlayerByDiscordId } from "@/lib/easyaim";
 import { syncEasyAimAccount } from "@/lib/easyaimSync";
+import { verifyDiscordState } from "@/lib/oauthState";
 
 interface DiscordTokenResponse {
   access_token: string;
@@ -63,6 +64,17 @@ async function autoLinkEasyAim(accountId: string, discordId: string) {
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const code = url.searchParams.get("code");
+  const state = url.searchParams.get("state");
+
+  // Verified before the code is spent. Without this, a captured callback
+  // URL can be replayed against a victim to sign them into somebody else's
+  // account — see lib/oauthState.ts.
+  if (!(await verifyDiscordState(state))) {
+    console.error("EASYAIM/DISCORD: OAuth state mismatch — possible CSRF");
+    return NextResponse.redirect(
+      new URL("/login?error=discord_state_mismatch", request.url)
+    );
+  }
 
   if (!code) {
     return NextResponse.redirect(new URL("/login?error=discord_denied", request.url));

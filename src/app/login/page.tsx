@@ -7,6 +7,11 @@ const DISCORD_ERROR_MESSAGES: Record<string, string> = {
   discord_denied: "Discord login was cancelled.",
   discord_not_configured: "Discord login isn't set up yet.",
   discord_failed: "Something went wrong logging in with Discord. Try again.",
+  // The CSRF check rejected the callback. Usually a stale tab or a cookie
+  // blocked, not an attack, so it reads as "try again" rather than a
+  // security warning that would just alarm people.
+  discord_state_mismatch:
+    "That login attempt didn't match this browser, so it was rejected. Please try again.",
 };
 
 export default function LoginPage() {

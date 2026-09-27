@@ -89,6 +89,13 @@
 
 ### 13. Security / Environment
 - [ ] Confirm `.env.local` secrets are secure (not committed)
-- [ ] Discord OAuth redirect URI updated for production (`https://aim-bench.vercel.app`)
+- [ ] Buy `aimbench.app` and attach it in Vercel → Settings → Domains
+      - Apex A record `@` → `76.76.21.21` (or CNAME to `cname.vercel-dns.com`)
+      - If using Cloudflare DNS, set the record to DNS-only, not Proxied
+      - `.app` is HSTS-preloaded so HTTPS is mandatory; Vercel issues the cert
+- [ ] Discord OAuth redirect URI updated for production — register BOTH during
+      the switch, then drop the old one:
+      - `https://aimbench.app/api/auth/discord/callback`
+      - `https://aim-bench.vercel.app/api/auth/discord/callback` (temporary)
 - [ ] RLS policies work with new `text` columns
 - [ ] All routes protected with session verification
