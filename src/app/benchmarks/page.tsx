@@ -141,7 +141,10 @@ export default function BenchmarksPage() {
                       link on a narrow phone. */}
                   <div className="flex items-center gap-3">
                     <span className="text-xs text-zinc-500">
-                      {benchmark.scenario_count} scenarios
+                      {benchmark.scenario_count ?? 0}{" "}
+                      {(benchmark.scenario_count ?? 0) === 1
+                        ? "scenario"
+                        : "scenarios"}
                     </span>
                     <PinButton
                       benchmarkId={benchmark.id}
