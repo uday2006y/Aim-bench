@@ -71,17 +71,6 @@ export default function BenchmarksPage() {
     return benchmark.rank_colors?.[index] || "#ffffff";
   }
 
-  /**
-   * The benchmark's ceiling — the last entry in its rank ladder. Shown as
-   * "Gold of Platinum" when the viewer is partway up, so the card says what
-   * is left rather than implying the benchmark is finished.
-   */
-  function topRankName(benchmark: any): string | null {
-    const names = benchmark.rank_names;
-    if (!Array.isArray(names) || names.length === 0) return null;
-    return names[names.length - 1];
-  }
-
   return (
     <main className="min-h-screen text-white">
       <SiteHeader loggedIn={loggedIn} />
@@ -171,9 +160,17 @@ export default function BenchmarksPage() {
                       <>
                         {/* The rank name comes from the benchmark's own
                             rank_names, so it renames with the benchmark.
-                            "Complete" is reserved for reaching the top
-                            rank — clearing a middle rank is progress, not
-                            completion, so it shows the rank alone. */}
+                            Just the rank — "Gold" reads as Gold, and
+                            "aidjasdasjd" reads as aidjasdasjd. This used to
+                            append the benchmark's ceiling as "Gold of
+                            Platinum", which was wrong twice over: it named
+                            a tier the player is not close to, and on a
+                            six-rung ladder someone on rung three was told
+                            their goal was rung six.
+
+                            "Complete" is the one addition, and only for
+                            clearing the top rank's cutoffs. Reaching a
+                            middle rank is progress, not completion. */}
                         <p className="flex flex-wrap items-baseline gap-x-2">
                           <span
                             className="text-lg font-bold"
@@ -185,11 +182,7 @@ export default function BenchmarksPage() {
                             <span className="text-xs font-medium text-zinc-400">
                               Complete
                             </span>
-                          ) : (
-                            <span className="text-xs text-zinc-600">
-                              of {topRankName(benchmark) ?? "—"}
-                            </span>
-                          )}
+                          ) : null}
                           <span className="truncate text-xs text-zinc-600">
                             · {benchmark.title}
                           </span>
