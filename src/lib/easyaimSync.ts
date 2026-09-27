@@ -204,29 +204,30 @@ export async function syncEasyAimAccount(accountId: string): Promise<SyncResult>
     });
   }
 
-  if (changed.length === 0) {
-    return {
-      scanned: collected.length,
-      newPbs,
-      benchmarksUpdated: 0,
-      backfillDone,
-    };
+  if (changed.length > 0) {
+    const { error: upsertError } = await supabaseAdmin
+      .from("easyaim_pbs")
+      .upsert(changed, { onConflict: "account_id,scenario_id" });
+
+    if (upsertError) throw upsertError;
   }
 
-  const { error: upsertError } = await supabaseAdmin
-    .from("easyaim_pbs")
-    .upsert(changed, { onConflict: "account_id,scenario_id" });
-
-  if (upsertError) throw upsertError;
-
-  // 4. Recompute every benchmark that contains one of the updated
-  // scenarios, and append the new aggregate when it changed.
-  const changedScenarioIds = changed.map((pb) => pb.scenario_id);
+  // 4. Recompute every benchmark that contains any scenario we just synced
+  //    — not only the ones whose PB moved.
+  //
+  //    These used to be gated on a PB change, which meant a benchmark
+  //    created (or given new cutoffs) after a player's last sync never got
+  //    a benchmark_scores row at all: no PB changed, so the aggregate was
+  //    never recomputed and nothing was ever inserted. The list card then
+  //    read "Not played" for a player who had cleared Gold. The insert
+  //    below already compares against the last row, so recomputing every
+  //    time is idempotent and only costs a few reads.
+  const syncedScenarioIds = Array.from(bestRunByScenario.keys());
 
   const { data: affectedRows, error: affectedError } = await supabaseAdmin
     .from("benchmark_scenarios")
     .select("benchmark_id")
-    .in("easyaim_scenario_id", changedScenarioIds);
+    .in("easyaim_scenario_id", syncedScenarioIds);
 
   if (affectedError) throw affectedError;
 
@@ -237,47 +238,8 @@ export async function syncEasyAimAccount(accountId: string): Promise<SyncResult>
   let benchmarksUpdated = 0;
 
   for (const benchmarkId of affectedBenchmarks) {
-    const aggregate = await recomputeBenchmarkAggregate(accountId, benchmarkId);
-    if (!aggregate) continue;
-
-    const { data: lastRow } = await supabaseAdmin
-      .from("benchmark_scores")
-      .select("score, rank, rank_index")
-      .eq("benchmark_id", benchmarkId)
-      .eq("user_id", accountId)
-      .order("completed_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    const last = lastRow as
-      | { score: number; rank: string | null; rank_index: number | null }
-      | null;
-
-    if (
-      last &&
-      last.score === aggregate.score &&
-      last.rank === aggregate.rank &&
-      last.rank_index === aggregate.rankIndex
-    ) {
-      continue;
-    }
-
-    const { error: insertError } = await supabaseAdmin
-      .from("benchmark_scores")
-      .insert({
-        benchmark_id: benchmarkId,
-        user_id: accountId,
-        score: aggregate.score,
-        rank: aggregate.rank,
-        rank_index: aggregate.rankIndex,
-      });
-
-    if (insertError) {
-      console.error("EASYAIM AGGREGATE INSERT ERROR:", insertError);
-      continue;
-    }
-
-    benchmarksUpdated += 1;
+    const updated = await recordAggregateFor(accountId, benchmarkId);
+    if (updated) benchmarksUpdated += 1;
   }
 
   return {
@@ -292,6 +254,61 @@ interface Aggregate {
   score: number;
   rank: string | null;
   rankIndex: number | null;
+}
+
+/**
+ * Recomputes one account's standing on one benchmark from their stored
+ * PBs, and appends a benchmark_scores row only if the value actually
+ * moved. benchmark_scores is append-only history, so "only if it changed"
+ * is what keeps a re-sync from piling up duplicate rows.
+ *
+ * Safe to call repeatedly. Returns true when a row was written.
+ */
+export async function recordAggregateFor(
+  accountId: string,
+  benchmarkId: string
+): Promise<boolean> {
+  const aggregate = await recomputeBenchmarkAggregate(accountId, benchmarkId);
+  if (!aggregate) return false;
+
+  const { data: lastRow } = await supabaseAdmin
+    .from("benchmark_scores")
+    .select("score, rank, rank_index")
+    .eq("benchmark_id", benchmarkId)
+    .eq("user_id", accountId)
+    .order("completed_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const last = lastRow as
+    | { score: number; rank: string | null; rank_index: number | null }
+    | null;
+
+  if (
+    last &&
+    last.score === aggregate.score &&
+    last.rank === aggregate.rank &&
+    last.rank_index === aggregate.rankIndex
+  ) {
+    return false;
+  }
+
+  const { error: insertError } = await supabaseAdmin
+    .from("benchmark_scores")
+    .insert({
+      benchmark_id: benchmarkId,
+      user_id: accountId,
+      score: aggregate.score,
+      rank: aggregate.rank,
+      rank_index: aggregate.rankIndex,
+    });
+
+  if (insertError) {
+    console.error("EASYAIM AGGREGATE INSERT ERROR:", insertError);
+    return false;
+  }
+
+  return true;
 }
 
 async function recomputeBenchmarkAggregate(

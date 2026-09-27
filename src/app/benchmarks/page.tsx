@@ -158,11 +158,24 @@ export default function BenchmarksPage() {
                     </p>
                     {benchmark.my_rank ? (
                       <>
-                        <p
-                          className="truncate text-lg font-bold"
-                          style={{ color: rankColorOf(benchmark, benchmark.my_rank) }}
-                        >
-                          {benchmark.my_rank}
+                        {/* The rank name comes from the benchmark's own
+                            rank_names, so it renames with the benchmark.
+                            "Complete" is the default suffix: it means
+                            every scenario in the benchmark clears this
+                            rank's cutoffs. */}
+                        <p className="flex flex-wrap items-baseline gap-x-2">
+                          <span
+                            className="text-lg font-bold"
+                            style={{ color: rankColorOf(benchmark, benchmark.my_rank) }}
+                          >
+                            {benchmark.my_rank}
+                          </span>
+                          <span className="text-xs font-medium text-zinc-400">
+                            Complete
+                          </span>
+                          <span className="truncate text-xs text-zinc-600">
+                            · {benchmark.title}
+                          </span>
                         </p>
                         <p className="mt-0.5 font-mono text-xs text-zinc-500">
                           {benchmark.my_score.toLocaleString()}
@@ -171,8 +184,10 @@ export default function BenchmarksPage() {
                     ) : (
                       <>
                         <p className="text-lg font-medium text-zinc-600">Not played</p>
-                        <p className="mt-0.5 text-xs text-zinc-600">
-                          {loggedIn ? "No score yet" : "Log in to track your rank"}
+                        <p className="mt-0.5 truncate text-xs text-zinc-600">
+                          {loggedIn
+                            ? `No score yet · ${benchmark.title}`
+                            : "Log in to track your rank"}
                         </p>
                       </>
                     )}

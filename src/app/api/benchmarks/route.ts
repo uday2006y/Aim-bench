@@ -3,6 +3,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getSessionAccountId } from "@/lib/session";
 import { sanitizeScenarios, sanitizeCategoryDefs, syncSubCategoriesIntoDefs } from "@/lib/benchmarkScenarios";
 import { resetLinkedAccountsBackfill } from "@/lib/resetBackfill";
+import { recordAggregateFor } from "@/lib/easyaimSync";
 
 export async function GET(request: Request) {
   try {
@@ -176,6 +177,11 @@ export async function POST(request: Request) {
       // Existing linked players get one full re-scan so their PBs on the
       // scenarios just added show up right away.
       await resetLinkedAccountsBackfill();
+
+      // The author's own standing is computable right now from PBs they
+      // already have, so record it immediately rather than making them
+      // wait for the next sync to see their rank on the new benchmark.
+      await recordAggregateFor(accountId, benchmark.id);
     }
 
     return NextResponse.json({ benchmark }, { status: 201 });

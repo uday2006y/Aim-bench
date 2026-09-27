@@ -3,6 +3,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getSessionAccountId } from "@/lib/session";
 import { sanitizeScenarios, sanitizeCategoryDefs, syncSubCategoriesIntoDefs } from "@/lib/benchmarkScenarios";
 import { resetLinkedAccountsBackfill } from "@/lib/resetBackfill";
+import { recordAggregateFor } from "@/lib/easyaimSync";
 
 export async function PUT(
   request: Request,
@@ -138,6 +139,11 @@ export async function PUT(
       if (scenarioSetChanged) {
         await resetLinkedAccountsBackfill();
       }
+
+      // Editing cutoffs or the rank ladder changes what the author's rank
+      // should be, with no PB change to trigger a sync. Recompute it now so
+      // the benchmark they just saved shows the right rank.
+      await recordAggregateFor(accountId, id);
     }
 
     return NextResponse.json({ benchmark: updated }, { status: 200 });
