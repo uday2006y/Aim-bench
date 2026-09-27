@@ -7,8 +7,6 @@ import PinButton from "@/components/PinButton";
 
 export default function BenchmarksPage() {
   const [benchmarks, setBenchmarks] = useState<any[]>([]);
-  const [platforms, setPlatforms] = useState<string[]>(["easyaim"]);
-  const [selectedPlatform, setSelectedPlatform] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [loggedIn, setLoggedIn] = useState(false);
@@ -17,41 +15,35 @@ export default function BenchmarksPage() {
     // Debounce only what the visitor is typing. The first load used to sit
     // behind this same 300ms, which was a third of a second of pure waiting
     // before the request that already takes over a second went out at all.
-    const isFirstRun = searchQuery === "" && selectedPlatform === "all";
-
-    if (isFirstRun) {
-      fetchBenchmarks("", selectedPlatform);
+    if (searchQuery === "") {
+      fetchBenchmarks("");
       return;
     }
 
     const timeout = setTimeout(() => {
-      fetchBenchmarks(searchQuery, selectedPlatform);
+      fetchBenchmarks(searchQuery);
     }, 300);
 
     return () => clearTimeout(timeout);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchQuery, selectedPlatform]);
+  }, [searchQuery]);
 
-  async function fetchBenchmarks(query: string, platform: string) {
+  async function fetchBenchmarks(query: string) {
     setLoading(true);
     try {
       const url = new URL("/api/benchmarks", window.location.origin);
-      if (platform) url.searchParams.set("platform", platform);
       if (query) url.searchParams.set("q", query);
 
       const response = await fetch(url);
       const data = (await response.json()) as {
         benchmarks: any[];
-        platforms?: string[];
         loggedIn?: boolean;
       };
 
       setBenchmarks(data.benchmarks || []);
 
-      // Both of these used to be separate requests: the platform list came
-      // from a second full call to this same endpoint, and loggedIn from
-      // /api/session. Both now ride along with the list.
-      if (data.platforms?.length) setPlatforms(data.platforms);
+      // Used to be a separate request to /api/session; rides along with the
+      // list now, since the endpoint already knows whether there is one.
       if (typeof data.loggedIn === "boolean") setLoggedIn(data.loggedIn);
     } catch (error) {
       console.error("Failed to fetch benchmarks:", error);
@@ -84,20 +76,8 @@ export default function BenchmarksPage() {
               placeholder="Search benchmarks..."
               value={searchQuery}
               onChange={handleSearch}
-              className="flex-1 rounded-xl border border-white/10 px-4 py-2 text-white background-transparent focus:outline-none focus:border-white/20"
+              className="w-full rounded-xl border border-white/10 px-4 py-2 text-white background-transparent focus:outline-none focus:border-white/20"
             />
-            <select
-              value={selectedPlatform}
-              onChange={(e) => {
-                setSelectedPlatform(e.target.value);
-              }}
-              className="rounded-xl border border-white/10 px-4 py-2 text-white background-transparent focus:outline-none focus:border-white/20"
-            >
-              <option value="all">All Platforms</option>
-              {platforms.map((p) => (
-                <option key={p} value={p}>{p}</option>
-              ))}
-            </select>
           </div>
         </div>
 

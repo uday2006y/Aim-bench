@@ -84,7 +84,14 @@ body {
 
 /* Centred in the bar, as in the reference — the cutoff number reads as
    a label for the whole column rather than as a caption pinned to the
-   left edge, which the ribbon's curved corner would otherwise crowd. */
+   left edge, which the ribbon's curved corner would otherwise crowd.
+
+   The number sits on top of a fill whose colour is chosen by the benchmark
+   author, and that set spans near-white Platinum to pale blue Diamond, so
+   plain white text disappeared on the light rungs. The dark drop plus the
+   tight light rim is what makes one style legible on both ends of a
+   ladder nobody controls from here: the shadow separates it from a light
+   fill, the rim separates it from the dark unfilled remainder. */
 .bar-label {
   position: absolute;
   inset: 0;
@@ -92,9 +99,13 @@ body {
   align-items: center;
   justify-content: center;
   font-family: var(--font-geist-mono), ui-monospace, monospace;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
   color: #fff;
+  text-shadow:
+    0 1px 2px rgb(0 0 0 / 0.65),
+    0 0 3px rgb(0 0 0 / 0.4),
+    0 -1px 0 rgb(255 255 255 / 0.25);
   z-index: 1;
 }
 

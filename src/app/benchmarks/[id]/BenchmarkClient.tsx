@@ -313,7 +313,7 @@ export default function BenchmarkClient({
           <div className="animate-fade-in overflow-hidden rounded-2xl border border-zinc-800 bg-raised shadow-2xl">
             <div className="overflow-x-auto">
               <table className="w-full border-collapse text-xs min-w-[1200px]">
-                <thead className="border-b border-zinc-800 bg-app text-[10px] font-extrabold uppercase tracking-wider text-zinc-300">
+                <thead className="border-b border-zinc-800 bg-app text-xs font-extrabold uppercase tracking-wider text-zinc-300">
                   <tr>
                     {/* Spacers for the vertical category / sub-category rails */}
                     <th className="w-6" />
@@ -323,7 +323,7 @@ export default function BenchmarkClient({
                     {rankOrder.map((r) => (
                       <th
                         key={r.name}
-                        className="text-center px-2 py-3 whitespace-nowrap text-[10px] tracking-wide"
+                        className="text-center px-2 py-3 whitespace-nowrap text-xs tracking-wide"
                         style={{ color: r.color }}
                       >
                         {r.name.toUpperCase()}

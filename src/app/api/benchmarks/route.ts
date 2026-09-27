@@ -10,9 +10,6 @@ import {
   type ScenarioCutoffs,
 } from "@/lib/aggregates";
 
-/** Distinct platforms for the filter dropdown. */
-const PLATFORM_SCAN_LIMIT = 200;
-
 /**
  * Upper bound on the scenario rows read for rank cutoffs. Comfortably above
  * any realistic benchmark site, and checked below rather than trusted.
@@ -22,7 +19,11 @@ const SCENARIO_SCAN_LIMIT = 5000;
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const platform = searchParams.get("platform") || "easyaim";
+    // Defaults to no filter. This used to default to "easyaim", which was
+    // invisible while the list page always sent an explicit "all" — and
+    // would have silently hidden every benchmark on a second platform once
+    // the page stopped sending the parameter at all.
+    const platform = searchParams.get("platform") || "all";
     const q = searchParams.get("q");
 
     const accountId = await getSessionAccountId();
@@ -38,7 +39,7 @@ export async function GET(request: Request) {
     //     so they do not need the scenario ids that come back below
     //   - the viewer's pins and the platform list are independent entirely
     // so the only ordering left is: fetch everything, then join in memory.
-    const [benchmarksResult, scenarioResult, pbResult, pinResult, platformResult] =
+    const [benchmarksResult, scenarioResult, pbResult, pinResult] =
       await Promise.all([
         (() => {
           let query = supabaseAdmin.from("benchmarks").select("*");
@@ -77,11 +78,6 @@ export async function GET(request: Request) {
               .select("benchmark_id")
               .eq("account_id", accountId)
           : null,
-
-        supabaseAdmin
-          .from("benchmarks")
-          .select("platform")
-          .limit(PLATFORM_SCAN_LIMIT),
       ]);
 
     if (benchmarksResult.error) throw benchmarksResult.error;
@@ -136,20 +132,8 @@ export async function GET(request: Request) {
       };
     });
 
-    // The platform list rides along with the list itself. The page used to
-    // ask for this with a second full call to this same endpoint, which
-    // doubled the query count on page load to read one field off each row.
-    const platforms = [
-      ...new Set(
-        (platformResult.data || [])
-          .map((row) => (row as { platform: string }).platform)
-          .filter(Boolean)
-      ),
-    ];
-
     return NextResponse.json({
       benchmarks,
-      platforms: platforms.length > 0 ? platforms : ["easyaim"],
       // Saves the page a separate /api/session round trip to decide which
       // empty state a card should show.
       loggedIn: Boolean(accountId),
