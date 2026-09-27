@@ -206,7 +206,13 @@ alter table public.benchmark_pins enable row level security;
 -- Pin totals per benchmark. Aggregating in SQL rather than counting rows
 -- in the app means the cost of showing a star count does not grow with
 -- the size of the community.
-create or replace view public.benchmark_pin_totals as
+--
+-- security_invoker matters: a view is SECURITY DEFINER by default and so
+-- ignores the RLS policies on the table underneath, which would let the
+-- anon key read every pin row through it. With security_invoker the
+-- service-role client still reads everything and anon reads nothing.
+create or replace view public.benchmark_pin_totals
+  with (security_invoker = on) as
   select
     benchmark_id,
     count(*)::int as pin_count

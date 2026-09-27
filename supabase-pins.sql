@@ -33,13 +33,23 @@ alter table public.benchmark_pins enable row level security;
 
 -- Pin totals per benchmark. Aggregating in SQL rather than pulling every
 -- pin row means the cost of a pin count does not grow with the size of
--- the community: the home page reads the top 4 from here, and the
--- benchmark list reads one row per visible card.
+-- the community: the home page reads the top 4 from here.
 --
 -- The unique index on (benchmark_id, account_id) already exists as the
 -- table's primary key, so two people starring the same benchmark each add
 -- one row and no single person can inflate a count.
-create or replace view public.benchmark_pin_totals as
+--
+-- security_invoker matters. A Postgres view is SECURITY DEFINER by
+-- default: it runs with the creator's permissions and ignores the RLS
+-- policies on the table underneath. Since public is exposed through
+-- PostgREST, that would let the anon key read every pin row despite RLS
+-- being enabled — RLS that looks correct but does nothing. With
+-- security_invoker the view honours the querying user instead, so the
+-- service-role client still reads everything (it has BYPASSRLS) and
+-- anon/authenticated read nothing, which is what "no policies" on
+-- benchmark_pins is meant to mean.
+create or replace view public.benchmark_pin_totals
+  with (security_invoker = on) as
   select
     benchmark_id,
     count(*)::int as pin_count
