@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { readBarStyle, DEFAULT_BAR_STYLE } from "@/lib/barStyles";
 import PinButton from "@/components/PinButton";
+import { computeTierFills } from "@/lib/tierBars";
 
 interface CategoryDef {
   name: string;
@@ -355,6 +356,15 @@ export default function BenchmarkClient({
                           ),
                           1
                         );
+
+                        // One pass for the whole row, rather than walking the
+                        // ladder again inside every cell.
+                        const fills = computeTierFills(
+                          rankOrder.map(
+                            (rank) => scenario.cutoffs?.[rank.name] ?? null
+                          ),
+                          score
+                        ).map((fill) => fill.percent);
                         const pctStr = score
                           ? `${Math.min(100, Math.round((score / topCutoff) * 100))}%`
                           : "—";
@@ -466,16 +476,11 @@ export default function BenchmarkClient({
                               </div>
                             </td>
 
-                            {rankOrder.map((rank) => {
+                            {rankOrder.map((rank, rankIdx) => {
                               const cutoff = scenario.cutoffs?.[rank.name];
                               const hasCutoff =
                                 typeof cutoff === "number" && cutoff > 0;
-                              const fillPct = hasCutoff
-                                ? Math.min(
-                                    100,
-                                    Math.max(0, Math.round((score / cutoff) * 100))
-                                  )
-                                : 0;
+                              const fillPct = fills[rankIdx];
 
                               return (
                                 <td
