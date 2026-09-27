@@ -66,7 +66,6 @@ export default function BenchmarkClient({
   scenarios,
   myScores,
   isAuthorized,
-  pinCount,
   myPinned,
   loggedIn,
 }: {
@@ -75,7 +74,6 @@ export default function BenchmarkClient({
   scenarios: BenchmarkScenario[];
   myScores: { id: string; score: number; rank: string | null; completed_at: string }[];
   isAuthorized: boolean;
-  pinCount: number;
   myPinned: boolean;
   loggedIn: boolean;
 }) {
@@ -266,7 +264,6 @@ export default function BenchmarkClient({
               <PinButton
                 benchmarkId={id}
                 pinned={myPinned}
-                count={pinCount}
                 loggedIn={loggedIn}
                 size="md"
               />

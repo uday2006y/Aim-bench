@@ -5,7 +5,7 @@ import { sanitizeScenarios, sanitizeCategoryDefs, syncSubCategoriesIntoDefs } fr
 import { resetLinkedAccountsBackfill } from "@/lib/resetBackfill";
 import { recordAggregateFor } from "@/lib/easyaimSync";
 import { computeAggregatesFor } from "@/lib/aggregates";
-import { loadPinCounts, loadViewerPins } from "@/lib/pins";
+import { loadViewerPins } from "@/lib/pins";
 
 export async function GET(request: Request) {
   try {
@@ -39,7 +39,6 @@ export async function GET(request: Request) {
     );
 
     const ids = (benchmarks || []).map((b) => (b as { id: string }).id);
-    const pinCounts = await loadPinCounts(ids);
     const myPins = await loadViewerPins(accountId);
 
     const enriched = (benchmarks || []).map((row) => {
@@ -52,7 +51,6 @@ export async function GET(request: Request) {
         my_rank: mine?.rank ?? null,
         my_rank_index: mine?.rankIndex ?? null,
         my_maxed: mine?.maxed ?? false,
-        pin_count: pinCounts.get(benchmark.id) ?? 0,
         my_pinned: myPins.has(benchmark.id),
       };
     });

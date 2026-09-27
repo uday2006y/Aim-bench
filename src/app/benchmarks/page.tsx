@@ -161,7 +161,6 @@ export default function BenchmarksPage() {
                     <PinButton
                       benchmarkId={benchmark.id}
                       pinned={Boolean(benchmark.my_pinned)}
-                      count={benchmark.pin_count ?? 0}
                       loggedIn={loggedIn}
                     />
                   </div>

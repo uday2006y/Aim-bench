@@ -143,18 +143,15 @@ export default async function Home() {
                     {benchmark.platform}
                   </span>
 
-                  {/* Already gold and static here: this list is chosen by
-                      star count, so nothing on the card needs a toggle. */}
+                  {/* Static, and without a count to match the star on the
+                      benchmark cards. This list is chosen by star count;
+                      printing the number here would turn a badge into a
+                      ranking. */}
                   <span
-                    className="flex shrink-0 items-center gap-1 text-xs text-amber-400"
-                    title={`${benchmark.pin_count} ${
-                      benchmark.pin_count === 1 ? "star" : "stars"
-                    }`}
+                    aria-hidden="true"
+                    className="shrink-0 text-2xl leading-none text-amber-300 [text-shadow:0_0_14px_rgba(252,211,77,0.6)]"
                   >
-                    <span aria-hidden="true" className="text-sm leading-none">
-                      ★
-                    </span>
-                    {benchmark.pin_count}
+                    ★
                   </span>
                 </div>
 
