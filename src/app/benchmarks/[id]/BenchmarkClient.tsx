@@ -515,9 +515,7 @@ export default function BenchmarkClient({
                                       />
                                     )}
                                     <span className="bar-label">
-                                      <span>
-                                        {hasCutoff ? cutoff.toLocaleString() : "—"}
-                                      </span>
+                                      {hasCutoff ? cutoff.toLocaleString() : "—"}
                                     </span>
                                   </div>
                                 </td>

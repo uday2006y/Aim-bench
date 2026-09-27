@@ -28,9 +28,7 @@ function BarPreview({
         className="bar-fill"
         style={{ width: `${fillPct}%`, backgroundColor: color }}
       />
-      <span className="bar-label">
-        <span>{label}</span>
-      </span>
+      <span className="bar-label">{label}</span>
     </div>
   );
 }
