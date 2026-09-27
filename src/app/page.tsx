@@ -1,26 +1,63 @@
 import Link from "next/link";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getSessionAccountId } from "@/lib/session";
+import { loadTopPinned } from "@/lib/pins";
 import SiteHeader from "@/components/SiteHeader";
 
 interface BenchmarkCard {
   id: string;
   title: string;
-  description: string | null;
   platform: string;
   scenario_count: number | null;
+  created_at: string | null;
+  pin_count: number;
 }
+
+/** How many starred benchmarks the home page shows. */
+const FEATURED_LIMIT = 4;
 
 export default async function Home() {
   const accountId = await getSessionAccountId();
 
-  const { data } = await supabaseAdmin
-    .from("benchmarks")
-    .select("id, title, description, platform, scenario_count")
-    .order("created_at", { ascending: false })
-    .limit(3);
+  // Only starred benchmarks, most stars first. A benchmark nobody starred
+  // is not a recommendation, so an unstarred one is not featured here no
+  // matter how recently it was made.
+  const topPinned = await loadTopPinned(FEATURED_LIMIT);
 
-  const benchmarks = (data || []) as BenchmarkCard[];
+  let benchmarks: BenchmarkCard[] = [];
+
+  if (topPinned.length > 0) {
+    const { data } = await supabaseAdmin
+      .from("benchmarks")
+      .select("id, title, platform, scenario_count, created_at")
+      .in(
+        "id",
+        topPinned.map((entry) => entry.id)
+      );
+
+    const pinCountById = new Map(
+      topPinned.map((entry) => [entry.id, entry.pin_count])
+    );
+
+    // Equal star counts break by newest, so the featured row keeps
+    // refreshing as the community grows rather than freezing on whichever
+    // benchmarks happened to be starred first.
+    benchmarks = (data || [])
+      .map(
+        (row) =>
+          ({
+            ...(row as Omit<BenchmarkCard, "pin_count">),
+            pin_count: pinCountById.get((row as { id: string }).id) ?? 0,
+          }) as BenchmarkCard
+      )
+      .sort(
+        (a, b) =>
+          b.pin_count - a.pin_count ||
+          new Date(b.created_at ?? 0).getTime() -
+            new Date(a.created_at ?? 0).getTime()
+      )
+      .slice(0, FEATURED_LIMIT);
+  }
 
   return (
     <main className="min-h-screen text-white">
@@ -66,9 +103,9 @@ export default async function Home() {
       <section className="mx-auto max-w-7xl px-6 pb-24">
         <div className="mb-8 flex items-end justify-between">
           <div>
-            <h2 className="text-2xl font-semibold">Benchmarks</h2>
+            <h2 className="text-2xl font-semibold">Starred Benchmarks</h2>
             <p className="mt-1 text-sm text-zinc-500">
-              Latest community-created benchmarks
+              What the community has starred most
             </p>
           </div>
 
@@ -82,50 +119,58 @@ export default async function Home() {
 
         {benchmarks.length === 0 ? (
           <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-10 text-center">
-            <p className="text-zinc-500">No benchmarks yet</p>
+            <p className="text-zinc-500">
+              Nothing starred yet — be the first
+            </p>
             <Link
-              href="/create-benchmark"
+              href="/benchmarks"
               className="mt-3 inline-block text-sm font-medium text-white hover:underline"
             >
-              Create the first one →
+              Browse benchmarks and star one →
             </Link>
           </div>
         ) : (
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {benchmarks.map((benchmark, i) => (
-              <div
+              <Link
                 key={benchmark.id}
-                className="animate-card-in hover-lift group rounded-2xl border border-white/10 bg-white/[0.02] p-6 hover:border-white/25 hover:bg-white/[0.05]"
+                href={`/benchmarks/${benchmark.id}`}
+                className="animate-card-in hover-lift group flex flex-col rounded-2xl border border-white/10 bg-white/[0.02] p-6 hover:border-white/25 hover:bg-white/[0.05]"
                 style={{ animationDelay: `${Math.min(i, 8) * 45}ms` }}
               >
-                <div className="mb-8 flex items-center justify-between">
-                  <span className="rounded-full border border-white/10 px-3 py-1 text-xs text-zinc-400">
+                <div className="mb-6 flex items-center justify-between gap-2">
+                  <span className="truncate rounded-full border border-white/10 px-3 py-1 text-xs text-zinc-400">
                     {benchmark.platform}
                   </span>
 
-                  <span className="text-xs text-zinc-600">BENCHMARK</span>
+                  {/* Already gold and static here: this list is chosen by
+                      star count, so nothing on the card needs a toggle. */}
+                  <span
+                    className="flex shrink-0 items-center gap-1 text-xs text-amber-400"
+                    title={`${benchmark.pin_count} ${
+                      benchmark.pin_count === 1 ? "star" : "stars"
+                    }`}
+                  >
+                    <span aria-hidden="true" className="text-sm leading-none">
+                      ★
+                    </span>
+                    {benchmark.pin_count}
+                  </span>
                 </div>
 
                 <h3 className="line-clamp-2 text-lg font-semibold">
                   {benchmark.title}
                 </h3>
 
-                <p className="mt-2 line-clamp-2 text-sm text-zinc-500">
-                  {benchmark.description || "No description"}
-                </p>
-
                 <p className="mt-2 text-xs text-zinc-600">
                   {benchmark.scenario_count ?? 1} scenario
                   {(benchmark.scenario_count ?? 1) === 1 ? "" : "s"}
                 </p>
 
-                <Link
-                  href={`/benchmarks/${benchmark.id}`}
-                  className="mt-6 block text-sm font-medium text-white"
-                >
+                <span className="mt-6 block text-sm font-medium text-white">
                   Open benchmark →
-                </Link>
-              </div>
+                </span>
+              </Link>
             ))}
           </div>
         )}

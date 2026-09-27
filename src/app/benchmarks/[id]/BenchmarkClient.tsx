@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { readBarStyle, DEFAULT_BAR_STYLE } from "@/lib/barStyles";
+import PinButton from "@/components/PinButton";
 
 interface CategoryDef {
   name: string;
@@ -65,12 +66,18 @@ export default function BenchmarkClient({
   scenarios,
   myScores,
   isAuthorized,
+  pinCount,
+  myPinned,
+  loggedIn,
 }: {
   id: string;
   benchmark: Benchmark;
   scenarios: BenchmarkScenario[];
   myScores: { id: string; score: number; rank: string | null; completed_at: string }[];
   isAuthorized: boolean;
+  pinCount: number;
+  myPinned: boolean;
+  loggedIn: boolean;
 }) {
   const [scoreInput, setScoreInput] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -252,14 +259,26 @@ export default function BenchmarkClient({
             <h1 className="text-3xl font-extrabold tracking-tight">
               {benchmark.title || "Benchmark"}
             </h1>
-            {isAuthorized ? (
-              <Link
-                href={`/benchmarks/${id}/edit`}
-                className="rounded bg-white px-3 py-1.5 text-xs font-medium text-black transition hover:bg-zinc-200"
-              >
-                Edit Benchmark
-              </Link>
-            ) : null}
+            {/* Star sits with the title rather than the Edit button: it is
+                something any visitor can do, so it must not read as part of
+                the owner's controls. */}
+            <div className="flex items-center gap-3">
+              <PinButton
+                benchmarkId={id}
+                pinned={myPinned}
+                count={pinCount}
+                loggedIn={loggedIn}
+                size="md"
+              />
+              {isAuthorized ? (
+                <Link
+                  href={`/benchmarks/${id}/edit`}
+                  className="rounded bg-white px-3 py-1.5 text-xs font-medium text-black transition hover:bg-zinc-200"
+                >
+                  Edit Benchmark
+                </Link>
+              ) : null}
+            </div>
           </div>
 
           {hasScenarios && (

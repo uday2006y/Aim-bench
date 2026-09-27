@@ -158,3 +158,36 @@ alter table public.easyaim_pbs enable row level security;
 drop policy if exists "Benchmark scenarios are viewable by everyone" on public.benchmark_scenarios;
 create policy "Benchmark scenarios are viewable by everyone"
   on public.benchmark_scenarios for select using (true);
+
+-- ------------------------------------------------------------
+-- Benchmark pins
+-- A star on a benchmark card. Per-account, so two people starring the
+-- same benchmark both count and neither can inflate the total. The
+-- primary key is what stops one person producing two.
+-- ------------------------------------------------------------
+create table if not exists public.benchmark_pins (
+  benchmark_id uuid references public.benchmarks(id) on delete cascade not null,
+  account_id uuid references public.accounts(id) on delete cascade not null,
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null,
+  primary key (benchmark_id, account_id)
+);
+
+create index if not exists benchmark_pins_account_idx
+  on public.benchmark_pins (account_id);
+
+create index if not exists benchmark_pins_benchmark_idx
+  on public.benchmark_pins (benchmark_id);
+
+alter table public.benchmark_pins enable row level security;
+
+-- benchmark_pins: no policies = server-only (service role).
+
+-- Pin totals per benchmark. Aggregating in SQL rather than counting rows
+-- in the app means the cost of showing a star count does not grow with
+-- the size of the community.
+create or replace view public.benchmark_pin_totals as
+  select
+    benchmark_id,
+    count(*)::int as pin_count
+  from public.benchmark_pins
+  group by benchmark_id;

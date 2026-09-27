@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import SiteHeader from "@/components/SiteHeader";
+import PinButton from "@/components/PinButton";
 
 export default function BenchmarksPage() {
   const [benchmarks, setBenchmarks] = useState<any[]>([]);
@@ -144,14 +145,26 @@ export default function BenchmarksPage() {
                 className="animate-card-in hover-lift group rounded-2xl border border-white/10 bg-white/[0.02] p-6 hover:border-white/25 hover:bg-white/[0.05]"
                 style={{ animationDelay: `${Math.min(i, 8) * 45}ms` }}
               >
-                <div className="mb-4 flex items-center justify-between">
+                <div className="mb-4 flex items-center justify-between gap-2">
                   <span className="rounded-full border border-white/10 px-3 py-1 text-xs text-zinc-400">
                     {benchmark.platform}
                   </span>
 
-                  <span className="text-xs text-zinc-500">
-                    {benchmark.scenario_count} scenarios
-                  </span>
+                  {/* Star sits in the top-right corner: the one part of the
+                      card that carries no information, so it costs no
+                      reading space and stays clear of the title and the
+                      link on a narrow phone. */}
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs text-zinc-500">
+                      {benchmark.scenario_count} scenarios
+                    </span>
+                    <PinButton
+                      benchmarkId={benchmark.id}
+                      pinned={Boolean(benchmark.my_pinned)}
+                      count={benchmark.pin_count ?? 0}
+                      loggedIn={loggedIn}
+                    />
+                  </div>
                 </div>
 
                 <h3 className="text-lg font-semibold line-clamp-2">

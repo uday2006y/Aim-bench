@@ -2,6 +2,7 @@ import Link from "next/link";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getSessionAccountId } from "@/lib/session";
 import BenchmarkClient from "./BenchmarkClient";
+import { loadPinCounts, loadViewerPins } from "@/lib/pins";
 
 export default async function BenchmarkDetailPage({
   params,
@@ -76,6 +77,13 @@ export default async function BenchmarkDetailPage({
     myScores = scoreData || [];
   }
 
+  // Star state for the header. Read server-side so the star is already
+  // gold on first paint instead of flipping a moment after hydration.
+  const [pinCounts, myPins] = await Promise.all([
+    loadPinCounts([id]),
+    loadViewerPins(accountId),
+  ]);
+
   return (
     <BenchmarkClient
       id={id}
@@ -83,6 +91,9 @@ export default async function BenchmarkDetailPage({
       scenarios={scenarios}
       myScores={myScores}
       isAuthorized={isAuthorized}
+      pinCount={pinCounts.get(id) ?? 0}
+      myPinned={myPins.has(id)}
+      loggedIn={Boolean(accountId)}
     />
   );
 }
