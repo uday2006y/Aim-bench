@@ -156,78 +156,94 @@ export async function syncEasyAimAccount(accountId: string): Promise<SyncResult>
     }
   }
 
-  if (bestRunByScenario.size === 0) {
-    return {
-      scanned: collected.length,
-      newPbs: [],
-      benchmarksUpdated: 0,
-      backfillDone,
-    };
-  }
-
-  const scenarioIds = Array.from(bestRunByScenario.keys());
-
-  const { data: pbRows, error: pbError } = await supabaseAdmin
-    .from("easyaim_pbs")
-    .select("scenario_id, score")
-    .eq("account_id", accountId)
-    .in("scenario_id", scenarioIds);
-
-  if (pbError) throw pbError;
-
-  const storedPbs = new Map<number, number>();
-  for (const row of pbRows || []) {
-    const pb = row as { scenario_id: number; score: number };
-    storedPbs.set(pb.scenario_id, pb.score);
-  }
-
-  const changed: { account_id: string; scenario_id: number; score: number; run_id: number; achieved_at: string }[] = [];
   const newPbs: NewPb[] = [];
 
-  for (const [scenarioId, run] of bestRunByScenario) {
-    const previous = storedPbs.get(scenarioId) ?? null;
-    if (previous !== null && run.score <= previous) continue;
+  // No early return on an empty scan. The PB diff below needs runs, but
+  // step 4 does not — it works off stored PBs, so a sync that scanned
+  // nothing new still has to run, otherwise a benchmark whose scenarios
+  // are all older than the scan window would never get a row.
+  if (bestRunByScenario.size > 0) {
+    const scenarioIds = Array.from(bestRunByScenario.keys());
 
-    changed.push({
-      account_id: accountId,
-      scenario_id: scenarioId,
-      score: run.score,
-      run_id: run.id,
-      achieved_at: new Date(run.playedAt * 1000).toISOString(),
-    });
-
-    newPbs.push({
-      scenarioId,
-      title: attachedScenarios.get(scenarioId) || `Scenario ${scenarioId}`,
-      score: run.score,
-      previous,
-    });
-  }
-
-  if (changed.length > 0) {
-    const { error: upsertError } = await supabaseAdmin
+    const { data: pbRows, error: pbError } = await supabaseAdmin
       .from("easyaim_pbs")
-      .upsert(changed, { onConflict: "account_id,scenario_id" });
+      .select("scenario_id, score")
+      .eq("account_id", accountId)
+      .in("scenario_id", scenarioIds);
 
-    if (upsertError) throw upsertError;
+    if (pbError) throw pbError;
+
+    const storedPbs = new Map<number, number>();
+    for (const row of pbRows || []) {
+      const pb = row as { scenario_id: number; score: number };
+      storedPbs.set(pb.scenario_id, pb.score);
+    }
+
+    const changed: { account_id: string; scenario_id: number; score: number; run_id: number; achieved_at: string }[] = [];
+
+    for (const [scenarioId, run] of bestRunByScenario) {
+      const previous = storedPbs.get(scenarioId) ?? null;
+      if (previous !== null && run.score <= previous) continue;
+
+      changed.push({
+        account_id: accountId,
+        scenario_id: scenarioId,
+        score: run.score,
+        run_id: run.id,
+        achieved_at: new Date(run.playedAt * 1000).toISOString(),
+      });
+
+      newPbs.push({
+        scenarioId,
+        title: attachedScenarios.get(scenarioId) || `Scenario ${scenarioId}`,
+        score: run.score,
+        previous,
+      });
+    }
+
+    if (changed.length > 0) {
+      const { error: upsertError } = await supabaseAdmin
+        .from("easyaim_pbs")
+        .upsert(changed, { onConflict: "account_id,scenario_id" });
+
+      if (upsertError) throw upsertError;
+    }
   }
 
-  // 4. Recompute every benchmark that contains any scenario we just synced
-  //    — not only the ones whose PB moved.
+  // 4. Recompute every benchmark that uses a scenario this account has a
+  //    personal best for.
   //
-  //    These used to be gated on a PB change, which meant a benchmark
-  //    created (or given new cutoffs) after a player's last sync never got
-  //    a benchmark_scores row at all: no PB changed, so the aggregate was
-  //    never recomputed and nothing was ever inserted. The list card then
-  //    read "Not played" for a player who had cleared Gold. The insert
-  //    below already compares against the last row, so recomputing every
-  //    time is idempotent and only costs a few reads.
-  const syncedScenarioIds = Array.from(bestRunByScenario.keys());
+  //    Keyed off easyaim_pbs, not off the runs we happened to scan this
+  //    pass. Once a sync is caught up it only reads the newest page, so a
+  //    benchmark attached to an older scenario would never be recomputed
+  //    and never get a row — the aggregate is derived from stored PBs, so
+  //    stored PBs are the right input. Union with the scenarios we just
+  //    synced so a brand new PB is covered even before it lands.
+  //
+  //    The insert inside recordAggregateFor already compares against the
+  //    previous row, so running this every sync is idempotent.
+  const { data: storedPbRows, error: storedPbError } = await supabaseAdmin
+    .from("easyaim_pbs")
+    .select("scenario_id")
+    .eq("account_id", accountId);
+
+  if (storedPbError) throw storedPbError;
+
+  const recomputeScenarioIds = new Set<number>([
+    ...((storedPbRows || []) as { scenario_id: number }[]).map(
+      (row) => row.scenario_id
+    ),
+    ...bestRunByScenario.keys(),
+  ]);
+
+  if (recomputeScenarioIds.size === 0) {
+    return { scanned: collected.length, newPbs, benchmarksUpdated: 0, backfillDone };
+  }
 
   const { data: affectedRows, error: affectedError } = await supabaseAdmin
     .from("benchmark_scenarios")
     .select("benchmark_id")
-    .in("easyaim_scenario_id", syncedScenarioIds);
+    .in("easyaim_scenario_id", Array.from(recomputeScenarioIds));
 
   if (affectedError) throw affectedError;
 
