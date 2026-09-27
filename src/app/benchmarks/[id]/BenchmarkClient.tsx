@@ -234,10 +234,11 @@ export default function BenchmarkClient({
   return (
     <main className="min-h-screen bg-app text-white">
       <div className="mx-auto max-w-full px-4 py-6">
-        {/* Top nav bar */}
+        {/* Top nav bar. The benchmark table is reached from the benchmark
+            list, so Back goes there rather than to the home page. */}
         <div className="mb-6 flex items-center justify-between px-2">
           <Link
-            href="/"
+            href="/benchmarks"
             className="group inline-flex items-center gap-1.5 text-sm text-zinc-400 transition-colors hover:text-white"
           >
             <span className="transition-transform duration-200 group-hover:-translate-x-0.5">←</span>
