@@ -142,10 +142,21 @@ body {
   );
 }
 
-/* Keep the number clear of the slanted corner */
-.bar-parallelogram .bar-label {
-  left: calc(var(--bar-slant) + 6px);
-}
+/* No label offset for the parallelogram, despite the slanted corners.
+
+   The shape's horizontal centre is exactly 50% at mid-height: the top edge
+   runs from --bar-slant to 100% and the bottom from 0 to 100%-slant, and
+   both have the midpoint at 50%. So centring the number on the track
+   already centres it on the shape.
+
+   This used to set `left: calc(var(--bar-slant) + 6px)` to keep the number
+   clear of the cut corner, but .bar-label has inset: 0, so moving only
+   `left` left `right: 0` in place — the box became 20px narrower and the
+   centred text shifted 10px right of the shape's middle. It was the only
+   style whose label was off-centre, and the corner it was avoiding is
+   nowhere near a 12px number in a 128px bar. A number wide enough to
+   reach the corner is clipped by the track's overflow: hidden, evenly on
+   both sides. */
 
 /* Angled — slanted right edge, straight left */
 .bar-angled {
