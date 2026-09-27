@@ -82,12 +82,15 @@ body {
   clip-path: var(--bar-shape, none);
 }
 
+/* Centred in the bar, as in the reference — the cutoff number reads as
+   a label for the whole column rather than as a caption pinned to the
+   left edge, which the ribbon's curved corner would otherwise crowd. */
 .bar-label {
   position: absolute;
-  inset-block: 0;
-  left: 0.5rem;
+  inset: 0;
   display: flex;
   align-items: center;
+  justify-content: center;
   font-family: var(--font-geist-mono), ui-monospace, monospace;
   font-size: 10px;
   font-weight: 700;
@@ -114,10 +117,6 @@ body {
   --bar-shape: url(#aim-bar-ribbon);
 }
 
-.bar-ribbon .bar-label {
-  left: 13%;
-}
-
 /* Parallelogram — both edges slant, top edge shifted right */
 .bar-parallelogram {
   --bar-slant: 14px;
@@ -137,10 +136,6 @@ body {
 /* Angled — slanted right edge, straight left */
 .bar-angled {
   --bar-shape: polygon(0 0, calc(100% + 12px) 0, 100% 100%, 0 100%);
-}
-
-.bar-angled .bar-label {
-  left: 8px;
 }
 
 /* Flat — square corners */
@@ -168,10 +163,6 @@ body {
 
 .bar-segmented .bar-fill {
   border-right: 1px solid rgb(0 0 0 / 0.5);
-}
-
-.bar-segmented .bar-label {
-  left: 8px;
 }
 
 @media (prefers-reduced-motion: reduce) {

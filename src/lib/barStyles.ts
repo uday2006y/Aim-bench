@@ -54,7 +54,7 @@ export const BAR_STYLES: BarStyle[] = [
   },
 ];
 
-export const DEFAULT_BAR_STYLE = "parallelogram";
+export const DEFAULT_BAR_STYLE = "ribbon";
 
 export function isBarStyle(id: unknown): id is string {
   return (
