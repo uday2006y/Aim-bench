@@ -43,9 +43,13 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           style={{ position: "absolute", width: 0, height: 0, overflow: "hidden" }}
         >
           <defs>
-            {/* Curved left edge sweeping up to a point at the top right. */}
+            {/* Symmetric lens: both ends curve the same way. The right
+                half is the left half mirrored across x=0.5 — the
+                control points (0, .7) / (.03, .25) map to (1, .7) /
+                (.97, .25), and the top edge ends at .84 so both curves
+                have the same width. */}
             <clipPath id="aim-bar-ribbon" clipPathUnits="objectBoundingBox">
-              <path d="M 0.02 1 C 0 0.74, 0.05 0.3, 0.22 0 L 1 0 L 0.83 1 Z" />
+              <path d="M 0 1 C 0 0.7, 0.03 0.25, 0.16 0 L 0.84 0 C 0.97 0.25, 1 0.7, 1 1 Z" />
             </clipPath>
           </defs>
         </svg>

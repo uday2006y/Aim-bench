@@ -25,7 +25,7 @@ export const BAR_STYLES: BarStyle[] = [
   {
     id: "ribbon",
     label: "Ribbon",
-    description: "Curved left edge, pointed top-right.",
+    description: "Curved at both ends, symmetric.",
   },
   {
     id: "parallelogram",
