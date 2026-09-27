@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import localFont from "next/font/local";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -13,26 +12,6 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-/**
- * Brunson, self-hosted.
- *
- * Not on Google Fonts — it is a freeware display face from Dafont by "The
- * Branded Quotes", so it has to be shipped as a file rather than fetched
- * from a font CDN. Used for the cutoff numbers inside the progress bars,
- * where a poster face at 12px is what the bars were asking for.
- *
- * next/font rather than a plain @font-face: it emits a hashed filename, a
- * size-adjusted fallback metric so the numbers do not reflow while it
- * loads, and a preload link. Declared as weight 400 because that is the
- * Regular cut; there is also a Rough, which would need its own file.
- */
-const brunson = localFont({
-  src: "./fonts/Brunson.ttf",
-  variable: "--font-brunson",
-  display: "swap",
-  weight: "400",
-});
-
 export const metadata: Metadata = {
   title: "AIMBENCH — Aim Benchmark Tracker",
   description:
@@ -43,7 +22,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} ${brunson.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
         {/*

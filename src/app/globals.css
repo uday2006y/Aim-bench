@@ -103,22 +103,13 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-family: var(--font-brunson), var(--font-geist-mono), ui-monospace,
-    monospace;
-  font-size: 15px;
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 12px;
   font-weight: 700;
   line-height: 1;
   color: #fff;
   text-shadow: 0 2px 4px rgb(0 0 0 / 0.8);
   z-index: 1;
-}
-
-/* Same face, for checking glyph coverage outside a bar. */
-.bar-label-static {
-  font-family: var(--font-brunson), var(--font-geist-mono), ui-monospace,
-    monospace;
-  color: #fff;
-  text-shadow: 0 2px 4px rgb(0 0 0 / 0.8);
 }
 
 /* Every style sets one --bar-shape on the track. The track applies it to
