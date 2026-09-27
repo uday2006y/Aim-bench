@@ -10,12 +10,22 @@ export default async function BenchmarkDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  const accountId = await getSessionAccountId();
 
-  const { data: benchmark, error: benchErr } = await supabaseAdmin
+  // Six queries, and only the first actually gates the rest — the not-found
+  // branch. The benchmark id comes from the URL, so the scenarios, the
+  // viewer's personal bests, their score history and their stars are all
+  // knowable before the benchmark row arrives. Awaiting them in sequence
+  // was five round trips to a database on another continent to render one
+  // page; the only one that has to go first is the benchmark itself.
+  const benchmarkResult = await supabaseAdmin
     .from("benchmarks")
     .select("*")
     .eq("id", id)
     .maybeSingle();
+
+  const benchmark = benchmarkResult.data;
+  const benchErr = benchmarkResult.error;
 
   if (benchErr || !benchmark) {
     return (
@@ -28,13 +38,49 @@ export default async function BenchmarkDetailPage({
     );
   }
 
-  const { data: scenarioRows } = await supabaseAdmin
-    .from("benchmark_scenarios")
-    .select("id, easyaim_scenario_id, title, position, category, sub_category, cutoffs")
-    .eq("benchmark_id", id)
-    .order("position", { ascending: true });
+  const [scenarioResult, pbResult, scoreResult, myPins] = await Promise.all([
+    supabaseAdmin
+      .from("benchmark_scenarios")
+      .select("id, easyaim_scenario_id, title, position, category, sub_category, cutoffs")
+      .eq("benchmark_id", id)
+      .order("position", { ascending: true }),
 
-  const scenarios = (scenarioRows || []).map((s: any) => ({
+    // Keyed by account rather than by the scenario ids above, so this does
+    // not have to wait for them. The rows that do not belong to this
+    // benchmark are dropped when the map is applied.
+    accountId
+      ? supabaseAdmin
+          .from("easyaim_pbs")
+          .select("scenario_id, score")
+          .eq("account_id", accountId)
+      : null,
+
+    accountId
+      ? supabaseAdmin
+          .from("benchmark_scores")
+          .select("id, benchmark_id, score, rank, completed_at")
+          .eq("benchmark_id", id)
+          .eq("user_id", accountId)
+          .order("completed_at", { ascending: false })
+          .limit(50)
+      : null,
+
+    loadViewerPins(accountId),
+  ]);
+
+  const scenarioIds = new Set(
+    (scenarioResult.data || []).map((s: any) => Number(s.easyaim_scenario_id))
+  );
+
+  const pbMap = new Map<number, number>();
+  for (const row of pbResult?.data || []) {
+    const pb = row as { scenario_id: number; score: number };
+    if (scenarioIds.has(Number(pb.scenario_id))) {
+      pbMap.set(Number(pb.scenario_id), pb.score);
+    }
+  }
+
+  const scenarios = (scenarioResult.data || []).map((s: any) => ({
     id: s.id,
     easyaim_scenario_id: s.easyaim_scenario_id,
     title: s.title,
@@ -42,51 +88,21 @@ export default async function BenchmarkDetailPage({
     category: s.category || "Other",
     sub_category: s.sub_category || "",
     cutoffs: s.cutoffs || {},
-    best_score: 0,
+    best_score: pbMap.get(Number(s.easyaim_scenario_id)) ?? 0,
   }));
 
-  const accountId = await getSessionAccountId();
-  const isAuthorized = !!(benchmark.user_id && accountId && benchmark.user_id === accountId);
-
-  if (accountId && scenarios.length > 0) {
-    const scenarioIds = scenarios.map((s) => s.easyaim_scenario_id);
-    const { data: pbRows } = await supabaseAdmin
-      .from("easyaim_pbs")
-      .select("scenario_id, score")
-      .eq("account_id", accountId)
-      .in("scenario_id", scenarioIds);
-    const pbMap = new Map<number, number>();
-    for (const row of pbRows || []) {
-      const pb = row as { scenario_id: number; score: number };
-      pbMap.set(pb.scenario_id, pb.score);
-    }
-    for (const scenario of scenarios) {
-      scenario.best_score = pbMap.get(scenario.easyaim_scenario_id) ?? 0;
-    }
-  }
-
-  let myScores: any[] = [];
-  if (accountId) {
-    const { data: scoreData } = await supabaseAdmin
-      .from("benchmark_scores")
-      .select("id, benchmark_id, score, rank, completed_at")
-      .eq("benchmark_id", id)
-      .eq("user_id", accountId)
-      .order("completed_at", { ascending: false })
-      .limit(50);
-    myScores = scoreData || [];
-  }
-
-  // Star state for the header. Read server-side so the star is already
-  // gold on first paint instead of flipping a moment after hydration.
-  const myPins = await loadViewerPins(accountId);
+  const isAuthorized = !!(
+    benchmark.user_id &&
+    accountId &&
+    benchmark.user_id === accountId
+  );
 
   return (
     <BenchmarkClient
       id={id}
       benchmark={benchmark}
       scenarios={scenarios}
-      myScores={myScores}
+      myScores={scoreResult?.data || []}
       isAuthorized={isAuthorized}
       myPinned={myPins.has(id)}
       loggedIn={Boolean(accountId)}

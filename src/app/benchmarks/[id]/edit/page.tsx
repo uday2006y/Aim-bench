@@ -82,9 +82,9 @@ export default function EditBenchmarkPage({ params }: { params: Promise<{ id: st
       const data = await res.json();
       const benchmarkData = data.benchmark;
 
-      const sessionRes = await fetch("/api/session");
-      const sessionData = await sessionRes.json();
-      const accId = sessionData.accountId ?? null;
+      // Came with the benchmark rather than as a second request to
+      // /api/session, which this used to fetch immediately afterwards.
+      const accId = data.accountId ?? null;
 
       if (!benchmarkData) {
         setNotFound(true);

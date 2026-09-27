@@ -16,48 +16,54 @@ interface BenchmarkCard {
 /** How many starred benchmarks the home page shows. */
 const FEATURED_LIMIT = 4;
 
+/** Guard on the card scan, mirroring the list endpoint's cap. */
+const CARD_SCAN_LIMIT = 500;
+
 export default async function Home() {
   const accountId = await getSessionAccountId();
 
-  // Only starred benchmarks, most stars first. A benchmark nobody starred
-  // is not a recommendation, so an unstarred one is not featured here no
-  // matter how recently it was made.
-  const topPinned = await loadTopPinned(FEATURED_LIMIT);
-
-  let benchmarks: BenchmarkCard[] = [];
-
-  if (topPinned.length > 0) {
-    const { data } = await supabaseAdmin
+  // Two queries, previously in sequence: the pin totals decided *which*
+  // benchmarks to feature, and only then were those benchmarks fetched. But
+  // the card columns are two hundred bytes each and the page is going to
+  // render a row per benchmark anyway, so reading the cards alongside the
+  // counts and joining in memory costs nothing extra and removes a whole
+  // round trip from the critical path of the first thing anyone sees.
+  const [pinTotals, cardResult] = await Promise.all([
+    loadTopPinned(),
+    supabaseAdmin
       .from("benchmarks")
       .select("id, title, platform, scenario_count, created_at")
-      .in(
-        "id",
-        topPinned.map((entry) => entry.id)
-      );
+      .order("created_at", { ascending: false })
+      .limit(CARD_SCAN_LIMIT),
+  ]);
 
-    const pinCountById = new Map(
-      topPinned.map((entry) => [entry.id, entry.pin_count])
-    );
+  const pinCountById = new Map(
+    pinTotals.map((entry) => [entry.id, entry.pin_count])
+  );
 
-    // Equal star counts break by newest, so the featured row keeps
-    // refreshing as the community grows rather than freezing on whichever
-    // benchmarks happened to be starred first.
-    benchmarks = (data || [])
-      .map(
-        (row) =>
-          ({
-            ...(row as Omit<BenchmarkCard, "pin_count">),
-            pin_count: pinCountById.get((row as { id: string }).id) ?? 0,
-          }) as BenchmarkCard
-      )
-      .sort(
-        (a, b) =>
-          b.pin_count - a.pin_count ||
-          new Date(b.created_at ?? 0).getTime() -
-            new Date(a.created_at ?? 0).getTime()
-      )
-      .slice(0, FEATURED_LIMIT);
-  }
+  // Only starred benchmarks, most stars first. A benchmark nobody starred is
+  // not a recommendation, so an unstarred one is not featured here no matter
+  // how recently it was made.
+  //
+  // Equal star counts break by newest, so the featured row keeps refreshing
+  // as the community grows rather than freezing on whichever benchmarks
+  // happened to be starred first.
+  const benchmarks: BenchmarkCard[] = (cardResult.data || [])
+    .map(
+      (row) =>
+        ({
+          ...(row as Omit<BenchmarkCard, "pin_count">),
+          pin_count: pinCountById.get((row as { id: string }).id) ?? 0,
+        }) as BenchmarkCard
+    )
+    .filter((card) => card.pin_count > 0)
+    .sort(
+      (a, b) =>
+        b.pin_count - a.pin_count ||
+        new Date(b.created_at ?? 0).getTime() -
+          new Date(a.created_at ?? 0).getTime()
+    )
+    .slice(0, FEATURED_LIMIT);
 
   return (
     <main className="min-h-screen text-white">

@@ -29,46 +29,60 @@ export default async function ProfilePage() {
     redirect("/login");
   }
 
-  const { data: accountData } = await supabaseAdmin
-    .from("accounts")
-    .select("username, created_at")
-    .eq("id", accountId)
-    .maybeSingle();
+  // Five queries, none of which depends on another. The account row, the
+  // EasyAim link, the scenario titles, the personal bests and the user's
+  // own benchmarks are all keyed by account rather than by each other, so
+  // awaiting them in sequence was spending five round trips to a database
+  // on another continent to display one screen. One now.
+  const [accountResult, linkResult, scenarioResult, pbResult, benchmarkResult] =
+    await Promise.all([
+      supabaseAdmin
+        .from("accounts")
+        .select("username, created_at")
+        .eq("id", accountId)
+        .maybeSingle(),
 
-  const account = accountData as AccountRow | null;
+      supabaseAdmin
+        .from("easyaim_links")
+        .select(
+          "easyaim_player_id, easyaim_username, display_name, avatar_url, last_synced_at, backfill_done"
+        )
+        .eq("account_id", accountId)
+        .maybeSingle(),
 
-  const { data: linkData } = await supabaseAdmin
-    .from("easyaim_links")
-    .select(
-      "easyaim_player_id, easyaim_username, display_name, avatar_url, last_synced_at, backfill_done"
-    )
-    .eq("account_id", accountId)
-    .maybeSingle();
+      // PBs are stored per scenario; look up the names of the scenarios
+      // that benchmarks actually use.
+      supabaseAdmin
+        .from("benchmark_scenarios")
+        .select("easyaim_scenario_id, title")
+        .limit(5000),
 
-  const link = (linkData as EasyAimLinkInfo | null) ?? null;
+      supabaseAdmin
+        .from("easyaim_pbs")
+        .select("scenario_id, score, achieved_at")
+        .eq("account_id", accountId)
+        .order("achieved_at", { ascending: false })
+        .limit(200),
 
-  // PBs are stored per scenario; look up the names of the scenarios that
-  // benchmarks actually use.
-  const { data: scenarioRows } = await supabaseAdmin
-    .from("benchmark_scenarios")
-    .select("easyaim_scenario_id, title");
+      supabaseAdmin
+        .from("benchmarks")
+        .select("id, title, description, platform, difficulty, scenario_count, created_at")
+        .eq("user_id", accountId)
+        .order("created_at", { ascending: false }),
+    ]);
+
+  const account = accountResult.data as AccountRow | null;
+  const link = (linkResult.data as EasyAimLinkInfo | null) ?? null;
 
   const scenarioTitles = new Map<number, string>();
-  for (const row of scenarioRows || []) {
+  for (const row of scenarioResult.data || []) {
     const scenario = row as ScenarioTitleRow;
     if (!scenarioTitles.has(scenario.easyaim_scenario_id)) {
       scenarioTitles.set(scenario.easyaim_scenario_id, scenario.title);
     }
   }
 
-  const { data: pbRows } = await supabaseAdmin
-    .from("easyaim_pbs")
-    .select("scenario_id, score, achieved_at")
-    .eq("account_id", accountId)
-    .order("achieved_at", { ascending: false })
-    .limit(200);
-
-  const pbs = (pbRows || []).map((row) => {
+  const pbs = (pbResult.data || []).map((row) => {
     const pb = row as PbRow;
     return {
       scenarioId: pb.scenario_id,
@@ -78,11 +92,7 @@ export default async function ProfilePage() {
     };
   });
 
-  const { data: userBenchmarks } = await supabaseAdmin
-    .from("benchmarks")
-    .select("id, title, description, platform, difficulty, scenario_count, created_at")
-    .eq("user_id", accountId)
-    .order("created_at", { ascending: false });
+  const userBenchmarks = benchmarkResult.data;
 
   return (
     <main className="min-h-screen text-white">

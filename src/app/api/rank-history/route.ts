@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { getSessionAccountId } from "@/lib/session";
+import { loadBenchmarkOptions } from "@/lib/benchmarkOptions";
 
 export async function GET(request: Request) {
   try {
@@ -27,10 +29,13 @@ export async function GET(request: Request) {
       query = query.eq("benchmark_id", benchmarkId);
     }
 
-    const { data, error } = (await query.limit(500)) as {
-      data: any[];
-      error: any;
-    };
+    const [rowsResult, options, accountId] = await Promise.all([
+      query.limit(500),
+      loadBenchmarkOptions(),
+      getSessionAccountId(),
+    ]);
+
+    const { data, error } = rowsResult as { data: any[]; error: any };
 
     if (error) throw error;
 
@@ -76,6 +81,8 @@ export async function GET(request: Request) {
 
     return NextResponse.json({
       rank_history: rankHistory.slice(0, 100),
+      benchmarks: options,
+      loggedIn: Boolean(accountId),
     });
   } catch (error) {
     console.error("RANK HISTORY ERROR:", error);

@@ -159,12 +159,27 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
+    const accountId = await getSessionAccountId();
 
-    const { data: benchmark, error } = await supabaseAdmin
-      .from("benchmarks")
-      .select("*")
-      .eq("id", id)
-      .maybeSingle();
+    // The benchmark id comes from the URL, so the scenarios are knowable
+    // before the benchmark row arrives. Only the not-found branch needs the
+    // benchmark first, and a 404 is cheap enough to gate on.
+    const [benchmarkResult, scenarioResult] = await Promise.all([
+      supabaseAdmin
+        .from("benchmarks")
+        .select("*")
+        .eq("id", id)
+        .maybeSingle(),
+
+      supabaseAdmin
+        .from("benchmark_scenarios")
+        .select("id, easyaim_scenario_id, title, position, category, sub_category, cutoffs")
+        .eq("benchmark_id", id)
+        .order("position", { ascending: true }),
+    ]);
+
+    const benchmark = benchmarkResult.data;
+    const error = benchmarkResult.error;
 
     if (error) throw error;
 
@@ -175,11 +190,8 @@ export async function GET(
       );
     }
 
-    const { data: scenarioRows, error: scenariosError } = await supabaseAdmin
-      .from("benchmark_scenarios")
-      .select("id, easyaim_scenario_id, title, position, category, sub_category, cutoffs")
-      .eq("benchmark_id", id)
-      .order("position", { ascending: true });
+    const scenarioRows = scenarioResult.data;
+    const scenariosError = scenarioResult.error;
 
     if (scenariosError) throw scenariosError;
 
@@ -191,23 +203,26 @@ export async function GET(
       cutoffs: Record<string, number>;
     }[];
 
-    // Attach the logged-in user's best known score (PB) for each
-    // scenario, if they're logged in and have one.
-    const accountId = await getSessionAccountId();
-
-    if (accountId && scenarios.length > 0) {
-      const scenarioIds = scenarios.map((s) => s.easyaim_scenario_id);
+    // Attach the logged-in user's best known score (PB) for each scenario.
+    // Keyed by account, so it does not need to wait for the scenarios.
+    if (accountId) {
+      const scenarioIds = new Set(
+        (scenarios as { easyaim_scenario_id: number }[]).map(
+          (s) => Number(s.easyaim_scenario_id)
+        )
+      );
 
       const { data: pbRows } = await supabaseAdmin
         .from("easyaim_pbs")
         .select("scenario_id, score")
-        .eq("account_id", accountId)
-        .in("scenario_id", scenarioIds);
+        .eq("account_id", accountId);
 
       const pbMap = new Map<number, number>();
       for (const row of pbRows || []) {
         const pb = row as { scenario_id: number; score: number };
-        pbMap.set(pb.scenario_id, pb.score);
+        if (scenarioIds.has(Number(pb.scenario_id))) {
+          pbMap.set(Number(pb.scenario_id), pb.score);
+        }
       }
 
       for (const scenario of scenarios as (typeof scenarios[number] & {
@@ -219,6 +234,10 @@ export async function GET(
 
     return NextResponse.json({
       benchmark,
+      // The edit page was fetching this, then immediately fetching
+      // /api/session to find out who it was — two round trips to learn
+      // something this request already knows.
+      accountId,
       scenarios,
     });
   } catch (error) {

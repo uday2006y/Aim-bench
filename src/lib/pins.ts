@@ -27,15 +27,21 @@ export async function loadViewerPins(
   return mine;
 }
 
-/** The benchmarks with the most stars, best first, capped at `limit`. */
-export async function loadTopPinned(
-  limit: number
-): Promise<{ id: string; pin_count: number }[]> {
+/**
+ * Every benchmark that has at least one star, most stars first.
+ *
+ * No limit: the home page needs the full ranking to break ties by date and
+ * pick its four, and a view grouped by benchmark_id only ever has one row
+ * per benchmark, so this is bounded by the number of benchmarks rather than
+ * by the number of stars.
+ */
+export async function loadTopPinned(): Promise<
+  { id: string; pin_count: number }[]
+> {
   const { data, error } = await supabaseAdmin
     .from("benchmark_pin_totals")
     .select("benchmark_id, pin_count")
-    .order("pin_count", { ascending: false })
-    .limit(limit);
+    .order("pin_count", { ascending: false });
 
   if (error) {
     console.error("PINS: failed to load top pinned benchmarks:", error);

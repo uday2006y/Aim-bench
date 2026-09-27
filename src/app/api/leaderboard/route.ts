@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { getSessionAccountId } from "@/lib/session";
+import { loadBenchmarkOptions } from "@/lib/benchmarkOptions";
 
 export async function GET(request: Request) {
   try {
@@ -33,7 +35,17 @@ export async function GET(request: Request) {
       query = query.order("score", { ascending: false });
     }
 
-    const { data, error, count } = await query.limit(500);
+    // The dropdown and the session check ride along with the board. The
+    // page used to ask for all three separately, so mounting it cost three
+    // serverless invocations where one will do — and the benchmark list it
+    // asked for was the full list, five queries deep, to read a title.
+    const [boardResult, options, accountId] = await Promise.all([
+      query.limit(500),
+      loadBenchmarkOptions(),
+      getSessionAccountId(),
+    ]);
+
+    const { data, error, count } = boardResult;
 
     if (error) throw error;
 
@@ -79,6 +91,8 @@ export async function GET(request: Request) {
     return NextResponse.json({
       leaderboard,
       total: count,
+      benchmarks: options,
+      loggedIn: Boolean(accountId),
     });
   } catch (error) {
     console.error("LEADERBOARD ERROR:", error);

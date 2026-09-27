@@ -15,37 +15,6 @@ export default function RankHistoryPage() {
     fetchRankHistory();
   }, [selectedBenchmark]);
 
-  useEffect(() => {
-    let cancelled = false;
-
-    fetch("/api/session")
-      .then((res) => res.json())
-      .then((data) => {
-        if (!cancelled) setLoggedIn(Boolean(data.accountId));
-      })
-      .catch(() => {
-        if (!cancelled) setLoggedIn(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  useEffect(() => {
-    fetchBenchmarks();
-  }, []);
-
-  async function fetchBenchmarks() {
-    try {
-      const response = await fetch("/api/benchmarks?platform=all");
-      const data = await response.json();
-      setBenchmarks(data.benchmarks || []);
-    } catch (error) {
-      console.error("Failed to fetch benchmarks:", error);
-    }
-  }
-
   async function fetchRankHistory() {
     setLoading(true);
     try {
@@ -56,7 +25,15 @@ export default function RankHistoryPage() {
 
       const response = await fetch(url);
       const data = await response.json();
+
       setRankHistory(data.rank_history || []);
+
+      // Both of these used to be their own requests. Mounting this page
+      // cost three serverless invocations — the history, /api/session, and
+      // the full benchmark list — where one now covers all of it, and the
+      // dropdown gets two columns instead of the whole list.
+      if (data.benchmarks?.length) setBenchmarks(data.benchmarks);
+      if (typeof data.loggedIn === "boolean") setLoggedIn(data.loggedIn);
     } catch (error) {
       console.error("Failed to fetch rank history:", error);
     } finally {
