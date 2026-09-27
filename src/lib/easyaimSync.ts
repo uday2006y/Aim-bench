@@ -390,10 +390,21 @@ async function recomputeBenchmarkAggregate(
     return { score, rank: null, rankIndex: null };
   }
 
-  let achieved = -1;
+  // Ranks with no cutoff on any scenario are skipped rather than
+  // auto-passed — see resolveRank in lib/aggregates.ts, which the benchmark
+  // list uses. Both must walk the ladder the same way or a card and a
+  // synced benchmark_scores row can disagree.
+  const scorableRanks = rankNames.filter((rank) =>
+    scenarios.some((scenario) => {
+      const needed = scenario.cutoffs?.[rank];
+      return typeof needed === "number";
+    })
+  );
 
-  for (let index = rankNames.length - 1; index >= 0; index--) {
-    const rank = rankNames[index];
+  let achieved: string | null = null;
+
+  for (let index = scorableRanks.length - 1; index >= 0; index--) {
+    const rank = scorableRanks[index];
 
     const passesAll = scenarios.every((scenario) => {
       const needed = scenario.cutoffs?.[rank];
@@ -402,14 +413,14 @@ async function recomputeBenchmarkAggregate(
     });
 
     if (passesAll) {
-      achieved = index;
+      achieved = rank;
       break;
     }
   }
 
   return {
     score,
-    rank: achieved >= 0 ? rankNames[achieved] : null,
-    rankIndex: achieved >= 0 ? achieved : null,
+    rank: achieved,
+    rankIndex: achieved ? rankNames.indexOf(achieved) : null,
   };
 }
