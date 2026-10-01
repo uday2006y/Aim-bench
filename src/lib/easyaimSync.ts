@@ -155,13 +155,46 @@ export async function syncEasyAimAccount(accountId: string): Promise<SyncResult>
   if (updateError) throw updateError;
 
   // 3. Best run per attached scenario across everything we just read.
+  //
+  // EasyAim marks the authoritative personal best on the run itself with
+  // `best: true`. That flag is ground truth, so it wins whenever it appears.
+  //
+  // Inferring a best from a page window cannot be trusted: once a sync is
+  // caught up it only reads the newest runs, so a personal best set months ago
+  // may never appear in any window this process reads. Taking the maximum over
+  // what happened to be in range stored the highest RECENT run as the personal
+  // best -- which, for a player whose latest run was their worst, stored their
+  // last score and called it their best. That is the bug this fixes.
+  //
+  // The max is still computed and still applied. A run outside the fetched
+  // window can legitimately beat the flagged one, and older EasyAim data may
+  // predate the flag entirely. Taking whichever of the two is higher cannot be
+  // undone by a stale flag and cannot lose a real improvement.
+  const flaggedBestByScenario = new Map<string, EasyAimRun>();
   const bestRunByScenario = new Map<string, EasyAimRun>();
+
   for (const run of collected) {
     if (!attachedScenarios.has(String(run.scenarioId))) continue;
 
-    const current = bestRunByScenario.get(String(run.scenarioId));
+    const key = String(run.scenarioId);
+    const current = bestRunByScenario.get(key);
+
     if (!current || run.score > current.score) {
-      bestRunByScenario.set(String(run.scenarioId), run);
+      bestRunByScenario.set(key, run);
+    }
+
+    if (run.best) {
+      const flagged = flaggedBestByScenario.get(key);
+      if (!flagged || run.score > flagged.score) {
+        flaggedBestByScenario.set(key, run);
+      }
+    }
+  }
+
+  for (const [key, run] of flaggedBestByScenario) {
+    const current = bestRunByScenario.get(key);
+    if (!current || run.score > current.score) {
+      bestRunByScenario.set(key, run);
     }
   }
 
@@ -192,7 +225,17 @@ export async function syncEasyAimAccount(accountId: string): Promise<SyncResult>
 
     for (const [scenarioId, run] of bestRunByScenario) {
       const previous = storedPbs.get(scenarioId) ?? null;
-      if (previous !== null && run.score <= previous) continue;
+
+      // A PB only ever goes up, EXCEPT when this run is the one EasyAim itself
+      // marks as the personal best. That case has to be allowed to correct a
+      // wrong stored value, because the bug this guards against wrote a last-
+      // played score into the table and "never lower it" would preserve that
+      // mistake forever. The flag is authoritative precisely for this: if
+      // EasyAim says this run is the best and we hold something higher, the
+      // higher number is the error, not the flag.
+      const isFlaggedBest = run.best === true;
+
+      if (previous !== null && run.score <= previous && !isFlaggedBest) continue;
 
       changed.push({
         account_id: accountId,
