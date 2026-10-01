@@ -2,9 +2,15 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { createSession } from "@/lib/session";
 import bcrypt from "bcryptjs";
+import { checkThrottle, clearThrottle, clientKey, tooManyAttempts } from "@/lib/throttle";
 
 export async function POST(request: Request) {
+  const throttleKey = clientKey(request);
+
   try {
+    const throttle = checkThrottle(throttleKey);
+    if (throttle.limited) return tooManyAttempts(throttle.retryAfterSeconds);
+
     const { username, password } = await request.json();
 
     if (!username || !password) {
@@ -49,6 +55,19 @@ export async function POST(request: Request) {
       .single();
 
     if (error) {
+      // The check above and this insert are not one atomic operation, so two
+      // people picking the same name at the same moment can both pass the
+      // check and the second insert loses on the unique constraint. That is
+      // the correct outcome — but it arrives as a 500, which tells the person
+      // something is broken when actually their name is simply taken.
+      // 23505 is unique_violation.
+      if (error.code === "23505") {
+        return NextResponse.json(
+          { error: "Username already exists" },
+          { status: 409 }
+        );
+      }
+
       console.error("SUPABASE ERROR:", error);
 
       return NextResponse.json(
@@ -56,6 +75,8 @@ export async function POST(request: Request) {
         { status: 500 }
       );
     }
+
+    clearThrottle(throttleKey);
 
     const { error: profileError } = await supabaseAdmin
       .from("profiles")

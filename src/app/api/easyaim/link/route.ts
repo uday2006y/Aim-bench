@@ -1,159 +1,43 @@
 import { NextResponse } from "next/server";
-import { getPlayer } from "@/lib/easyaim";
-import { syncEasyAimAccount } from "@/lib/easyaimSync";
 import { getSessionAccountId } from "@/lib/session";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
-function parseEasyAimPlayerId(input: string): number | string | null {
-  const trimmed = input.trim();
+/**
+ * This route used to also expose POST and GET for hand-linking an EasyAim
+ * account by pasting a player id or profile URL, and both are gone.
+ *
+ * POST was the weakest thing in the app. It accepted any id a logged-in
+ * person typed with no proof they owned it, and when the EasyAim lookup
+ * failed it invented a player object from the text they had typed and
+ * stored that instead — so the link could point at an account that does not
+ * exist, or at somebody else's, and every score it produced would be
+ * published under the linker's name. There is a verified path for exactly
+ * this and it is already wired into login: EasyAim's
+ * /api/v1/lookup/discord/{discordId}, which returns only the players a
+ * Discord account actually owns. Discord login auto-links through that, so
+ * the manual route had no job left.
+ *
+ * GET had no caller either: the profile page reads the link server-side.
+ *
+ * What remains is DELETE, which the profile card calls.
+ */
 
-  if (/^[\w-]+$/.test(trimmed) && !trimmed.includes(" ")) {
-    const num = Number(trimmed);
-    if (!isNaN(num)) return num;
-    if (/^[a-fA-F0-9]+$/i.test(trimmed) || /^[\w]+$/i.test(trimmed)) {
-      return trimmed;
-    }
-  }
-
-  try {
-    const url = new URL(trimmed);
-    if (!/(^|\.)easyaim\.com$/i.test(url.hostname)) {
-      return null;
-    }
-    const parts = url.pathname.split("/").filter(Boolean);
-    const last = parts[parts.length - 1];
-    return last ? (last && /^\d+$/.test(last) ? Number(last) : last) : null;
-  } catch {
-    return null;
-  }
-}
-
-export async function GET() {
-  const accountId = await getSessionAccountId();
-
-  if (!accountId) {
-    return NextResponse.json({ error: "Not logged in" }, { status: 401 });
-  }
-
-  const { data: link } = await supabaseAdmin
-    .from("easyaim_links")
-    .select(
-      "easyaim_player_id, easyaim_username, display_name, avatar_url, last_synced_at, backfill_done"
-    )
-    .eq("account_id", accountId)
-    .maybeSingle();
-
-  return NextResponse.json({ link: link || null });
-}
-
-export async function POST(request: Request) {
-  try {
-    const accountId = await getSessionAccountId();
-
-    if (!accountId) {
-      return NextResponse.json(
-        { error: "You must be logged in to link an EasyAim account" },
-        { status: 401 }
-      );
-    }
-
-    const { profile } = await request.json();
-
-    if (typeof profile !== "string" || !profile.trim()) {
-      return NextResponse.json(
-        { error: "Paste your EasyAim profile link or player ID" },
-        { status: 400 }
-      );
-    }
-
-    const playerId = parseEasyAimPlayerId(profile);
-
-    if (!playerId) {
-      return NextResponse.json(
-        {
-          error:
-            "That doesn't look like an EasyAim profile link or player ID. Example: https://easyaim.com/players/username/1234",
-        },
-        { status: 400 }
-      );
-    }
-
-    let player: any = null;
-    let apiFailed = false;
-
-    try {
-      player = await getPlayer(playerId);
-    } catch {
-      apiFailed = true;
-    }
-
-    if (!player && apiFailed) {
-      player = {
-        id: typeof playerId === "string" ? (isNaN(Number(playerId)) ? playerId : Number(playerId)) : playerId,
-        username: profile.includes("/") ? profile.split("/").pop() || profile : profile,
-        name: profile.includes("/") ? profile.split("/").pop() || profile : profile,
-        avatarUrl: null,
-      };
-    }
-
-    const { data: existing } = await supabaseAdmin
-      .from("easyaim_links")
-      .select("easyaim_player_id")
-      .eq("account_id", accountId)
-      .maybeSingle();
-
-    const isNewPlayer =
-      (existing as { easyaim_player_id: number | string } | null)?.easyaim_player_id !==
-      player.id;
-
-    const { error } = await supabaseAdmin.from("easyaim_links").upsert(
-      {
-        account_id: accountId,
-        easyaim_player_id: player.id,
-        easyaim_username: player.username,
-        display_name: player.name,
-        avatar_url: player.avatarUrl,
-        ...(isNewPlayer
-          ? {
-              last_run_id: null,
-              backfill_cursor: null,
-              backfill_done: false,
-              last_synced_at: null,
-            }
-          : {}),
-      },
-      { onConflict: "account_id" }
-    );
-
-    if (error) throw error;
-
-    let sync: Awaited<ReturnType<typeof syncEasyAimAccount>> | null = null;
-
-    try {
-      sync = await syncEasyAimAccount(accountId);
-    } catch (syncError) {
-      console.error("EASYAIM INITIAL SYNC ERROR:", syncError);
-    }
-
-    return NextResponse.json({
-      success: true,
-      link: {
-        easyaim_player_id: player.id,
-        easyaim_username: player.username,
-        display_name: player.name,
-        avatar_url: player.avatarUrl,
-      },
-      sync,
-    });
-  } catch (error) {
-    console.error("EASYAIM LINK ERROR:", error);
-    return NextResponse.json(
-      { error: "Failed to link EasyAim account" },
-      { status: 500 }
-    );
-  }
-}
-
+/**
+ * Unlinking stops tracking an EasyAim account. Everything derived from that
+ * link goes with it.
+ *
+ * This used to delete only the easyaim_links row, which left the account's
+ * easyaim_pbs behind — and those rows are keyed by account, not by player.
+ * So relinking a different player merged two people's bests into one score,
+ * on every card and every leaderboard row, with no way to tell afterwards
+ * whose they were. It also left the benchmark_scores history claiming
+ * completions the live path could no longer reproduce, which is precisely
+ * the card-versus-history disagreement the app was rebuilt to eliminate.
+ *
+ * So: delete the link, the personal bests, and the history rows that were
+ * computed from those bests. This is irreversible, and the confirm dialog in
+ * the UI says so.
+ */
 export async function DELETE() {
   const accountId = await getSessionAccountId();
 
@@ -161,6 +45,42 @@ export async function DELETE() {
     return NextResponse.json(
       { error: "You must be logged in to unlink an EasyAim account" },
       { status: 401 }
+    );
+  }
+
+  const { data: link } = await supabaseAdmin
+    .from("easyaim_links")
+    .select("easyaim_username")
+    .eq("account_id", accountId)
+    .maybeSingle();
+
+  // Ordered so a failure part-way leaves the least behind: bests and history
+  // first, then the link. Unlinking again after a partial failure is
+  // harmless, because the second run finds no link and simply clears
+  // whatever is still there.
+  const { error: pbError } = await supabaseAdmin
+    .from("easyaim_pbs")
+    .delete()
+    .eq("account_id", accountId);
+
+  if (pbError) {
+    console.error("EASYAIM UNLINK: failed to clear personal bests:", pbError);
+    return NextResponse.json(
+      { error: "Failed to unlink" },
+      { status: 500 }
+    );
+  }
+
+  const { error: scoreError } = await supabaseAdmin
+    .from("benchmark_scores")
+    .delete()
+    .eq("user_id", accountId);
+
+  if (scoreError) {
+    console.error("EASYAIM UNLINK: failed to clear score history:", scoreError);
+    return NextResponse.json(
+      { error: "Failed to unlink" },
+      { status: 500 }
     );
   }
 
@@ -174,5 +94,8 @@ export async function DELETE() {
     return NextResponse.json({ error: "Failed to unlink" }, { status: 500 });
   }
 
-  return NextResponse.json({ success: true });
+  return NextResponse.json({
+    success: true,
+    unlinked: (link as { easyaim_username: string } | null)?.easyaim_username ?? null,
+  });
 }

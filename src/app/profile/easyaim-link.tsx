@@ -17,6 +17,7 @@ const AUTO_SYNC_INTERVAL_MS = 2 * 60 * 1000;
 export function EasyAimLinkCard({ link }: { link: EasyAimLinkInfo | null }) {
   const router = useRouter();
   const [syncing, setSyncing] = useState(false);
+  const [unlinking, setUnlinking] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const syncingRef = useRef(false);
@@ -68,6 +69,49 @@ export function EasyAimLinkCard({ link }: { link: EasyAimLinkInfo | null }) {
 
   const playerId = link?.easyaim_player_id ?? null;
 
+  /**
+   * Stop tracking this EasyAim account.
+   *
+   * Irreversible, and the confirm says so: the server deletes the stored
+   * personal bests and the score history derived from them, so a card that
+   * says "Gold" today cannot be rebuilt after unlinking. That is the point —
+   * leaving them behind would merge the next player's bests in with this
+   * one's — but it should be a decision, not a surprise.
+   */
+  async function unlink() {
+    if (syncingRef.current || unlinking) return;
+
+    const confirmed = window.confirm(
+      `Unlink @${link?.easyaim_username}?\n\n` +
+        "Your stored personal bests and the score history built from them will " +
+        "be deleted, and this cannot be undone. You can sign in with Discord " +
+        "again to relink the same account and start over."
+    );
+
+    if (!confirmed) return;
+
+    setUnlinking(true);
+    setError("");
+    setNotice("");
+
+    try {
+      const response = await fetch("/api/easyaim/link", { method: "DELETE" });
+      const data = await response.json();
+
+      if (!response.ok) {
+        setError(data.error || "Could not unlink");
+        return;
+      }
+
+      setNotice(`Unlinked @${data.unlinked ?? link?.easyaim_username}.`);
+      router.refresh();
+    } catch {
+      setError("Could not reach the server");
+    } finally {
+      setUnlinking(false);
+    }
+  }
+
   useEffect(() => {
     if (!playerId) return;
 
@@ -111,14 +155,24 @@ export function EasyAimLinkCard({ link }: { link: EasyAimLinkInfo | null }) {
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={() => syncNow(true)}
-              disabled={syncing}
-              className="rounded-lg bg-white px-4 py-2 text-sm font-semibold text-black transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {syncing ? "Syncing..." : "Sync now"}
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={unlink}
+                disabled={syncing || unlinking}
+                className="rounded-lg border border-white/15 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {unlinking ? "Unlinking..." : "Unlink"}
+              </button>
+              <button
+                type="button"
+                onClick={() => syncNow(true)}
+                disabled={syncing || unlinking}
+                className="rounded-lg bg-white px-4 py-2 text-sm font-semibold text-black transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {syncing ? "Syncing..." : "Sync now"}
+              </button>
+            </div>
           </div>
 
           <div className="mt-4 flex flex-wrap gap-x-8 gap-y-1 text-xs text-zinc-500">

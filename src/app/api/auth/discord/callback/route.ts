@@ -1,9 +1,16 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { createSession } from "@/lib/session";
-import { getPlayer, lookupPlayerByDiscordId } from "@/lib/easyaim";
+import { lookupPlayerByDiscordId } from "@/lib/easyaim";
 import { syncEasyAimAccount } from "@/lib/easyaimSync";
 import { verifyDiscordState } from "@/lib/oauthState";
+
+/**
+ * Room for the post-response work below. The whole point of moving it off
+ * the response path is that it no longer delays the redirect, but it still
+ * has to finish before the function is frozen.
+ */
+export const maxDuration = 60;
 
 interface DiscordTokenResponse {
   access_token: string;
@@ -167,10 +174,6 @@ export async function GET(request: Request) {
       });
     }
 
-    // Best-effort: link an EasyAim identity automatically if this
-    // Discord account has one, so the user never has to paste an ID.
-    await autoLinkEasyAim(accountId, discordUser.id);
-
     const token = await createSession(accountId);
 
     const response = NextResponse.redirect(new URL("/profile", request.url));
@@ -181,6 +184,22 @@ export async function GET(request: Request) {
       sameSite: "lax",
       maxAge: 60 * 60 * 24 * 7,
       path: "/",
+    });
+
+    // Best-effort: link an EasyAim identity automatically if this Discord
+    // account has one, so nobody has to paste an ID, then pull their first
+    // batch of personal bests.
+    //
+    // Scheduled rather than awaited. This used to sit in front of the
+    // redirect, which meant a player's login waited on up to twelve pages of
+    // EasyAim traffic — and in the worst case the function hit its time
+    // limit *after* Discord had already authorised, so they were left with no
+    // session cookie at all and no way to tell why. `after` keeps the
+    // invocation alive for the work without holding up the response, and the
+    // profile page re-syncs on arrival anyway, so nothing is lost if this
+    // never gets to run.
+    after(async () => {
+      await autoLinkEasyAim(accountId, discordUser.id);
     });
 
     return response;
