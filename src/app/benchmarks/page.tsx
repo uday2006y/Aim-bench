@@ -92,13 +92,6 @@ export default function BenchmarksPage() {
     setSearchQuery(e.target.value);
   };
 
-  /** Colour a rank name using the benchmark's own rank_colors ladder. */
-  function rankColorOf(benchmark: BenchmarkCard, rankName: string): string {
-    const index = benchmark.rank_names?.indexOf(rankName) ?? -1;
-    if (index < 0) return "#ffffff";
-    return benchmark.rank_colors?.[index] || "#ffffff";
-  }
-
   return (
     <main className="min-h-screen text-white">
       <SiteHeader loggedIn={loggedIn} />
@@ -137,34 +130,45 @@ export default function BenchmarksPage() {
             </div>
           ) : (
             benchmarks.map((benchmark, i) => (
+              // The card is one big link, so the pin cannot live inside it: a
+              // button nested in an anchor is invalid HTML, and clicking the
+              // star would follow the link instead of pinning. It sits in a
+              // sibling layer above the link, which keeps it clickable and
+              // stops the click reaching the card underneath.
               <div
                 key={benchmark.id}
-                className="animate-card-in hover-lift group rounded-2xl border border-white/10 bg-white/[0.02] p-6 hover:border-white/25 hover:bg-white/[0.05]"
+                className="animate-card-in hover-lift group relative rounded-2xl border border-white/10 bg-white/[0.02] transition-colors hover:border-white/25 hover:bg-white/[0.05]"
                 style={{ animationDelay: `${Math.min(i, 8) * 45}ms` }}
               >
-                <div className="mb-4 flex items-center justify-between gap-2">
-                  <span className="rounded-full border border-white/10 px-3 py-1 text-xs text-zinc-400">
-                    {benchmark.platform}
-                  </span>
+                <PinButton
+                  benchmarkId={benchmark.id}
+                  pinned={Boolean(benchmark.my_pinned)}
+                  loggedIn={loggedIn}
+                  className="absolute right-4 top-4 z-10"
+                />
 
-                  {/* Star sits in the top-right corner: the one part of the
+                <Link
+                  href={`/benchmarks/${benchmark.id}`}
+                  className="block rounded-2xl p-6"
+                >
+                  <div className="mb-4 flex items-center justify-between gap-2">
+                    <span className="rounded-full border border-white/10 px-3 py-1 text-xs text-zinc-400">
+                      {benchmark.platform}
+                    </span>
+
+                    {/* Star sits in the top-right corner: the one part of the
                       card that carries no information, so it costs no
                       reading space and stays clear of the title and the
                       link on a narrow phone. */}
-                  <div className="flex items-center gap-3">
-                    <span className="text-xs text-zinc-500">
-                      {benchmark.scenario_count ?? 0}{" "}
-                      {(benchmark.scenario_count ?? 0) === 1
-                        ? "scenario"
-                        : "scenarios"}
-                    </span>
-                    <PinButton
-                      benchmarkId={benchmark.id}
-                      pinned={Boolean(benchmark.my_pinned)}
-                      loggedIn={loggedIn}
-                    />
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs text-zinc-500">
+                        {benchmark.scenario_count ?? 0}{" "}
+                        {(benchmark.scenario_count ?? 0) === 1
+                          ? "scenario"
+                          : "scenarios"}
+                      </span>
+                    </div>
                   </div>
-                </div>
 
                 <h3 className="text-lg font-semibold line-clamp-2">
                   {benchmark.title}
@@ -174,58 +178,7 @@ export default function BenchmarksPage() {
                   {benchmark.description || "No description"}
                 </p>
 
-                <div className="mt-5 flex items-end justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="text-[10px] uppercase tracking-wider text-zinc-500">
-                      Your rank
-                    </p>
-                    {benchmark.my_rank ? (
-                      <>
-                        {/* The rank name comes from the benchmark's own
-                            rank_names, so it renames with the benchmark.
-                            Just the rank — "Gold" reads as Gold, and
-                            "aidjasdasjd" reads as aidjasdasjd. This used to
-                            append the benchmark's ceiling as "Gold of
-                            Platinum", which was wrong twice over: it named
-                            a tier the player is not close to, and on a
-                            six-rung ladder someone on rung three was told
-                            their goal was rung six.
-
-                            "Complete" is the one addition, and only for
-                            clearing the top rank's cutoffs. Reaching a
-                            middle rank is progress, not completion. */}
-                        <p className="flex flex-wrap items-baseline gap-x-2">
-                          <span
-                            className="text-lg font-bold"
-                            style={{ color: rankColorOf(benchmark, benchmark.my_rank) }}
-                          >
-                            {benchmark.my_rank}
-                          </span>
-                          {benchmark.my_maxed ? (
-                            <span className="text-xs font-medium text-zinc-400">
-                              Complete
-                            </span>
-                          ) : null}
-                          <span className="truncate text-xs text-zinc-600">
-                            · {benchmark.title}
-                          </span>
-                        </p>
-                        <p className="mt-0.5 font-mono text-xs text-zinc-500">
-                          {(benchmark.my_score ?? 0).toLocaleString()}
-                        </p>
-                      </>
-                    ) : (
-                      <>
-                        <p className="text-lg font-medium text-zinc-600">Not played</p>
-                        <p className="mt-0.5 truncate text-xs text-zinc-600">
-                          {loggedIn
-                            ? `No score yet · ${benchmark.title}`
-                            : "Log in to track your rank"}
-                        </p>
-                      </>
-                    )}
-                  </div>
-
+                <div className="mt-5 flex items-end justify-end gap-3">
                   <div className="shrink-0 text-right">
                     <p className="text-[10px] uppercase tracking-wider text-zinc-500">
                       {benchmark.difficulty || "medium"}
@@ -237,12 +190,6 @@ export default function BenchmarksPage() {
                     </p>
                   </div>
                 </div>
-
-                <Link
-                  href={`/benchmarks/${benchmark.id}`}
-                  className="mt-4 block text-sm font-medium text-white"
-                >
-                  View Details →
                 </Link>
               </div>
             ))

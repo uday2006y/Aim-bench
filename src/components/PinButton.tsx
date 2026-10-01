@@ -11,6 +11,12 @@ interface PinButtonProps {
   loggedIn: boolean;
   /** Optional size bump for the detail page header. */
   size?: "sm" | "md";
+  /**
+   * Extra classes for the button. Needed where the star is not in the normal
+   * flow -- on a benchmark card the whole card is a link, so the star sits in
+   * a sibling layer above it and has to be positioned rather than inlined.
+   */
+  className?: string;
 }
 
 /**
@@ -33,6 +39,7 @@ export default function PinButton({
   pinned: initialPinned,
   loggedIn,
   size = "sm",
+  className = "",
 }: PinButtonProps) {
   const [pinned, setPinned] = useState(initialPinned);
   const [busy, setBusy] = useState(false);
@@ -108,7 +115,7 @@ export default function PinButton({
               : "Star this benchmark"
             : "Log in to star a benchmark"
         }
-        className="group/pin -mr-1 shrink-0 rounded-lg p-1 transition-colors hover:bg-white/5 focus:outline-none focus-visible:ring-1 focus-visible:ring-white/30 disabled:opacity-60"
+        className={`group/pin shrink-0 rounded-lg p-1 transition-colors hover:bg-white/5 focus:outline-none focus-visible:ring-1 focus-visible:ring-white/30 disabled:opacity-60 ${className}`}
       >
         <span
           aria-hidden="true"
