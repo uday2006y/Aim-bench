@@ -4,6 +4,17 @@ import { getSessionAccountId } from "@/lib/session";
 import BenchmarkClient from "./BenchmarkClient";
 import { loadViewerPins } from "@/lib/pins";
 
+/** A benchmark_scenarios row, plus the viewer's best attached below. */
+interface ScenarioDetailRow {
+  id: string;
+  easyaim_scenario_id: number;
+  title: string;
+  position: number;
+  category: string | null;
+  sub_category: string | null;
+  cutoffs: Record<string, number> | null;
+}
+
 export default async function BenchmarkDetailPage({
   params,
 }: {
@@ -12,12 +23,17 @@ export default async function BenchmarkDetailPage({
   const { id } = await params;
   const accountId = await getSessionAccountId();
 
-  // Six queries, and only the first actually gates the rest — the not-found
+  // Four queries, and only the first actually gates the rest — the not-found
   // branch. The benchmark id comes from the URL, so the scenarios, the
-  // viewer's personal bests, their score history and their stars are all
-  // knowable before the benchmark row arrives. Awaiting them in sequence
-  // was five round trips to a database on another continent to render one
-  // page; the only one that has to go first is the benchmark itself.
+  // viewer's personal bests and their stars are all knowable before the
+  // benchmark row arrives. Awaiting them in sequence was five round trips to a
+  // database on another continent to render one page; the only one that has to
+  // go first is the benchmark itself.
+  //
+  // This used to read the viewer's benchmark_scores history as well and hand
+  // it to the table. The table never rendered it — the manual score-entry
+  // form it belonged to had already been removed — so that was a round trip
+  // and a serialised payload for nothing.
   const benchmarkResult = await supabaseAdmin
     .from("benchmarks")
     .select("*")
@@ -38,7 +54,7 @@ export default async function BenchmarkDetailPage({
     );
   }
 
-  const [scenarioResult, pbResult, scoreResult, myPins] = await Promise.all([
+  const [scenarioResult, pbResult, myPins] = await Promise.all([
     supabaseAdmin
       .from("benchmark_scenarios")
       .select("id, easyaim_scenario_id, title, position, category, sub_category, cutoffs")
@@ -55,32 +71,21 @@ export default async function BenchmarkDetailPage({
           .eq("account_id", accountId)
       : null,
 
-    accountId
-      ? supabaseAdmin
-          .from("benchmark_scores")
-          .select("id, benchmark_id, score, rank, completed_at")
-          .eq("benchmark_id", id)
-          .eq("user_id", accountId)
-          .order("completed_at", { ascending: false })
-          .limit(50)
-      : null,
-
     loadViewerPins(accountId),
   ]);
 
   const scenarioIds = new Set(
-    (scenarioResult.data || []).map((s: any) => Number(s.easyaim_scenario_id))
+    (scenarioResult.data ?? []).map((s) => Number(s.easyaim_scenario_id))
   );
 
   const pbMap = new Map<number, number>();
-  for (const row of pbResult?.data || []) {
-    const pb = row as { scenario_id: number; score: number };
-    if (scenarioIds.has(Number(pb.scenario_id))) {
-      pbMap.set(Number(pb.scenario_id), pb.score);
+  for (const row of (pbResult?.data ?? []) as { scenario_id: number; score: number }[]) {
+    if (scenarioIds.has(Number(row.scenario_id))) {
+      pbMap.set(Number(row.scenario_id), row.score);
     }
   }
 
-  const scenarios = (scenarioResult.data || []).map((s: any) => ({
+  const scenarios = ((scenarioResult.data ?? []) as ScenarioDetailRow[]).map((s) => ({
     id: s.id,
     easyaim_scenario_id: s.easyaim_scenario_id,
     title: s.title,
@@ -102,7 +107,6 @@ export default async function BenchmarkDetailPage({
       id={id}
       benchmark={benchmark}
       scenarios={scenarios}
-      myScores={scoreResult?.data || []}
       isAuthorized={isAuthorized}
       myPinned={myPins.has(id)}
       loggedIn={Boolean(accountId)}

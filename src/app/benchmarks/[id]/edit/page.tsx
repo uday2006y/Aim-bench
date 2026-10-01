@@ -1,8 +1,10 @@
 "use client";
 
-import { useState, useEffect, use } from "react";
+import { useState, useEffect, use, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { renameCutoffKey } from "@/lib/benchmarkScenarios";
+import SiteHeader from "@/components/SiteHeader";
 
 interface CategoryDef {
   name: string;
@@ -22,6 +24,22 @@ interface Scenario {
   subCategory: string;
 }
 
+/** A benchmark_scenarios row as GET /api/benchmarks/[id] returns it. */
+interface EditScenarioRow {
+  easyaim_scenario_id: number;
+  title: string;
+  cutoffs?: Record<string, number>;
+  category?: string;
+  sub_category?: string | null;
+}
+
+/** An EasyAim scenario search hit. */
+interface SearchHit {
+  id: number;
+  title: string;
+  author: string | null;
+}
+
 export default function EditBenchmarkPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
@@ -30,13 +48,6 @@ export default function EditBenchmarkPage({ params }: { params: Promise<{ id: st
   const [description, setDescription] = useState("");
   const [platform, setPlatform] = useState("easyaim");
   const [difficulty, setDifficulty] = useState("medium");
-  const [abbreviation, setAbbreviation] = useState("");
-  const [benchmarkColor, setBenchmarkColor] = useState("#b9f2fe");
-  const [spreadsheetUrl, setSpreadsheetUrl] = useState("");
-  const [dateAdded, setDateAdded] = useState("");
-  const [lastUpdated, setLastUpdated] = useState("");
-  const [note, setNote] = useState("");
-  const [useCustomRankCalc, setUseCustomRankCalc] = useState(false);
   const [scenarios, setScenarios] = useState<Scenario[]>([]);
   const [categories, setCategories] = useState<CategoryDef[]>(DEFAULT_CATEGORIES);
   // Records why the load failed so the page can explain itself instead of
@@ -46,7 +57,7 @@ export default function EditBenchmarkPage({ params }: { params: Promise<{ id: st
   const [addTargetCategory, setAddTargetCategory] = useState("");
   const [addTargetSubCategory, setAddTargetSubCategory] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [searchResults, setSearchResults] = useState<SearchHit[]>([]);
   const [searching, setSearching] = useState(false);
   const [ranks, setRanks] = useState<{name: string; color: string}[]>([
     { name: "Bronze", color: "#b87333" },
@@ -64,6 +75,14 @@ export default function EditBenchmarkPage({ params }: { params: Promise<{ id: st
   const [isOwner, setIsOwner] = useState<boolean | null>(null);
   const [notFound, setNotFound] = useState(false);
 
+  // Search responses can arrive out of order — a slow request for "eas"
+  // landing after a fast one for "easyaim" would replace the newer results
+  // with the older ones. Only the most recent request is allowed to write.
+  const searchRequest = useRef(0);
+
+  const searchTerm = searchQuery.trim();
+  const searchLongEnough = searchTerm.length >= 2;
+
   useEffect(() => {
     if (loadError || notFound) {
       document.title = "Benchmark not found — AIMBENCH";
@@ -71,114 +90,135 @@ export default function EditBenchmarkPage({ params }: { params: Promise<{ id: st
   }, [loadError, notFound]);
 
   useEffect(() => {
+    // Every exit from this function has to clear `loading`. It used to have
+    // no catch at all, so a dropped connection or an aborted request left
+    // the page on "Loading..." for good with no way forward and no message.
     async function checkAndLoad() {
-      const res = await fetch(`/api/benchmarks/${id}`);
-      if (!res.ok) {
-        setNotFound(true);
-        setLoadError("Benchmark not found. It may have been deleted.");
-        setLoading(false);
-        return;
-      }
-      const data = await res.json();
-      const benchmarkData = data.benchmark;
+      try {
+        const res = await fetch(`/api/benchmarks/${id}`);
 
-      // Came with the benchmark rather than as a second request to
-      // /api/session, which this used to fetch immediately afterwards.
-      const accId = data.accountId ?? null;
+        if (!res.ok) {
+          setNotFound(true);
+          setLoadError(
+            res.status === 404
+              ? "Benchmark not found. It may have been deleted."
+              : `Could not load this benchmark (${res.status}).`
+          );
+          return;
+        }
 
-      if (!benchmarkData) {
-        setNotFound(true);
-        setLoadError("Benchmark not found. It may have been deleted.");
-        setLoading(false);
-        return;
-      }
+        const data = await res.json();
+        const benchmarkData = data.benchmark;
 
-      if (!accId) {
-        setIsOwner(false);
-        setNotFound(true);
-        setLoadError("You need to be logged in to edit a benchmark.");
-        setLoading(false);
-        return;
-      }
+        // The route answers whether the caller owns this benchmark rather
+        // than handing back their account id, so the client learns exactly
+        // what it needs and nothing more.
+        if (!benchmarkData) {
+          setNotFound(true);
+          setLoadError("Benchmark not found. It may have been deleted.");
+          return;
+        }
 
-      if (benchmarkData.user_id !== accId) {
-        setIsOwner(false);
-        setNotFound(true);
-        setLoadError("You can only edit benchmarks you created.");
-        setLoading(false);
-        return;
-      }
+        if (!data.isOwner) {
+          setIsOwner(false);
+          setNotFound(true);
+          setLoadError(
+            data.loggedIn
+              ? "You can only edit benchmarks you created."
+              : "You need to be logged in to edit a benchmark."
+          );
+          return;
+        }
 
-      setIsOwner(true);
-      setLoadError("");
-      setTitle(benchmarkData.title);
-      setDescription(benchmarkData.description || "");
-      setPlatform(benchmarkData.platform || "easyaim");
-      setDifficulty(benchmarkData.difficulty || "medium");
+        setIsOwner(true);
+        setLoadError("");
+        setTitle(benchmarkData.title);
+        setDescription(benchmarkData.description || "");
+        setPlatform(benchmarkData.platform || "easyaim");
+        setDifficulty(benchmarkData.difficulty || "medium");
 
-      // Load the rank ladder from the benchmark. Without this the form
-      // kept its hardcoded 8-rank default on every page load, so removing
-      // a rank and saving appeared to work (the detail page showed the
-      // shortened ladder) but the next visit showed the deleted rank
-      // again — and saving from that state re-added it.
-      if (
-        Array.isArray(benchmarkData.rank_names) &&
-        benchmarkData.rank_names.length > 0
-      ) {
-        setRanks(
-          benchmarkData.rank_names.map((name: string, index: number) => ({
-            name,
-            color: benchmarkData.rank_colors?.[index] || "#ffffff",
+        // Load the rank ladder from the benchmark. Without this the form
+        // kept its hardcoded 8-rank default on every page load, so removing
+        // a rank and saving appeared to work (the detail page showed the
+        // shortened ladder) but the next visit showed the deleted rank
+        // again — and saving from that state re-added it.
+        if (
+          Array.isArray(benchmarkData.rank_names) &&
+          benchmarkData.rank_names.length > 0
+        ) {
+          setRanks(
+            benchmarkData.rank_names.map((name: string, index: number) => ({
+              name,
+              color: benchmarkData.rank_colors?.[index] || "#ffffff",
+            }))
+          );
+        }
+
+        const loadedCategories =
+          Array.isArray(benchmarkData.category_defs) &&
+          benchmarkData.category_defs.length > 0
+            ? benchmarkData.category_defs
+            : DEFAULT_CATEGORIES;
+
+        setCategories(loadedCategories);
+        setAddTargetCategory(loadedCategories[0]?.name ?? "Other");
+
+        setScenarios(
+          ((data.scenarios ?? []) as EditScenarioRow[]).map((s) => ({
+            id: Number(s.easyaim_scenario_id),
+            title: s.title,
+            cutoffs: s.cutoffs || {},
+            category: s.category || "Other",
+            subCategory: s.sub_category || "",
           }))
         );
+      } catch {
+        setNotFound(true);
+        setLoadError("Could not reach the server. Check your connection and try again.");
+      } finally {
+        setLoading(false);
       }
-
-      const loadedCategories =
-        Array.isArray(benchmarkData.category_defs) &&
-        benchmarkData.category_defs.length > 0
-          ? benchmarkData.category_defs
-          : DEFAULT_CATEGORIES;
-
-      setCategories(loadedCategories);
-      setAddTargetCategory(loadedCategories[0]?.name ?? "Other");
-
-      setScenarios(
-        (data.scenarios || []).map((s: any) => ({
-          id: s.easyaim_scenario_id,
-          title: s.title,
-          cutoffs: s.cutoffs || {},
-          category: s.category || "Other",
-          subCategory: s.sub_category || "",
-        }))
-      );
-
-      setLoading(false);
     }
+
     checkAndLoad();
-  }, [id, router]);
+  }, [id]);
 
   useEffect(() => {
-    const query = searchQuery.trim();
-    if (query.length < 2) {
-      setSearchResults([]);
-      return;
-    }
+    // Invalidate anything in flight before doing anything else, so a response
+    // for a longer query cannot land after the visitor has deleted back below
+    // the minimum length.
+    const ticket = ++searchRequest.current;
+
+    if (!searchLongEnough) return;
+
     const timeout = setTimeout(async () => {
       setSearching(true);
+
       try {
-        const res = await fetch(`/api/easyaim/scenarios?q=${encodeURIComponent(query)}`);
+        const res = await fetch(
+          `/api/easyaim/scenarios?q=${encodeURIComponent(searchTerm)}`
+        );
         const data = await res.json();
+
+        if (ticket !== searchRequest.current) return;
+
         setSearchResults(res.ok ? data.scenarios || [] : []);
       } catch {
+        if (ticket !== searchRequest.current) return;
         setSearchResults([]);
       } finally {
-        setSearching(false);
+        if (ticket === searchRequest.current) setSearching(false);
       }
     }, 300);
-    return () => clearTimeout(timeout);
-  }, [searchQuery]);
 
-  function addScenarioFromResult(scenario: any) {
+    return () => clearTimeout(timeout);
+  }, [searchTerm, searchLongEnough]);
+
+  // Derived rather than cleared from state: emptying the box hides the list
+  // without an effect writing to it, and cannot leave a stale list behind.
+  const visibleSearchResults = searchLongEnough ? searchResults : [];
+
+  function addScenarioFromResult(scenario: SearchHit) {
     // Scenarios land in whichever category/sub-category is selected in the
     // "Add scenarios to" picker above the search box, so you can file them
     // straight into a group instead of fixing every one afterwards.
@@ -362,8 +402,20 @@ export default function EditBenchmarkPage({ params }: { params: Promise<{ id: st
   }
 
   function updateRankName(index: number, value: string) {
+    const oldName = ranks[index].name;
     const newName = value.trim() || `Rank ${index + 1}`;
+
+    if (oldName === newName) return;
+
     setRanks((prev) => prev.map((r, i) => i === index ? { ...r, name: newName } : r));
+
+    // Cutoffs are keyed by rank name, so the rename has to take them with
+    // it. This used to only rename the rank, which left every scenario's
+    // requirement filed under a name no rank matched — the tier became
+    // unreachable and every score below it wrong, silently, on save.
+    setScenarios((prev) =>
+      prev.map((s) => ({ ...s, cutoffs: renameCutoffKey(s.cutoffs, oldName, newName) }))
+    );
   }
 
   function addRank() {
@@ -390,7 +442,7 @@ export default function EditBenchmarkPage({ params }: { params: Promise<{ id: st
     setError("");
     try {
       const payload = {
-        title,
+        title: title.trim(),
         description,
         difficulty,
         platform,
@@ -417,8 +469,8 @@ export default function EditBenchmarkPage({ params }: { params: Promise<{ id: st
         throw new Error(data.error || "Failed to save");
       }
       router.push(`/benchmarks/${id}`);
-    } catch (err: any) {
-      setError(err.message || "Failed to save");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save");
     } finally {
       setSaving(false);
     }
@@ -463,6 +515,8 @@ export default function EditBenchmarkPage({ params }: { params: Promise<{ id: st
 
   return (
     <main className="min-h-screen text-white">
+      <SiteHeader loggedIn width="max-w-3xl" />
+
       <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6 sm:py-12">
         <Link href={`/benchmarks/${id}`} className="text-sm text-zinc-500 hover:text-white mb-6 inline-block">← Back</Link>
         <h1 className="text-3xl font-bold tracking-tight">Edit Benchmark</h1>
@@ -503,44 +557,6 @@ export default function EditBenchmarkPage({ params }: { params: Promise<{ id: st
               <option value="medium">Medium</option>
               <option value="hard">Hard</option>
             </select>
-          </div>
-
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-            <div>
-              <label className="block text-sm text-zinc-400 mb-2">Abbreviation</label>
-              <input type="text" value={abbreviation} onChange={(e) => setAbbreviation(e.target.value)} className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-2 text-sm text-white focus:border-zinc-500 outline-none" />
-            </div>
-            <div>
-              <label className="block text-sm text-zinc-400 mb-2">Color</label>
-              <input type="color" value={benchmarkColor} onChange={(e) => setBenchmarkColor(e.target.value)} className="w-full h-10 rounded-lg border border-zinc-800 bg-zinc-900 p-1 cursor-pointer" />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-3 gap-4">
-            <div>
-              <label className="block text-sm text-zinc-400 mb-2">Spreadsheet URL</label>
-              <input type="url" value={spreadsheetUrl} onChange={(e) => setSpreadsheetUrl(e.target.value)} placeholder="https://..." className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-2 text-sm text-white focus:border-zinc-500 outline-none" />
-            </div>
-            <div>
-              <label className="block text-sm text-zinc-400 mb-2">Date Added</label>
-              <input type="date" value={dateAdded} onChange={(e) => setDateAdded(e.target.value)} className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-2 text-sm text-white focus:border-zinc-500 outline-none" />
-            </div>
-            <div>
-              <label className="block text-sm text-zinc-400 mb-2">Last Updated</label>
-              <input type="date" value={lastUpdated} onChange={(e) => setLastUpdated(e.target.value)} className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-2 text-sm text-white focus:border-zinc-500 outline-none" />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm text-zinc-400 mb-2">Note</label>
-            <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={3} className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-3 text-white focus:border-zinc-500 outline-none resize-none" />
-          </div>
-
-          <div>
-            <label className="flex items-center gap-2 text-sm text-zinc-400">
-              <input type="checkbox" checked={useCustomRankCalc} onChange={(e) => setUseCustomRankCalc(e.target.checked)} className="rounded border-zinc-600 bg-zinc-900 text-white" />
-              Use Custom Rank Calculation
-            </label>
           </div>
 
           {/* CATEGORIES */}
@@ -666,10 +682,10 @@ export default function EditBenchmarkPage({ params }: { params: Promise<{ id: st
             </div>
 
             <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Search EasyAim scenarios..." className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-3 text-white focus:border-zinc-500 outline-none" />
-            {searching && <p className="text-xs text-zinc-500 mt-2">Searching...</p>}
-            {searchResults.length > 0 && (
+            {searching && searchLongEnough && <p className="text-xs text-zinc-500 mt-2">Searching...</p>}
+            {visibleSearchResults.length > 0 && (
               <div className="mt-2 max-h-48 overflow-y-auto rounded-lg border border-zinc-800 bg-zinc-900">
-                {searchResults.map((r: any) => (
+                {visibleSearchResults.map((r) => (
                   <button key={r.id} type="button" onClick={() => addScenarioFromResult(r)} className="flex w-full items-center justify-between gap-4 border-b border-white/5 px-4 py-3 text-left text-sm last:border-0 hover:bg-white/5">
                     <span className="truncate">{r.title}</span>
                     <span className="shrink-0 text-xs text-zinc-500">

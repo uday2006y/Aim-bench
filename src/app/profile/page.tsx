@@ -22,6 +22,13 @@ interface PbRow {
   achieved_at: string;
 }
 
+interface UserBenchmarkRow {
+  id: string;
+  title: string;
+  platform: string | null;
+  scenario_count: number | null;
+}
+
 export default async function ProfilePage() {
   const accountId = await getSessionAccountId();
 
@@ -92,7 +99,7 @@ export default async function ProfilePage() {
     };
   });
 
-  const userBenchmarks = benchmarkResult.data;
+  const userBenchmarks = benchmarkResult.data as UserBenchmarkRow[] | null;
 
   return (
     <main className="min-h-screen text-white">
@@ -168,7 +175,7 @@ export default async function ProfilePage() {
             <p className="text-sm text-zinc-500">No benchmarks yet.</p>
           ) : (
             <div className="space-y-3">
-              {(userBenchmarks || []).map((b: any) => (
+              {(userBenchmarks || []).map((b) => (
                 <div
                   key={b.id}
                   className="flex items-center justify-between rounded-xl border border-zinc-800 bg-zinc-900/40 px-4 py-3"

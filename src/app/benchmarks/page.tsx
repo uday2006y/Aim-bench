@@ -1,63 +1,99 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import SiteHeader from "@/components/SiteHeader";
 import PinButton from "@/components/PinButton";
 
+/** A row from GET /api/benchmarks, as far as this page reads it. */
+interface BenchmarkCard {
+  id: string;
+  title: string;
+  description: string | null;
+  platform: string;
+  difficulty: string | null;
+  scenario_count: number | null;
+  created_at: string | null;
+  rank_names: string[] | null;
+  rank_colors: string[] | null;
+  my_score: number | null;
+  my_rank: string | null;
+  my_maxed: boolean;
+  my_pinned: boolean;
+}
+
 export default function BenchmarksPage() {
-  const [benchmarks, setBenchmarks] = useState<any[]>([]);
+  const [benchmarks, setBenchmarks] = useState<BenchmarkCard[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState(false);
   const [loggedIn, setLoggedIn] = useState(false);
 
-  useEffect(() => {
-    // Debounce only what the visitor is typing. The first load used to sit
-    // behind this same 300ms, which was a third of a second of pure waiting
-    // before the request that already takes over a second went out at all.
-    if (searchQuery === "") {
-      fetchBenchmarks("");
-      return;
-    }
+  // Every keystroke that settles starts a request, and nothing cancels the
+  // one still in flight. Without this, a slow response for "eas" could land
+  // after a fast one for "easyaim" and replace the newer results with the
+  // older ones — the list would show something that no longer matches the
+  // box. Only the most recent request is allowed to write.
+  const request = useRef(0);
 
-    const timeout = setTimeout(() => {
-      fetchBenchmarks(searchQuery);
-    }, 300);
-
-    return () => clearTimeout(timeout);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchQuery]);
-
-  async function fetchBenchmarks(query: string) {
+  const fetchBenchmarks = useCallback(async (query: string, ticket: number) => {
     setLoading(true);
+    setFailed(false);
+
     try {
       const url = new URL("/api/benchmarks", window.location.origin);
       if (query) url.searchParams.set("q", query);
 
       const response = await fetch(url);
+
+      if (ticket !== request.current) return;
+
+      if (!response.ok) throw new Error(String(response.status));
+
       const data = (await response.json()) as {
-        benchmarks: any[];
+        benchmarks?: BenchmarkCard[];
         loggedIn?: boolean;
       };
 
-      setBenchmarks(data.benchmarks || []);
+      if (ticket !== request.current) return;
+
+      setBenchmarks(data.benchmarks ?? []);
 
       // Used to be a separate request to /api/session; rides along with the
       // list now, since the endpoint already knows whether there is one.
       if (typeof data.loggedIn === "boolean") setLoggedIn(data.loggedIn);
-    } catch (error) {
-      console.error("Failed to fetch benchmarks:", error);
+    } catch {
+      if (ticket !== request.current) return;
+      setFailed(true);
     } finally {
-      setLoading(false);
+      if (ticket === request.current) setLoading(false);
     }
-  }
+  }, []);
+
+  useEffect(() => {
+    const ticket = ++request.current;
+
+    // Debounce only what the visitor is typing. The first load used to sit
+    // behind this same 300ms, which was a third of a second of pure waiting
+    // before the request that already takes over a second went out at all.
+    if (searchQuery === "") {
+      fetchBenchmarks("", ticket);
+      return;
+    }
+
+    const timeout = setTimeout(() => {
+      fetchBenchmarks(searchQuery, ticket);
+    }, 300);
+
+    return () => clearTimeout(timeout);
+  }, [searchQuery, fetchBenchmarks]);
 
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchQuery(e.target.value);
   };
 
   /** Colour a rank name using the benchmark's own rank_colors ladder. */
-  function rankColorOf(benchmark: any, rankName: string): string {
+  function rankColorOf(benchmark: BenchmarkCard, rankName: string): string {
     const index = benchmark.rank_names?.indexOf(rankName) ?? -1;
     if (index < 0) return "#ffffff";
     return benchmark.rank_colors?.[index] || "#ffffff";
@@ -76,6 +112,7 @@ export default function BenchmarksPage() {
               placeholder="Search benchmarks..."
               value={searchQuery}
               onChange={handleSearch}
+              aria-label="Search benchmarks"
               className="w-full rounded-xl border border-white/10 px-4 py-2 text-white background-transparent focus:outline-none focus:border-white/20"
             />
           </div>
@@ -86,6 +123,12 @@ export default function BenchmarksPage() {
           {loading ? (
             <div className="col-span-3 text-center py-20">
               <p>Loading benchmarks...</p>
+            </div>
+          ) : failed ? (
+            <div className="col-span-3 text-center py-20">
+              <p role="alert" className="text-red-400">
+                Could not load benchmarks. Please try again.
+              </p>
             </div>
           ) : benchmarks.length === 0 ? (
             <div className="col-span-3 text-center py-20">
@@ -168,7 +211,7 @@ export default function BenchmarksPage() {
                           </span>
                         </p>
                         <p className="mt-0.5 font-mono text-xs text-zinc-500">
-                          {benchmark.my_score.toLocaleString()}
+                          {(benchmark.my_score ?? 0).toLocaleString()}
                         </p>
                       </>
                     ) : (

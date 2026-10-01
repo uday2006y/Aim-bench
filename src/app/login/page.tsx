@@ -1,7 +1,8 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, Suspense, useState } from "react";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 
 const DISCORD_ERROR_MESSAGES: Record<string, string> = {
   discord_denied: "Discord login was cancelled.",
@@ -14,20 +15,29 @@ const DISCORD_ERROR_MESSAGES: Record<string, string> = {
     "That login attempt didn't match this browser, so it was rejected. Please try again.",
 };
 
-export default function LoginPage() {
+/**
+ * The Discord callback redirects back here with ?error=... on failure. Read
+ * through useSearchParams rather than window.location inside an effect: the
+ * effect version rendered once with no message and then again with it, and it
+ * made the page depend on a global that is not available during server
+ * rendering at all.
+ *
+ * useSearchParams opts a route out of static prerendering, so the actual form
+ * is behind a Suspense boundary below — the shell prerenders, this fills in.
+ */
+function LoginForm() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const discordError = params.get("error");
-
-    if (discordError && DISCORD_ERROR_MESSAGES[discordError]) {
-      setError(DISCORD_ERROR_MESSAGES[discordError]);
-    }
-  }, []);
+  const discordError = searchParams.get("error");
+  const discordMessage =
+    discordError && DISCORD_ERROR_MESSAGES[discordError]
+      ? DISCORD_ERROR_MESSAGES[discordError]
+      : null;
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -50,8 +60,13 @@ export default function LoginPage() {
         return;
       }
 
-      alert(`Welcome back, ${data.account.username}!`);
-      window.location.href = "/";
+      // router.push rather than window.location: a full page load throws
+      // away everything already downloaded and re-runs every server render on
+      // the way to a page that needed none of it. The alert() this replaced
+      // was worse — a modal the user had to dismiss before the redirect they
+      // had already triggered could happen.
+      router.push("/");
+      router.refresh();
     } catch {
       setError("Could not connect to the server");
     } finally {
@@ -133,9 +148,12 @@ export default function LoginPage() {
               />
             </div>
 
-            {error && (
-              <div className="rounded-lg border border-red-900/50 bg-red-950/30 px-4 py-3 text-sm text-red-400">
-                {error}
+            {(discordMessage || error) && (
+              <div
+                role="alert"
+                className="rounded-lg border border-red-900/50 bg-red-950/30 px-4 py-3 text-sm text-red-400"
+              >
+                {discordMessage || error}
               </div>
             )}
 
@@ -157,6 +175,32 @@ export default function LoginPage() {
               Create Account
             </Link>
           </p>
+        </div>
+      </div>
+    </main>
+  );
+}
+
+/**
+ * The shell is prerendered; only the part that reads the query string waits.
+ * The fallback is the same card with a disabled button, so the page never
+ * flashes empty.
+ */
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<LoginShell />}>
+      <LoginForm />
+    </Suspense>
+  );
+}
+
+function LoginShell() {
+  return (
+    <main className="min-h-screen text-white flex items-center justify-center px-6">
+      <div className="w-full max-w-md">
+        <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-8 shadow-2xl">
+          <h1 className="text-3xl font-bold tracking-tight">Welcome Back</h1>
+          <p className="mt-2 text-sm text-zinc-500">Loading…</p>
         </div>
       </div>
     </main>

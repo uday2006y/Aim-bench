@@ -1,8 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
-import { readBarStyle, DEFAULT_BAR_STYLE } from "@/lib/barStyles";
+import { useBarStyle } from "@/lib/useBarStyle";
 import PinButton from "@/components/PinButton";
 import { computeTierFills } from "@/lib/tierBars";
 
@@ -65,7 +64,6 @@ export default function BenchmarkClient({
   id,
   benchmark,
   scenarios,
-  myScores,
   isAuthorized,
   myPinned,
   loggedIn,
@@ -73,57 +71,15 @@ export default function BenchmarkClient({
   id: string;
   benchmark: Benchmark;
   scenarios: BenchmarkScenario[];
-  myScores: { id: string; score: number; rank: string | null; completed_at: string }[];
   isAuthorized: boolean;
   myPinned: boolean;
   loggedIn: boolean;
 }) {
-  const [scoreInput, setScoreInput] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
-  const [barStyle, setBarStyle] = useState(DEFAULT_BAR_STYLE);
-
-  // Read after mount so the server-rendered markup matches the default and
-  // hydration doesn't mismatch; the stored preference applies immediately
-  // after. Re-read when this component remounts via a different benchmark.
-  useEffect(() => {
-    setBarStyle(readBarStyle());
-  }, [id]);
-
-  async function handleSubmitScore() {
-    setError("");
-    setNotice("");
-    const score = Number(scoreInput);
-    if (!scoreInput || !Number.isFinite(score) || score < 0) {
-      setError("Enter a valid score (0 or higher)");
-      return;
-    }
-    setSubmitting(true);
-    try {
-      const res = await fetch("/api/scores", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ benchmarkId: id, score }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.error || "Failed to submit score");
-        return;
-      }
-      setNotice(
-        `Score submitted: ${data.score.score}${
-          data.score.rank ? ` — ${data.score.rank}` : ""
-        }`
-      );
-      setScoreInput("");
-      window.location.reload();
-    } catch {
-      setError("Could not connect to the server");
-    } finally {
-      setSubmitting(false);
-    }
-  }
+  // The stored preference, read as a subscription rather than copied into
+  // state on mount. Remounting this component for a different benchmark
+  // re-reads it for free, which is what the old effect's [id] dependency was
+  // doing by hand.
+  const [barStyle] = useBarStyle();
 
   const rankOrder =
     benchmark.rank_names?.length
@@ -492,7 +448,7 @@ export default function BenchmarkClient({
                               return (
                                 <td
                                   key={rank.name}
-                                  className={`w-[150px] px-1.5 py-2 align-middle ${rowIdx === 0 ? groupDivider : ""}`}
+                                  className={`px-1.5 py-2 align-middle ${rowIdx === 0 ? groupDivider : ""}`}
                                 >
                                   <div className={`bar-track bar-${barStyle}`}>
                                     {hasCutoff && score > 0 && (

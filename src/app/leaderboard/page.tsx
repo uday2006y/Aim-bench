@@ -1,46 +1,77 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import Link from "next/link";
+import { useEffect, useRef, useState } from "react";
 import SiteHeader from "@/components/SiteHeader";
+import type { BenchmarkOption } from "@/lib/benchmarkOptions";
+
+interface LeaderboardRow {
+  account_id: string;
+  benchmark_id: string;
+  username: string;
+  score: number;
+  rank: string | null;
+  maxed: boolean;
+  benchmark_title: string;
+  platform: string;
+  rank_color: string;
+  last_improved_at: string | null;
+}
+
+const NO_RANK = "—";
 
 export default function LeaderboardPage() {
-  const [leaderboard, setLeaderboard] = useState<any[]>([]);
-  const [benchmarks, setBenchmarks] = useState<any[]>([]);
+  const [rows, setRows] = useState<LeaderboardRow[]>([]);
+  const [benchmarks, setBenchmarks] = useState<BenchmarkOption[]>([]);
   const [selectedBenchmark, setSelectedBenchmark] = useState<string | null>(null);
-  const [rankingType, setRankingType] = useState("score");
   const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState(false);
   const [loggedIn, setLoggedIn] = useState(false);
+  const [total, setTotal] = useState(0);
+
+  // Switching the dropdown fires a request per change and nothing cancels the
+  // one before it, so a slow response for the previous benchmark could land
+  // last and overwrite the selection the visitor actually made. Only the most
+  // recent request is allowed to write.
+  const request = useRef(0);
 
   useEffect(() => {
+    const ticket = ++request.current;
+
+    async function fetchLeaderboard() {
+      setLoading(true);
+      setFailed(false);
+
+      try {
+        const url = selectedBenchmark
+          ? `/api/leaderboard?benchmark_id=${encodeURIComponent(selectedBenchmark)}`
+          : "/api/leaderboard";
+
+        const response = await fetch(url);
+
+        if (ticket !== request.current) return;
+
+        if (!response.ok) throw new Error(String(response.status));
+
+        const data = await response.json();
+
+        if (ticket !== request.current) return;
+
+        setRows(data.leaderboard ?? []);
+        setTotal(typeof data.total === "number" ? data.total : 0);
+        if (Array.isArray(data.benchmarks)) setBenchmarks(data.benchmarks);
+        if (typeof data.loggedIn === "boolean") setLoggedIn(data.loggedIn);
+      } catch {
+        if (ticket !== request.current) return;
+        setFailed(true);
+      } finally {
+        if (ticket === request.current) setLoading(false);
+      }
+    }
+
     fetchLeaderboard();
   }, [selectedBenchmark]);
 
-  async function fetchLeaderboard() {
-    setLoading(true);
-    try {
-      let url = "/api/leaderboard";
-      if (selectedBenchmark) {
-        url += `?benchmark_id=${selectedBenchmark}`;
-      }
-
-      const response = await fetch(url);
-      const data = await response.json();
-
-      setLeaderboard(data.leaderboard || []);
-
-      // Both of these used to be their own requests. Mounting this page
-      // cost three serverless invocations — the board, /api/session, and
-      // the full benchmark list — where one now covers all of it, and the
-      // dropdown gets two columns instead of the whole list.
-      if (data.benchmarks?.length) setBenchmarks(data.benchmarks);
-      if (typeof data.loggedIn === "boolean") setLoggedIn(data.loggedIn);
-    } catch (error) {
-      console.error("Failed to fetch leaderboard:", error);
-    } finally {
-      setLoading(false);
-    }
-  }
+  const hidden = Math.max(0, total - rows.length);
 
   return (
     <main className="min-h-screen text-white">
@@ -70,79 +101,90 @@ export default function LeaderboardPage() {
         <div>
           {loading ? (
             <p className="text-zinc-500">Loading leaderboard...</p>
-          ) : leaderboard.length === 0 ? (
+          ) : failed ? (
+            <p role="alert" className="text-red-400">
+              Could not load the leaderboard. Please try again.
+            </p>
+          ) : rows.length === 0 ? (
             <p className="text-zinc-500">No scores yet</p>
           ) : (
-            <table className="w-full rounded-lg overflow-hidden">
-              <thead>
-                <tr className="border-b border-white/10">
-                  <th className="text-left text-sm text-zinc-500 p-4 ranking-type">
-                    #
-                  </th>
-                  <th className="text-left text-sm text-zinc-500 p-4">
-                    Player
-                  </th>
-                  <th className="text-left text-sm text-zinc-500 p-4">
-                    Benchmark
-                  </th>
-                  <th className="text-left text-sm text-zinc-500 p-4">
-                    Score
-                  </th>
-                  <th className="text-left text-sm text-zinc-500 p-4">
-                    Rank
-                  </th>
-                  <th className="text-left text-sm text-zinc-500 p-4">
-                    Platform
-                  </th>
-                  <th className="text-left text-sm text-zinc-500 p-4">
-                    Last improved
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {leaderboard.map((entry, index) => (
-                  <tr
-                    key={`${entry.account_id}:${entry.benchmark_id}`}
-                    className="border-b border-white/10"
-                  >
-                    <td className="p-4 text-zinc-400">{index + 1}</td>
-                    <td className="p-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center flex-shrink-0">
-                          {entry.username?.substring(0, 2)}
-                        </div>
-                        <span className="text-white font-medium">{entry.username || "Anonymous"}</span>
-                      </div>
-                    </td>
-                    <td className="p-4 text-zinc-400 small">
-                      {entry.benchmark_title || "—"}
-                    </td>
-                    <td className="p-4 font-medium text-white">
-                      {entry.score?.toLocaleString()}
-                    </td>
-                    {/* Coloured from the benchmark's own rank_colors ladder,
-                        so renaming or recolouring a rank shows up here too. */}
-                    <td
-                      className="p-4 small font-medium"
-                      style={{ color: entry.rank_color }}
-                    >
-                      {entry.rank || "—"}
-                      {entry.maxed ? (
-                        <span className="ml-1 text-zinc-600">✓</span>
-                      ) : null}
-                    </td>
-                    <td className="p-4 text-zinc-500 small">
-                      {entry.platform || "—"}
-                    </td>
-                    <td className="p-4 text-zinc-500 small">
-                      {entry.last_improved_at
-                        ? new Date(entry.last_improved_at).toLocaleDateString()
-                        : "—"}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-white/10">
+                      <th scope="col" className="text-left text-sm text-zinc-500 p-4">#</th>
+                      <th scope="col" className="text-left text-sm text-zinc-500 p-4">Player</th>
+                      <th scope="col" className="text-left text-sm text-zinc-500 p-4">Benchmark</th>
+                      <th scope="col" className="text-left text-sm text-zinc-500 p-4">Score</th>
+                      <th scope="col" className="text-left text-sm text-zinc-500 p-4">Rank</th>
+                      <th scope="col" className="text-left text-sm text-zinc-500 p-4">Platform</th>
+                      <th scope="col" className="text-left text-sm text-zinc-500 p-4">Last improved</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((entry, index) => (
+                      <tr
+                        key={`${entry.account_id}:${entry.benchmark_id}`}
+                        className="border-b border-white/10"
+                      >
+                        <td className="p-4 text-zinc-400">{index + 1}</td>
+                        <td className="p-4">
+                          <div className="flex items-center gap-3">
+                            <span
+                              aria-hidden="true"
+                              className="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center flex-shrink-0 text-xs"
+                            >
+                              {(entry.username ?? "?").substring(0, 2)}
+                            </span>
+                            <span className="text-white font-medium">
+                              {entry.username || "Anonymous"}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="p-4 text-zinc-400 text-sm">
+                          {entry.benchmark_title || NO_RANK}
+                        </td>
+                        <td className="p-4 font-medium text-white">
+                          {entry.score.toLocaleString()}
+                        </td>
+                        {/* Coloured from the benchmark's own rank_colors ladder,
+                            so renaming or recolouring a rank shows up here too. */}
+                        <td
+                          className="p-4 text-sm font-medium"
+                          style={{ color: entry.rank_color }}
+                        >
+                          {entry.rank || NO_RANK}
+                          {entry.maxed ? (
+                            <span className="ml-1 text-zinc-600" title="Top rank cleared">
+                              ✓
+                            </span>
+                          ) : null}
+                        </td>
+                        <td className="p-4 text-zinc-500 text-sm">
+                          {entry.platform || NO_RANK}
+                        </td>
+                        <td className="p-4 text-zinc-500 text-sm">
+                          {entry.last_improved_at
+                            ? new Date(entry.last_improved_at).toLocaleDateString()
+                            : NO_RANK}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* The endpoint caps how many rows it sends. Saying so beats a
+                  table that simply stops for no visible reason. */}
+              {hidden > 0 && (
+                <p className="mt-4 text-xs text-zinc-600">
+                  Showing the top {rows.length} of {total.toLocaleString()}{" "}
+                  {total === 1 ? "entry" : "entries"}. Narrow it to a single
+                  benchmark to see more.
+                </p>
+              )}
+            </>
           )}
         </div>
       </div>

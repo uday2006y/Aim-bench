@@ -2,8 +2,10 @@
 
 import { FormEvent, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 export default function RegisterPage() {
+  const router = useRouter();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -30,8 +32,11 @@ export default function RegisterPage() {
         return;
       }
 
-      alert(`Account created! Welcome, ${data.account.username}`);
-      window.location.href = "/";
+      // Client-side navigation, and no alert() on the way. See the note in
+      // the login form: the modal had to be dismissed before the redirect it
+      // was announcing could happen.
+      router.push("/");
+      router.refresh();
     } catch {
       setError("Could not connect to the server");
     } finally {

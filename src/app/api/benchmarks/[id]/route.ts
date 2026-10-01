@@ -37,7 +37,7 @@ export async function PUT(
     if (!benchmark) {
       return NextResponse.json({ error: "Benchmark not found" }, { status: 404 });
     }
-    if ((benchmark as any).user_id !== accountId) {
+    if ((benchmark as { user_id: string | null }).user_id !== accountId) {
       return NextResponse.json({ error: "Not authorized" }, { status: 403 });
     }
 
@@ -234,10 +234,17 @@ export async function GET(
 
     return NextResponse.json({
       benchmark,
-      // The edit page was fetching this, then immediately fetching
+      // The edit page used to fetch this, then immediately fetch
       // /api/session to find out who it was — two round trips to learn
       // something this request already knows.
-      accountId,
+      //
+      // A boolean rather than the account id: the client only ever needs
+      // "is this mine?", and answering that does not mean handing the
+      // caller a durable identifier it has no use for.
+      loggedIn: Boolean(accountId),
+      isOwner:
+        Boolean(accountId) &&
+        (benchmark as { user_id: string | null }).user_id === accountId,
       scenarios,
     });
   } catch (error) {
@@ -269,7 +276,7 @@ export async function DELETE(
     if (!benchmark) {
       return NextResponse.json({ error: "Benchmark not found" }, { status: 404 });
     }
-    if ((benchmark as any).user_id !== accountId) {
+    if ((benchmark as { user_id: string | null }).user_id !== accountId) {
       return NextResponse.json({ error: "Not authorized" }, { status: 403 });
     }
 

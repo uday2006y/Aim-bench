@@ -15,6 +15,15 @@
 
 export const BAR_STYLE_STORAGE_KEY = "aimbench-bar-style";
 
+/**
+ * Same-tab notification for a preference change.
+ *
+ * The browser's `storage` event only fires in *other* tabs, so writing the
+ * preference here would not re-read it in the tab that wrote it. This is the
+ * in-tab equivalent, dispatched by the hook that wraps this module.
+ */
+export const BAR_STYLE_EVENT = "aimbench-bar-style-change";
+
 export interface BarStyle {
   id: string;
   label: string;

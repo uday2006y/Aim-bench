@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -35,13 +35,25 @@ export default function SiteHeader({
   withBorder?: boolean;
 }) {
   const pathname = usePathname();
-  const [open, setOpen] = useState(false);
 
-  // Close the sheet on navigation. Without this it stays open over the
-  // page you just clicked into.
-  useEffect(() => {
-    setOpen(false);
-  }, [pathname]);
+  // The sheet remembers which route it was opened on, and is only considered
+  // open while that is still the current route. Navigating therefore closes
+  // it as a consequence of the route changing, not as a side effect of
+  // watching the route change — which is what the old
+  // `useEffect(() => setOpen(false), [pathname])` did, at the cost of a
+  // second render on every navigation and a frame where the sheet was still
+  // open over the page just clicked.
+  const [sheet, setSheet] = useState<{ open: boolean; route: string }>({
+    open: false,
+    route: pathname,
+  });
+
+  const open = sheet.open && sheet.route === pathname;
+
+  const setOpen = useCallback(
+    (next: boolean) => setSheet({ open: next, route: pathname }),
+    [pathname]
+  );
 
   // Lock body scroll while the sheet is open so the page behind doesn't
   // scroll on iOS.
@@ -65,9 +77,13 @@ export default function SiteHeader({
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [open]);
+  }, [open, setOpen]);
 
-  const isActive = (href: string) => pathname === href;
+  // A benchmark or profile route counts as being in its section, so the nav
+  // highlights where you actually are rather than going blank three levels
+  // down.
+  const isActive = (href: string) =>
+    pathname === href || pathname.startsWith(`${href}/`);
 
   const navLinks = NAV.map((item) => (
     <Link
@@ -132,7 +148,7 @@ export default function SiteHeader({
           {/* Mobile menu toggle */}
           <button
             type="button"
-            onClick={() => setOpen((value) => !value)}
+            onClick={() => setOpen(!open)}
             aria-expanded={open}
             aria-controls="mobile-nav"
             aria-label={open ? "Close menu" : "Open menu"}
