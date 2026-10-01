@@ -5,17 +5,18 @@ import { getSessionAccountId } from "@/lib/session";
 import { MAX_TIERS, sanitizeLadder, sanitizeTiers } from "@/lib/benchmarkTiers";
 import { sanitizeScenarios } from "@/lib/benchmarkScenarios";
 import { recordAggregateFor } from "@/lib/easyaimSync";
-import { loadTierCutoffs, loadTiers, replaceTierCutoffs } from "@/lib/tiers";
+import { loadTierScenarios, loadTiers, replaceTierScenarios } from "@/lib/tiers";
 
 /**
- * Adding, renaming and removing a benchmark's tiers after it exists.
+ * A tier's scenarios, ladder and name.
  *
- * The create form sets the tier count and names; this is for changing that
- * mind. Six is the ceiling because past six the header switcher stops being a
- * menu you can read at a glance.
+ * The create form sets how many tiers and what they are called; this is for
+ * changing that mind, and for the per-tier scenario list and cutoffs. Six is
+ * the ceiling because past six the header switcher stops being a menu you can
+ * read at a glance.
  *
- * Ownership is checked on every verb. The tier rows hang off a benchmark, and
- * a benchmark without the right owner check is a benchmark anyone can rewrite.
+ * Ownership is checked on every verb. A tier row hangs off a benchmark, and a
+ * benchmark without an owner check is a benchmark anyone can rewrite.
  */
 
 interface Params {
@@ -28,9 +29,7 @@ async function requireOwner(id: string): Promise<
   const accountId = await getSessionAccountId();
 
   if (!accountId) {
-    return {
-      response: NextResponse.json({ error: "Not logged in" }, { status: 401 }),
-    };
+    return { response: NextResponse.json({ error: "Not logged in" }, { status: 401 }) };
   }
 
   const { data: benchmark } = await supabaseAdmin
@@ -46,15 +45,39 @@ async function requireOwner(id: string): Promise<
   }
 
   if ((benchmark as { user_id: string | null }).user_id !== accountId) {
-    return {
-      response: NextResponse.json({ error: "Not authorized" }, { status: 403 }),
-    };
+    return { response: NextResponse.json({ error: "Not authorized" }, { status: 403 }) };
   }
 
   return { accountId };
 }
 
-/** Add one tier, copying an existing one's requirements as a starting point. */
+/** Resolves a tierId that actually belongs to this benchmark. */
+async function requireTier(
+  benchmarkId: string,
+  tierId: string
+): Promise<{ id: string } | { response: NextResponse }> {
+  if (!tierId) {
+    return {
+      response: NextResponse.json({ error: "tierId is required" }, { status: 400 }),
+    };
+  }
+
+  const { data: tier } = await supabaseAdmin
+    .from("benchmark_tiers")
+    .select("id, benchmark_id")
+    .eq("id", tierId)
+    .maybeSingle();
+
+  // Checked against this benchmark, not merely "a tier with that id exists":
+  // otherwise a valid tier id from someone else's benchmark would be enough.
+  if (!tier || (tier as { benchmark_id: string }).benchmark_id !== benchmarkId) {
+    return { response: NextResponse.json({ error: "Tier not found" }, { status: 404 }) };
+  }
+
+  return { id: tierId };
+}
+
+/** Add a tier. It starts with no scenarios, which the page says out loud. */
 export async function POST(request: Request, { params }: Params) {
   try {
     const { id } = await params;
@@ -72,16 +95,10 @@ export async function POST(request: Request, { params }: Params) {
     }
 
     const body = await request.json();
-
-    const [draft] = sanitizeTiers([
-      { name: body?.name, isOfficial: body?.isOfficial },
-    ]);
+    const [draft] = sanitizeTiers([{ name: body?.name, isOfficial: body?.isOfficial }]);
 
     if (!draft) {
-      return NextResponse.json(
-        { error: "Give the tier a name." },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Give the tier a name." }, { status: 400 });
     }
 
     if (existing.some((tier) => tier.slug === draft.slug)) {
@@ -91,10 +108,9 @@ export async function POST(request: Request, { params }: Params) {
       );
     }
 
-    // Seed from the last tier so the new one starts as a copy of the most
-    // recently arranged ladder rather than a blank page of em-dashes.
+    // Seeded from the last tier's ladder rather than the default eight, so a
+    // second Novice looks like the first one the author already arranged.
     const source = existing[existing.length - 1];
-    const sourceCutoffs = source ? await loadTierCutoffs(source.id) : new Map();
 
     const { data: created, error } = await supabaseAdmin
       .from("benchmark_tiers")
@@ -107,28 +123,38 @@ export async function POST(request: Request, { params }: Params) {
         rank_colors: source?.rank_colors ?? [],
         is_official: draft.isOfficial,
       })
-      .select("id")
+      .select("id, slug")
       .single();
 
     if (error) throw error;
 
-    const tierId = (created as { id: string }).id;
+    const tier = created as { id: string; slug: string };
 
-    if (sourceCutoffs.size > 0) {
-      const { error: cutoffError } = await supabaseAdmin
-        .from("benchmark_tier_cutoffs")
-        .insert(
-          Array.from(sourceCutoffs.entries()).map(([scenarioId, cutoffs]) => ({
-            tier_id: tierId,
-            easyaim_scenario_id: scenarioId,
-            cutoffs,
-          }))
-        );
+    // Copy the source tier's scenarios so the new tier is a usable starting
+    // point rather than an empty page. The author edits from there.
+    if (source) {
+      const sourceRows = await loadTierScenarios(source.id);
 
-      if (cutoffError) throw cutoffError;
+      if (sourceRows.length > 0) {
+        const { error: copyError } = await supabaseAdmin
+          .from("benchmark_scenarios")
+          .insert(
+            sourceRows.map((row, index) => ({
+              tier_id: tier.id,
+              easyaim_scenario_id: String(row.easyaim_scenario_id),
+              title: row.title,
+              position: index,
+              category: row.category,
+              sub_category: row.sub_category,
+              cutoffs: row.cutoffs,
+            }))
+          );
+
+        if (copyError) throw copyError;
+      }
     }
 
-    return NextResponse.json({ id: tierId, slug: draft.slug }, { status: 201 });
+    return NextResponse.json(tier, { status: 201 });
   } catch (error) {
     console.error("TIER CREATE ERROR:", error);
     return NextResponse.json({ error: "Failed to add tier" }, { status: 500 });
@@ -144,23 +170,9 @@ export async function PATCH(request: Request, { params }: Params) {
     if ("response" in guard) return guard.response;
 
     const body = await request.json();
-    const tierId = typeof body?.tierId === "string" ? body.tierId : "";
+    const tier = await requireTier(id, typeof body?.tierId === "string" ? body.tierId : "");
 
-    if (!tierId) {
-      return NextResponse.json({ error: "tierId is required" }, { status: 400 });
-    }
-
-    const { data: tier } = await supabaseAdmin
-      .from("benchmark_tiers")
-      .select("id, benchmark_id, slug")
-      .eq("id", tierId)
-      .maybeSingle();
-
-    // Checked against this benchmark, not just "a tier with that id exists":
-    // otherwise a valid tier id from someone else's benchmark would be enough.
-    if (!tier || (tier as { benchmark_id: string }).benchmark_id !== id) {
-      return NextResponse.json({ error: "Tier not found" }, { status: 404 });
-    }
+    if ("response" in tier) return tier.response;
 
     const patch: Record<string, unknown> = {};
 
@@ -185,9 +197,14 @@ export async function PATCH(request: Request, { params }: Params) {
     const { error } = await supabaseAdmin
       .from("benchmark_tiers")
       .update(patch)
-      .eq("id", tierId);
+      .eq("id", tier.id);
 
     if (error) throw error;
+
+    // A new ladder can make a rank reachable that was not before, so the
+    // owner's standing on this benchmark is recomputed now rather than waiting
+    // for a sync that may not come.
+    await recordAggregateFor(guard.accountId, id);
 
     return NextResponse.json({ ok: true });
   } catch (error) {
@@ -197,11 +214,12 @@ export async function PATCH(request: Request, { params }: Params) {
 }
 
 /**
- * Save one tier's per-scenario cutoffs.
+ * Save one tier's scenario list — its scenarios, their categories, and their
+ * cutoffs.
  *
- * Replaces the tier's whole set rather than merging, so a scenario removed
- * from the benchmark loses its row and a cleared input loses its cutoff —
- * partial writes are how a stale requirement outlives the thing it referred to.
+ * Replaces the tier's whole list rather than merging, so a scenario removed
+ * loses its row and a cleared input loses its cutoff. Partial writes are how a
+ * stale requirement outlives the thing it referred to.
  */
 export async function PUT(request: Request, { params }: Params) {
   try {
@@ -211,50 +229,27 @@ export async function PUT(request: Request, { params }: Params) {
     if ("response" in guard) return guard.response;
 
     const body = await request.json();
-    const tierId = typeof body?.tierId === "string" ? body.tierId : "";
+    const tier = await requireTier(id, typeof body?.tierId === "string" ? body.tierId : "");
 
-    if (!tierId) {
-      return NextResponse.json({ error: "tierId is required" }, { status: 400 });
-    }
+    if ("response" in tier) return tier.response;
 
-    const { data: tier } = await supabaseAdmin
-      .from("benchmark_tiers")
-      .select("id, benchmark_id")
-      .eq("id", tierId)
-      .maybeSingle();
-
-    if (!tier || (tier as { benchmark_id: string }).benchmark_id !== id) {
-      return NextResponse.json({ error: "Tier not found" }, { status: 404 });
-    }
-
-    const rows = Array.isArray(body?.cutoffs) ? body.cutoffs : [];
-
-    // Same validation the create and edit forms go through, so a hand-rolled
-    // request cannot land a string in that jsonb and quietly break rank
-    // comparison during the next sync.
+    // The same validation the forms go through, so a hand-rolled request
+    // cannot land a string in that jsonb and quietly break rank comparison
+    // during the next sync.
     const cleaned = sanitizeScenarios(
-      rows.map((row: { id?: unknown; cutoffs?: unknown }) => ({
-        id: row?.id,
-        cutoffs: row?.cutoffs,
-      }))
+      (Array.isArray(body?.scenarios) ? body.scenarios : []).map(
+        (row: Record<string, unknown>) => ({ ...row, tierSlug: "" })
+      )
     );
 
-    await replaceTierCutoffs(
-      tierId,
-      cleaned.map((row) => ({
-        easyaimScenarioId: row.easyaimScenarioId,
-        cutoffs: row.cutoffs,
-      }))
-    );
+    await replaceTierScenarios(tier.id, cleaned);
 
-    // Changing a tier's requirements changes what the owner's rank on it
-    // should be, with no personal best to trigger a sync.
     await recordAggregateFor(guard.accountId, id);
 
     return NextResponse.json({ ok: true, saved: cleaned.length });
   } catch (error) {
-    console.error("TIER CUTOFFS ERROR:", error);
-    return NextResponse.json({ error: "Failed to save tier cutoffs" }, { status: 500 });
+    console.error("TIER SCENARIOS ERROR:", error);
+    return NextResponse.json({ error: "Failed to save tier scenarios" }, { status: 500 });
   }
 }
 
@@ -263,7 +258,7 @@ export async function PUT(request: Request, { params }: Params) {
  *
  * Refuses to remove the last one: a benchmark with no tiers has no page to
  * render and no aggregate to compute, and the author almost certainly meant to
- * delete the wrong one.
+ * delete the wrong one. The tier's scenarios go with it by cascade.
  */
 export async function DELETE(request: Request, { params }: Params) {
   try {
@@ -273,20 +268,9 @@ export async function DELETE(request: Request, { params }: Params) {
     if ("response" in guard) return guard.response;
 
     const tierId = new URL(request.url).searchParams.get("tierId") ?? "";
+    const tier = await requireTier(id, tierId);
 
-    if (!tierId) {
-      return NextResponse.json({ error: "tierId is required" }, { status: 400 });
-    }
-
-    const { data: tier } = await supabaseAdmin
-      .from("benchmark_tiers")
-      .select("id, benchmark_id")
-      .eq("id", tierId)
-      .maybeSingle();
-
-    if (!tier || (tier as { benchmark_id: string }).benchmark_id !== id) {
-      return NextResponse.json({ error: "Tier not found" }, { status: 404 });
-    }
+    if ("response" in tier) return tier.response;
 
     const siblings = await loadTiers(id);
 
@@ -300,20 +284,10 @@ export async function DELETE(request: Request, { params }: Params) {
       );
     }
 
-    // The tier's cutoff rows go with it: they hang off tier_id with a cascade,
-    // but doing it explicitly means the delete does not silently depend on a
-    // constraint someone might change later.
-    const { error: cutoffError } = await supabaseAdmin
-      .from("benchmark_tier_cutoffs")
-      .delete()
-      .eq("tier_id", tierId);
-
-    if (cutoffError) throw cutoffError;
-
     const { error } = await supabaseAdmin
       .from("benchmark_tiers")
       .delete()
-      .eq("id", tierId);
+      .eq("id", tier.id);
 
     if (error) throw error;
 

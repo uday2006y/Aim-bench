@@ -2,14 +2,14 @@
  * Tiers: a benchmark's named difficulty variants.
  *
  * A benchmark has up to six. Each one carries its own rank ladder and its own
- * per-scenario cutoffs, so "Novice" can ladder Iron → Bronze → Silver → Gold
- * while "Elite" ladders Nova → Astra → Celestial → Stellaris, off the same
+ * per-scenario cutoffs, so "Novice" can ladder Iron â†’ Bronze â†’ Silver â†’ Gold
+ * while "Elite" ladders Nova â†’ Astra â†’ Celestial â†’ Stellaris, off the same
  * scenarios. `/benchmarks/[id]/[tier]` renders one; the switcher in the header
  * moves between them.
  *
  * Pure and tested, like aggregates and benchmarkScenarios. Everything that
- * decides what a tier *is* — how many there can be, what a slug may be, what
- * a valid ladder is — lives here rather than in a route or a form, because
+ * decides what a tier *is* â€” how many there can be, what a slug may be, what
+ * a valid ladder is â€” lives here rather than in a route or a form, because
  * the create form, the edit form, the API routes and the switcher all have to
  * agree on it and four copies of a rule is how the rank ladder drifted twice
  * already.
@@ -35,12 +35,20 @@ const DEFAULT_RANK_NAMES = BENCHMARK_DEFAULT_NAMES;
 const DEFAULT_RANK_COLORS = BENCHMARK_DEFAULT_COLORS;
 
 /** A tier as the API returns it. */
-export interface Tier {
+/**
+ * Just enough of a tier row to identify the primary one. The full
+ * Tier the pages use extends this.
+ */
+export interface TierRef {
   id: string;
   benchmark_id: string;
   slug: string;
-  name: string;
   position: number;
+  name: string;
+}
+
+/** A tier as the API returns it and the pages render it. */
+export interface Tier extends TierRef {
   rank_names: string[];
   rank_colors: string[];
   is_official: boolean;
@@ -66,7 +74,7 @@ export const DEFAULT_LADDER = {
  *
  * This is what makes `/benchmarks/<id>/<slug>` unambiguous: two tiers cannot
  * normalise to the same slug, because sanitizeTiers drops the second one. The
- * display name keeps its punctuation — only the address is slugified.
+ * display name keeps its punctuation â€” only the address is slugified.
  */
 export function slugifyTierName(name: string): string {
   const slug = name
@@ -136,7 +144,7 @@ export function sanitizeTiers(input: unknown): TierDraft[] {
  * A validated, index-aligned rank ladder for one tier.
  *
  * Names must be non-empty and distinct, colours must be hex, and the two
- * arrays are the same length — a colour ladder shorter than the name ladder
+ * arrays are the same length â€” a colour ladder shorter than the name ladder
  * leaves trailing ranks with no colour of their own, which the table renders
  * as whatever the fallback happens to be.
  */
@@ -157,7 +165,7 @@ export function sanitizeLadder(
 
     if (!name) continue;
 
-    // Cutoffs are keyed by rank name, so two ranks cannot share one — the
+    // Cutoffs are keyed by rank name, so two ranks cannot share one â€” the
     // second would write its cutoffs over the first's.
     const key = name.toLowerCase();
     if (seen.has(key)) continue;
@@ -188,6 +196,61 @@ export function orderTiers<T extends { position: number; name: string }>(tiers: 
 /** The tier a bare `/benchmarks/[id]` should show. */
 export function primaryTier(tiers: Tier[]): Tier | null {
   return orderTiers(tiers)[0] ?? null;
+}
+
+/** A scenario row carrying the two columns needed to scope it to a tier. */
+export interface TierScopedScenario {
+  benchmark_id: string;
+  tier_id: string | null;
+}
+
+/**
+ * The ids of each benchmark's first tier.
+ *
+ * Scenarios belong to a tier, so a benchmark with three tiers has three times
+ * the rows. Summing them all into one aggregate would add a player's Novice
+ * score to their Elite score and call the total neither â€” the card, the
+ * leaderboard and the benchmark's own rank all describe the first tier until
+ * one of them grows a tier picker of its own.
+ *
+ * Tiers with no rows at all are skipped: `has("b")` returning false means
+ * "fall back to everything", which is what a database that has not had the
+ * tier block run needs.
+ */
+export function primaryTierIds(tiers: TierRef[]): Set<string> {
+  const first = new Map<string, TierRef>();
+
+  for (const tier of tiers) {
+    const held = first.get(tier.benchmark_id);
+    const current = orderTiers([held ?? tier, tier])[0];
+    // orderTiers puts the earlier position first; when they tie it falls back
+    // to the name, so two tiers inserted in the same statement still get one
+    // deterministic winner.
+    if (!held || current.id === tier.id) {
+      first.set(tier.benchmark_id, tier);
+    }
+  }
+
+  return new Set(Array.from(first.values()).map((tier) => tier.id));
+}
+
+/**
+ * Narrows a flat scenario list to each benchmark's primary tier.
+ *
+ * Pure and tested, because getting it wrong is silent: a benchmark whose tiers
+ * share scenarios shows a score roughly double the real one, and no error is
+ * raised anywhere.
+ */
+export function scenariosInPrimaryTiers<T extends TierScopedScenario>(
+  scenarios: T[],
+  primaryIds: Set<string>
+): T[] {
+  if (primaryIds.size === 0) return scenarios;
+
+  return scenarios.filter(
+    (scenario) =>
+      scenario.tier_id === null || primaryIds.has(scenario.tier_id)
+  );
 }
 
 /** The address one tier lives at. */

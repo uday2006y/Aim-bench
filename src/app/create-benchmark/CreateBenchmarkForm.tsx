@@ -52,6 +52,8 @@ interface AddedScenario {
   cutoffs: Record<string, string>;
   category: string;
   subCategory: string;
+  /** Which tier this scenario belongs to. Scenarios are owned by a tier. */
+  tierSlug: string;
 }
 
 /**
@@ -68,7 +70,7 @@ interface TierDraftRow extends TierDraft {
   id: string;
   /**
    * Set once the slug stops tracking the name. Editing the create form does not
-   * need it — there are no addresses yet — but it keeps the "slug follows the
+   * need it Ã¢â‚¬â€ there are no addresses yet Ã¢â‚¬â€ but it keeps the "slug follows the
    * name" rule in one place for the edit form, which does.
    */
   slugLocked?: boolean;
@@ -96,7 +98,7 @@ export default function CreateBenchmarkForm() {
   const [ranks, setRanks] = useState<RankDef[]>(DEFAULT_RANKS);
   const [categories, setCategories] = useState<CategoryDef[]>(DEFAULT_CATEGORIES);
   // How many tiers this benchmark has, and what they are called. The count is
-  // the author's choice up to six — the switcher in the header is a menu, and
+  // the author's choice up to six Ã¢â‚¬â€ the switcher in the header is a menu, and
   // past six it stops being one.
   const [tiers, setTiers] = useState<TierDraftRow[]>([
     { id: "tier-0", slug: "standard", name: "Standard", isOfficial: true },
@@ -107,13 +109,16 @@ export default function CreateBenchmarkForm() {
     DEFAULT_CATEGORIES[0].name
   );
   const [addTargetSubCategory, setAddTargetSubCategory] = useState("");
+  // Which tier a newly picked scenario is filed under. Scenarios belong to a
+  // tier, so this is a first-class choice rather than something inferred.
+  const [addTargetTier, setAddTargetTier] = useState(tiers[0]?.slug ?? "primary");
   const [searchQuery, setSearchQuery] = useState("");
   const [results, setResults] = useState<ScenarioResult[]>([]);
   const [searching, setSearching] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // Search responses can arrive out of order — a slow request for "eas"
+  // Search responses can arrive out of order Ã¢â‚¬â€ a slow request for "eas"
   // landing after a fast one for "easyaim" would replace the newer results
   // with the older ones. Only the most recent request is allowed to write.
   const searchRequest = useRef(0);
@@ -179,6 +184,7 @@ export default function CreateBenchmarkForm() {
           cutoffs: {},
           category: targetCategory,
           subCategory: targetSubCategory,
+          tierSlug: addTargetTier,
         },
       ];
     });
@@ -356,14 +362,19 @@ export default function CreateBenchmarkForm() {
 
   // ------------------------------------------------------------------ tiers
 
-  function setTierCount(count: number) {
-    const next = Math.max(1, Math.min(MAX_TIERS, count));
-
+  /**
+   * Adds a tier, or does nothing at the ceiling.
+   *
+   * This is an "Add" button rather than a "how many" number input on purpose.
+   * A count and a list are two pieces of state that have to agree; the number
+   * input was the only way to desynchronise them, and when it did the count
+   * said six and the benchmark got one. A button cannot be out of step with
+   * what is on screen.
+   */
+  function addTier() {
     setTiers((current) => {
-      if (next <= current.length) return current.slice(0, next);
+      if (current.length >= MAX_TIERS) return current;
 
-      // Names offered in the order an author would reach for them. Only a
-      // suggestion: the field is a text input and whatever is typed wins.
       const suggestions = [
         "Novice",
         "Intermediate",
@@ -373,19 +384,39 @@ export default function CreateBenchmarkForm() {
         "Custom",
       ];
 
-      const added: TierDraftRow[] = [];
+      // Never suggest a name already in use: two tiers that slugify alike would
+      // make /benchmarks/<id>/<slug> ambiguous, and the second is silently
+      // dropped on the server.
+      const taken = new Set(current.map((tier) => tier.slug));
 
-      for (let index = current.length; index < next; index++) {
-        const name = suggestions[index] ?? `Tier ${index + 1}`;
-        added.push({
-          id: `tier-${index}`,
+      let name = suggestions.find((option) => !taken.has(slugifyTierName(option)));
+
+      if (!name) {
+        for (let n = 1; ; n++) {
+          const candidate = `Tier ${current.length + n}`;
+          if (!taken.has(slugifyTierName(candidate))) {
+            name = candidate;
+            break;
+          }
+        }
+      }
+
+      return [
+        ...current,
+        {
+          id: `tier-${current.length}`,
           slug: slugifyTierName(name),
           name,
           isOfficial: true,
-        });
-      }
+        },
+      ];
+    });
+  }
 
-      return [...current, ...added];
+  function removeTierAt(index: number) {
+    setTiers((current) => {
+      if (current.length <= 1) return current;
+      return current.filter((_, i) => i !== index);
     });
   }
 
@@ -448,7 +479,7 @@ export default function CreateBenchmarkForm() {
     }
 
     if (tierSlugClash.size > 0) {
-      setError("Two tiers end up with the same address — give them different names");
+      setError("Two tiers end up with the same address Ã¢â‚¬â€ give them different names");
       return;
     }
 
@@ -459,7 +490,7 @@ export default function CreateBenchmarkForm() {
 
     // A rank with no cutoff anywhere can never be reached, which is a
     // legitimate thing to leave half-configured while you build a benchmark
-    // out — but only a benchmark with scenarios actually uses the ladder.
+    // out Ã¢â‚¬â€ but only a benchmark with scenarios actually uses the ladder.
     if (scenarios.length > 0) {
       const unreachable = ranks.filter((rank) =>
         scenarios.every((s) => !String(s.cutoffs[rank.name] ?? "").trim())
@@ -484,6 +515,7 @@ export default function CreateBenchmarkForm() {
         title: scenario.title,
         category: scenario.category || "Other",
         subCategory: scenario.subCategory || "",
+        tierSlug: scenario.tierSlug,
         cutoffs: Object.fromEntries(
           Object.entries(scenario.cutoffs)
             .filter(([, value]) => value.trim() !== "")
@@ -546,7 +578,7 @@ export default function CreateBenchmarkForm() {
             href="/"
             className="text-sm text-zinc-500 hover:text-white transition"
           >
-            ← Back to AIMBENCH
+            Ã¢â€ Â Back to AIMBENCH
           </Link>
         </div>
 
@@ -600,10 +632,26 @@ export default function CreateBenchmarkForm() {
                 EasyAim.
               </p>
 
-              {/* Pick the destination group first, then search. Scenarios
-                  added from the results below are filed straight into this
-                  category and sub-category. */}
+              {/* Pick the destination first, then search. A scenario belongs to
+                  a tier, so the tier is the first choice here and the category
+                  is scoped to it. */}
               <div className="mb-3 grid grid-cols-2 gap-2 rounded-xl border border-zinc-800 bg-zinc-950 p-3">
+                <div className="col-span-2">
+                  <label className="block text-xs text-zinc-500 mb-0.5">
+                    Add scenarios to tier
+                  </label>
+                  <select
+                    value={addTargetTier}
+                    onChange={(e) => setAddTargetTier(e.target.value)}
+                    className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-2 py-1.5 text-xs text-white outline-none focus:border-zinc-500"
+                  >
+                    {tiers.map((tier) => (
+                      <option key={tier.id} value={tier.slug}>
+                        {tier.isOfficial ? tier.name : `${tier.name} (Unofficial)`}
+                      </option>
+                    ))}
+                  </select>
+                </div>
                 <div>
                   <label className="block text-xs text-zinc-500 mb-0.5">
                     Add scenarios to
@@ -634,7 +682,7 @@ export default function CreateBenchmarkForm() {
                     list="add-sub-options"
                     value={addTargetSubCategory}
                     onChange={(e) => setAddTargetSubCategory(e.target.value)}
-                    placeholder="—"
+                    placeholder="Ã¢â‚¬â€"
                     className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-2 py-1.5 text-xs text-white outline-none placeholder:text-zinc-600 focus:border-zinc-500"
                   />
                   <datalist id="add-sub-options">
@@ -644,11 +692,12 @@ export default function CreateBenchmarkForm() {
                   </datalist>
                 </div>
                 <p className="col-span-2 text-[10px] text-zinc-600">
-                  {addTargetCategory}
+                  {tiers.find((t) => t.slug === addTargetTier)?.name ?? addTargetTier}
+                  {addTargetCategory ? ` / ${addTargetCategory}` : ""}
                   {addTargetSubCategory.trim()
                     ? ` / ${addTargetSubCategory.trim()}`
                     : ""}
-                  {" · new scenarios go here. You can change it per scenario below."}
+                  {" Ã‚Â· new scenarios go here. You can change it per scenario below."}
                 </p>
               </div>
 
@@ -687,7 +736,7 @@ export default function CreateBenchmarkForm() {
                         {addTargetSubCategory.trim()
                           ? ` / ${addTargetSubCategory.trim()}`
                           : ""}
-                        {result.author ? ` · by ${result.author}` : ""}
+                        {result.author ? ` Ã‚Â· by ${result.author}` : ""}
                       </span>
                     </button>
                   ))}
@@ -746,7 +795,7 @@ export default function CreateBenchmarkForm() {
                         list={`sub-options-${scenario.id}`}
                         value={scenario.subCategory}
                         onChange={(e) => updateScenarioSubCategory(scenario.id, e.target.value)}
-                        placeholder="—"
+                        placeholder="Ã¢â‚¬â€"
                         className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-2 py-1.5 text-xs text-white outline-none placeholder:text-zinc-600 focus:border-zinc-500"
                       />
                       <datalist id={`sub-options-${scenario.id}`}>
@@ -761,7 +810,7 @@ export default function CreateBenchmarkForm() {
                     {ranks.map((rank, idx) => (
                       /* Keyed by index, deliberately. This used to key on
                          the rank's own name, and the input below writes to
-                         that name — so every keystroke changed the key,
+                         that name Ã¢â‚¬â€ so every keystroke changed the key,
                          React remounted the input, and the field lost focus
                          after one character. The row's position is what
                          identifies it; the name is data. */
@@ -789,7 +838,7 @@ export default function CreateBenchmarkForm() {
                           step="any"
                           value={scenario.cutoffs[rank.name] ?? ""}
                           onChange={(e) => updateCutoff(scenario.id, rank.name, e.target.value)}
-                          placeholder="—"
+                          placeholder="Ã¢â‚¬â€"
                           className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-2 py-1 text-xs text-white outline-none placeholder:text-zinc-600 focus:border-zinc-500"
                         />
                       </div>
@@ -922,28 +971,23 @@ export default function CreateBenchmarkForm() {
                     gets its own rank ladder and its own cutoffs, and each is a
                     page of its own at{" "}
                     <code className="font-mono">/benchmarks/&lt;id&gt;/&lt;tier&gt;</code>{" "}
-                    with a switcher in the header. One tier is fine — the
+                    with a switcher in the header. One tier is fine Ã¢â‚¬â€ the
                     switcher only appears once there is a choice to make.
                   </p>
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <label
-                    htmlFor="tier-count"
-                    className="text-xs uppercase tracking-wider text-zinc-500"
+                  <span className="text-xs uppercase tracking-wider text-zinc-500">
+                    {tiers.length} of {MAX_TIERS}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={addTier}
+                    disabled={tiers.length >= MAX_TIERS}
+                    className="rounded-lg border border-zinc-700 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-white/10 disabled:opacity-40"
                   >
-                    How many
-                  </label>
-                  <input
-                    id="tier-count"
-                    type="number"
-                    min={1}
-                    max={MAX_TIERS}
-                    step={1}
-                    value={tiers.length}
-                    onChange={(e) => setTierCount(Number(e.target.value) || 1)}
-                    className="w-16 rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-white outline-none focus:border-zinc-500"
-                  />
+                    + Add tier
+                  </button>
                 </div>
               </div>
 
@@ -989,6 +1033,16 @@ export default function CreateBenchmarkForm() {
                         />
                         Unofficial
                       </label>
+
+                      <button
+                        type="button"
+                        onClick={() => removeTierAt(index)}
+                        disabled={tiers.length <= 1}
+                        aria-label={`Remove ${tier.name || `tier ${index + 1}`}`}
+                        className="shrink-0 text-xs text-red-400 hover:text-red-300 disabled:cursor-not-allowed disabled:opacity-30"
+                      >
+                        &#10005;
+                      </button>
                     </div>
                   );
                 })}

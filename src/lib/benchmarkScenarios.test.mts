@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 
 import {
   renameCutoffKey,
+  groupScenariosByTier,
   sanitizeScenarios,
   sanitizeCategoryDefs,
   syncSubCategoriesIntoDefs,
@@ -118,6 +119,61 @@ test("numeric-looking ids are normalised so they cannot collide", () => {
     result.map((s) => s.easyaimScenarioId),
     ["7"]
   );
+});
+
+test("scenarios are grouped by the tier they belong to", () => {
+  // Scenarios belong to a tier, so a Novice list and an Elite list are two
+  // different pages rather than one list shown twice.
+  const grouped = groupScenariosByTier([
+    { id: 1, tierSlug: "novice" },
+    { id: 2, tierSlug: "elite" },
+    { id: 3, tierSlug: "elite" },
+  ]);
+
+  assert.deepEqual([...grouped.keys()].sort(), ["elite", "novice"]);
+  assert.equal(grouped.get("novice")!.length, 1);
+  assert.equal(grouped.get("elite")!.length, 2);
+});
+
+test("a scenario with no tier lands on the default tier, not nowhere", () => {
+  const grouped = groupScenariosByTier([{ id: 1 }]);
+
+  assert.equal(grouped.has("primary"), true);
+  assert.equal(grouped.get("primary")!.length, 1);
+});
+
+test("positions are renumbered per tier", () => {
+  // A shared counter would leave Elite starting at 1, and the table orders by
+  // position, so its rows would sort after rows that do not exist.
+  const grouped = groupScenariosByTier([
+    { id: 1, tierSlug: "novice" },
+    { id: 2, tierSlug: "novice" },
+    { id: 3, tierSlug: "elite" },
+  ]);
+
+  assert.deepEqual(
+    grouped.get("elite")!.map((s) => s.position),
+    [0]
+  );
+  assert.deepEqual(
+    grouped.get("novice")!.map((s) => s.position),
+    [0, 1]
+  );
+});
+
+test("a tier name is slugified on the way in", () => {
+  const grouped = groupScenariosByTier([{ id: 1, tierSlug: "Elite (Unofficial)" }]);
+
+  assert.equal(grouped.has("elite-unofficial"), true);
+});
+
+test("an added scenario is stamped with the tier it was added to", () => {
+  // Guards the create form's wiring: without this every scenario would land on
+  // the default tier and the other tiers would come out empty.
+  const [scenario] = sanitizeScenarios([{ id: 2683, tierSlug: "advanced" }]);
+
+  assert.equal(scenario.tierSlug, "advanced");
+  assert.equal(scenario.position, 0);
 });
 
 test("scenarios are capped at the documented maximum", () => {

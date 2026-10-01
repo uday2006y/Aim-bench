@@ -1,10 +1,9 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getSessionAccountId } from "@/lib/session";
-import { sanitizeScenarios, sanitizeCategoryDefs, syncSubCategoriesIntoDefs } from "@/lib/benchmarkScenarios";
+import { sanitizeCategoryDefs } from "@/lib/benchmarkScenarios";
 import { resetLinkedAccountsBackfill } from "@/lib/resetBackfill";
-import { recordAggregateFor } from "@/lib/easyaimSync";
-import { loadTierCutoffs, loadTiers } from "@/lib/tiers";
+import { loadTierScenarios, loadTiers } from "@/lib/tiers";
 
 export async function PUT(
   request: Request,
@@ -18,13 +17,13 @@ export async function PUT(
     const { id } = await params;
     const body = await request.json();
 
+    // The rank ladder is not handled here either — it belongs to a tier, and
+    // this route does not know which tier is meant. The tier endpoint owns it.
     const {
       title,
       description,
       difficulty,
       platform,
-      rank_names,
-      rank_colors,
       rank_thresholds,
       category_defs,
     } = body;
@@ -42,122 +41,61 @@ export async function PUT(
       return NextResponse.json({ error: "Not authorized" }, { status: 403 });
     }
 
-    // Validate the scenario payload *before* touching anything. A bad id or
-    // a duplicate used to fail an insert after the old rows were already
-    // deleted, which silently wiped every scenario off the benchmark.
-    const hasScenarioList = body.scenarios !== undefined;
-    const scenarios = hasScenarioList ? sanitizeScenarios(body.scenarios) : null;
-
-    if (hasScenarioList && scenarios!.length === 0) {
-      return NextResponse.json(
-        { error: "No valid scenarios in payload — nothing was changed." },
-        { status: 400 }
-      );
-    }
-
-    // A sub-category typed into the edit form that isn't in category_defs
-    // yet gets folded in, so the detail table's rail can render it.
-    const categoryDefs = category_defs
-      ? (() => {
-          const parsed = sanitizeCategoryDefs(category_defs);
-          return parsed && scenarios
-            ? syncSubCategoriesIntoDefs(parsed, scenarios)
-            : parsed;
-        })()
-      : undefined;
-
-    // Update the benchmark row first and verify it, so a rejected field
-    // can't leave the scenario list half-rewritten.
-    const { data: updated, error: updateErr } = await supabaseAdmin
-      .from("benchmarks")
-      .update({
-        ...(title !== undefined ? { title } : {}),
-        ...(description !== undefined ? { description } : {}),
-        ...(difficulty !== undefined ? { difficulty } : {}),
-        ...(platform !== undefined ? { platform } : {}),
-        ...(rank_names !== undefined ? { rank_names } : {}),
-        ...(rank_colors !== undefined ? { rank_colors } : {}),
-        ...(rank_thresholds !== undefined ? { rank_thresholds } : {}),
-        ...(categoryDefs !== undefined ? { category_defs: categoryDefs } : {}),
-        ...(scenarios ? { scenario_count: scenarios.length } : {}),
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", id)
-      .select()
-      .single();
-
-    if (updateErr) throw updateErr;
-
-    if (scenarios) {
-      // Snapshot the current ids so we only trigger a re-scan when the
-      // attached scenario set actually changed.
-      const { data: existingRows } = await supabaseAdmin
-        .from("benchmark_scenarios")
-        .select("easyaim_scenario_id")
-        .eq("benchmark_id", id);
-
-      // Both sides are strings, because the ids are alphanumeric half the time
-      // and Postgres stores them as text. Sorted lexicographically so the two
-      // lists can be compared element by element — the question is only
-      // "is the set the same", never "which is bigger".
-      const byId = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
-
-      const previousIds = (existingRows || [])
-        .map((row) => String((row as { easyaim_scenario_id: string }).easyaim_scenario_id))
-        .sort(byId);
-
-      const nextIds = scenarios.map((s) => s.easyaimScenarioId).sort(byId);
-      const scenarioSetChanged =
-        previousIds.length !== nextIds.length ||
-        previousIds.some((value, index) => value !== nextIds[index]);
-
-      // Upsert before deleting. If the upsert fails the benchmark keeps its
-      // existing scenarios instead of ending up empty.
-      const { error: upsertErr } = await supabaseAdmin
-        .from("benchmark_scenarios")
-        .upsert(
-          scenarios.map((scenario, index) => ({
-            benchmark_id: id,
-            easyaim_scenario_id: scenario.easyaimScenarioId,
-            title: scenario.title,
-            position: index,
-            category: scenario.category,
-            sub_category: scenario.subCategory || null,
-            cutoffs: scenario.cutoffs,
-          })),
-          { onConflict: "benchmark_id,easyaim_scenario_id" }
-        );
-
-      if (upsertErr) throw upsertErr;
-
-      // Then drop the scenarios that are no longer attached.
-      const { error: deleteErr } = await supabaseAdmin
-        .from("benchmark_scenarios")
-        .delete()
-        .eq("benchmark_id", id)
-        .not(
-          "easyaim_scenario_id",
-          "in",
-          `(${scenarios.map((s) => s.easyaimScenarioId).join(",")})`
-        );
-
-      if (deleteErr) throw deleteErr;
-
-      if (scenarioSetChanged) {
-        await resetLinkedAccountsBackfill();
-      }
-
-      // Editing cutoffs or the rank ladder changes what the author's rank
-      // should be, with no PB change to trigger a sync. Recompute it now so
-      // the benchmark they just saved shows the right rank.
-      await recordAggregateFor(accountId, id);
-    }
-
-    return NextResponse.json({ benchmark: updated }, { status: 200 });
-  } catch (err) {
-    console.error("UPDATE BENCHMARK ERROR:", err);
-    return NextResponse.json({ error: "Failed to update benchmark" }, { status: 500 });
-  }
+    // Scenarios are NOT handled here. They belong to a tier, so this route has
+    // no idea which tier the caller means and must not guess Ã¢â‚¬â€ a benchmark-wide
+    // rewrite would delete every tier's scenarios. The tier endpoint owns them
+    // and takes a tierId.
+    //
+    // A sub-category typed into the edit form that isn't in category_defs yet
+    // gets folded in, so the detail table's rail can render it.
+    const categoryDefs = category_defs
+      ? sanitizeCategoryDefs(category_defs) ?? undefined
+      : undefined;
+
+    const { data: updated, error: updateErr } = await supabaseAdmin
+      .from("benchmarks")
+      .update({
+        ...(title !== undefined ? { title } : {}),
+        ...(description !== undefined ? { description } : {}),
+        ...(difficulty !== undefined ? { difficulty } : {}),
+        ...(platform !== undefined ? { platform } : {}),
+        ...(rank_thresholds !== undefined ? { rank_thresholds } : {}),
+        ...(categoryDefs !== undefined ? { category_defs: categoryDefs } : {}),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", id)
+      .select()
+      .single();
+
+    if (updateErr) throw updateErr;
+
+    // The card's scenario count spans every tier, so it is recomputed rather
+    // than taken from one tier's list.
+    const { count } = await supabaseAdmin
+      .from("benchmark_scenarios")
+      .select("id", { count: "exact", head: true })
+      .eq("benchmark_id", id);
+
+    if (typeof count === "number" && count !== updated.scenario_count) {
+      await supabaseAdmin
+        .from("benchmarks")
+        .update({ scenario_count: count })
+        .eq("id", id);
+    }
+
+    // A scenario appearing or disappearing changes which personal bests count,
+    // so linked players get one re-scan. Only when the total actually moved.
+    const changed = typeof count === "number" && count !== updated.scenario_count;
+
+    if (changed) {
+      await resetLinkedAccountsBackfill();
+    }
+
+    return NextResponse.json({ benchmark: updated }, { status: 200 });
+  } catch (err) {
+    console.error("UPDATE BENCHMARK ERROR:", err);
+    return NextResponse.json({ error: "Failed to update benchmark" }, { status: 500 });
+  }
 }
 
 export async function GET(
@@ -168,59 +106,39 @@ export async function GET(
     const { id } = await params;
     const accountId = await getSessionAccountId();
 
-    // The benchmark id comes from the URL, so the scenarios are knowable
-    // before the benchmark row arrives. Only the not-found branch needs the
-    // benchmark first, and a 404 is cheap enough to gate on.
-    const [benchmarkResult, scenarioResult, tiers] = await Promise.all([
-      supabaseAdmin
-        .from("benchmarks")
-        .select("*")
-        .eq("id", id)
-        .maybeSingle(),
+    // Keyed by benchmark id, so neither the benchmark row nor the scenarios
+    // have to be waited on. A 404 is cheap enough to gate on afterwards.
+    const [benchmarkResult, tiers] = await Promise.all([
+      supabaseAdmin.from("benchmarks").select("*").eq("id", id).maybeSingle(),
 
-      supabaseAdmin
-        .from("benchmark_scenarios")
-        .select("id, easyaim_scenario_id, title, position, category, sub_category, cutoffs")
-        .eq("benchmark_id", id)
-        .order("position", { ascending: true }),
-
-      // Keyed by benchmark id, so this does not have to wait for the benchmark
-      // row. The edit page needs the whole ladder list to render its tabs.
+      // The edit page needs the whole ladder list to render its tier tabs.
       loadTiers(id),
     ]);
 
     const benchmark = benchmarkResult.data;
-    const error = benchmarkResult.error;
 
-    if (error) throw error;
+    if (benchmarkResult.error) throw benchmarkResult.error;
 
     if (!benchmark) {
-      return NextResponse.json(
-        { error: "Benchmark not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "Benchmark not found" }, { status: 404 });
     }
 
-    const scenarioRows = scenarioResult.data;
-    const scenariosError = scenarioResult.error;
+    // Which tier the caller is editing. Defaults to the first, so the edit page
+    // opens on something rather than on an empty form.
+    const wanted = new URL(request.url).searchParams.get("tier");
+    const tier = tiers.find((t) => t.slug === wanted) ?? tiers[0] ?? null;
 
-    if (scenariosError) throw scenariosError;
+    // Scenarios belong to a tier, so this is the tier's own list. Empty when
+    // the database has no tier tables, which the page reports rather than
+    // rendering an empty ladder.
+    const scenarioRows = tier ? await loadTierScenarios(tier.id) : [];
 
-    const scenarios = (scenarioRows || []) as {
-      id: string;
-      easyaim_scenario_id: number;
-      title: string;
-      position: number;
-      cutoffs: Record<string, number>;
-    }[];
-
-    // Attach the logged-in user's best known score (PB) for each scenario.
     // Keyed by account, so it does not need to wait for the scenarios.
+    const pbMap = new Map<string, number>();
+
     if (accountId) {
       const scenarioIds = new Set(
-        (scenarios as { easyaim_scenario_id: number }[]).map(
-          (s) => Number(s.easyaim_scenario_id)
-        )
+        scenarioRows.map((s) => String(s.easyaim_scenario_id))
       );
 
       const { data: pbRows } = await supabaseAdmin
@@ -228,51 +146,40 @@ export async function GET(
         .select("scenario_id, score")
         .eq("account_id", accountId);
 
-      const pbMap = new Map<number, number>();
-      for (const row of pbRows || []) {
-        const pb = row as { scenario_id: number; score: number };
-        if (scenarioIds.has(Number(pb.scenario_id))) {
-          pbMap.set(Number(pb.scenario_id), pb.score);
+      for (const row of (pbRows ?? []) as { scenario_id: string; score: number }[]) {
+        if (scenarioIds.has(String(row.scenario_id))) {
+          pbMap.set(String(row.scenario_id), row.score);
         }
-      }
-
-      for (const scenario of scenarios as (typeof scenarios[number] & {
-        best_score?: number;
-      })[]) {
-        scenario.best_score = pbMap.get(scenario.easyaim_scenario_id) ?? 0;
       }
     }
 
-    // The tier the caller asked to edit, with its cutoffs. Absent when the
-    // database has no tier tables, which the page reports rather than
-    // rendering an empty ladder.
-    const tierSlug = new URL(request.url).searchParams.get("tier");
-    const tier = tiers.find((t) => t.slug === tierSlug) ?? tiers[0] ?? null;
-    const tierCutoffs = tier ? await loadTierCutoffs(tier.id) : null;
-
-    const scenariosWithTierCutoffs = tierCutoffs
-      ? scenarios.map((scenario) => ({
-          ...scenario,
-          cutoffs: tierCutoffs.get(String(scenario.easyaim_scenario_id)) ?? {},
-        }))
-      : scenarios;
+    const scenarios = scenarioRows.map((row) => ({
+      id: row.id,
+      easyaim_scenario_id: String(row.easyaim_scenario_id),
+      title: row.title,
+      position: row.position,
+      category: row.category || "Other",
+      sub_category: row.sub_category || "",
+      cutoffs: row.cutoffs ?? {},
+      best_score: pbMap.get(String(row.easyaim_scenario_id)) ?? 0,
+    }));
 
     return NextResponse.json({
       benchmark,
-      // The edit page used to fetch this, then immediately fetch
-      // /api/session to find out who it was — two round trips to learn
-      // something this request already knows.
+      // The edit page used to fetch this, then immediately fetch /api/session to
+      // find out who it was — two round trips to learn something this request
+      // already knows.
       //
-      // A boolean rather than the account id: the client only ever needs
-      // "is this mine?", and answering that does not mean handing the
-      // caller a durable identifier it has no use for.
+      // A boolean rather than the account id: the client only ever needs "is
+      // this mine?", and answering that does not mean handing the caller a
+      // durable identifier it has no use for.
       loggedIn: Boolean(accountId),
       isOwner:
         Boolean(accountId) &&
         (benchmark as { user_id: string | null }).user_id === accountId,
       tiers,
       tierSlug: tier?.slug ?? null,
-      scenarios: scenariosWithTierCutoffs,
+      scenarios,
     });
   } catch (error) {
     console.error("BENCHMARK DETAIL ERROR:", error);

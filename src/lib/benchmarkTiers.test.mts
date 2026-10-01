@@ -9,6 +9,8 @@ import {
   slugifyTierName,
   orderTiers,
   primaryTier,
+  primaryTierIds,
+  scenariosInPrimaryTiers,
   tierLabel,
   type Tier,
 } from "./benchmarkTiers.ts";
@@ -228,6 +230,67 @@ test("two tiers at the same position order by name, so the switcher is stable", 
 
 test("a benchmark with no tiers has no primary", () => {
   assert.equal(primaryTier([]), null);
+});
+
+// ------------------------------------------------- primary-tier scoping
+
+test("only the first tier's scenarios count towards a benchmark", () => {
+  // The bug this prevents: scenarios belong to a tier, so a benchmark with
+  // three tiers has three times the rows. Summing them all added a player's
+  // Novice score to their Elite score and called the total neither — a card
+  // and a leaderboard row both wrong, silently.
+  const tiers = [
+    { id: "t-novice", benchmark_id: "b1", slug: "novice", position: 0, name: "Novice" },
+    { id: "t-elite", benchmark_id: "b1", slug: "elite", position: 1, name: "Elite" },
+  ];
+
+  const scenarios = [
+    { benchmark_id: "b1", tier_id: "t-novice" },
+    { benchmark_id: "b1", tier_id: "t-elite" },
+    { benchmark_id: "b1", tier_id: "t-elite" },
+  ];
+
+  const kept = scenariosInPrimaryTiers(scenarios, primaryTierIds(tiers));
+
+  assert.equal(kept.length, 1);
+  assert.equal(kept[0].tier_id, "t-novice");
+});
+
+test("each benchmark gets its own primary tier", () => {
+  const ids = primaryTierIds([
+    { id: "t-a", benchmark_id: "b1", slug: "a", position: 0, name: "A" },
+    { id: "t-b", benchmark_id: "b1", slug: "b", position: 1, name: "B" },
+    { id: "t-c", benchmark_id: "b2", slug: "c", position: 0, name: "C" },
+    { id: "t-d", benchmark_id: "b2", slug: "d", position: 1, name: "D" },
+  ]);
+
+  assert.deepEqual([...ids].sort(), ["t-a", "t-c"]);
+});
+
+test("tier order, not array order, decides which is primary", () => {
+  const ids = primaryTierIds([
+    { id: "second", benchmark_id: "b1", slug: "s", position: 1, name: "Second" },
+    { id: "first", benchmark_id: "b1", slug: "f", position: 0, name: "First" },
+  ]);
+
+  assert.deepEqual([...ids], ["first"]);
+});
+
+test("scenarios with no tier are kept, not dropped", () => {
+  // A database that has not had the tier block run still has rows. Dropping
+  // them would empty every card rather than showing one honest one.
+  const kept = scenariosInPrimaryTiers(
+    [{ benchmark_id: "b1", tier_id: null }],
+    new Set(["some-other-tier"])
+  );
+
+  assert.equal(kept.length, 1);
+});
+
+test("with no tiers at all, every scenario is kept", () => {
+  const scenarios = [{ benchmark_id: "b1", tier_id: "x" }];
+
+  assert.equal(scenariosInPrimaryTiers(scenarios, new Set()).length, 1);
 });
 
 test("the primary tier is the first one in switcher order", () => {

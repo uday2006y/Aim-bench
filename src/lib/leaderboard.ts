@@ -2,6 +2,12 @@ import "server-only";
 
 import { supabaseAdmin } from "./supabaseAdmin";
 import { computeAggregates, type RankSource, type ScenarioCutoffs } from "./aggregates";
+import {
+  primaryTierIds,
+  scenariosInPrimaryTiers,
+  type TierRef,
+} from "./benchmarkTiers";
+import { loadAllTierRefs } from "./tiers";
 
 /**
  * Guard on the personal-bests read.
@@ -76,7 +82,7 @@ interface BenchmarkRow extends RankSource {
 export async function buildLeaderboard(
   benchmarkId?: string | null
 ): Promise<LeaderboardResult> {
-  const [accountResult, benchmarkResult, scenarioResult, pbResult] =
+  const [accountResult, benchmarkResult, scenarioResult, tierRefs, pbResult] =
     await Promise.all([
       supabaseAdmin.from("accounts").select("id, username, profiles(display_name)"),
 
@@ -92,8 +98,13 @@ export async function buildLeaderboard(
 
       supabaseAdmin
         .from("benchmark_scenarios")
-        .select("benchmark_id, easyaim_scenario_id, cutoffs")
+        .select("benchmark_id, tier_id, easyaim_scenario_id, cutoffs")
         .limit(5000),
+
+      // Tier ids for every benchmark, so the scenario rows above can be
+      // narrowed to each benchmark's first tier. The board describes a
+      // benchmark, and a benchmark's score is its first tier's score.
+      loadAllTierRefs(),
 
       supabaseAdmin
         .from("easyaim_pbs")
@@ -122,7 +133,17 @@ export async function buildLeaderboard(
   }
 
   const benchmarks = (benchmarkResult.data || []) as BenchmarkRow[];
-  const scenarios = (scenarioResult.data || []) as unknown as ScenarioCutoffs[];
+
+  // Scenarios belong to a tier, so a benchmark with three tiers has three
+  // times the rows. Summing them all would add a player's Novice score to their
+  // Elite score and call the total neither.
+  const scenarios = scenariosInPrimaryTiers(
+    (scenarioResult.data || []) as unknown as (ScenarioCutoffs & {
+      tier_id: string | null;
+    })[],
+    primaryTierIds((tierRefs || []) as TierRef[])
+  );
+
   const accounts = (accountResult.data || []) as unknown as AccountRow[];
 
   // One map of account -> scenario -> { score, achieved_at }, reused for

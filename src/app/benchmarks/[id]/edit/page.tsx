@@ -85,7 +85,7 @@ export default function EditBenchmarkPage({ params }: { params: Promise<{ id: st
   const [newTierName, setNewTierName] = useState("");
   const [tierBusy, setTierBusy] = useState(false);
 
-  // Search responses can arrive out of order — a slow request for "eas"
+  // Search responses can arrive out of order Ã¢â‚¬â€ a slow request for "eas"
   // landing after a fast one for "easyaim" would replace the newer results
   // with the older ones. Only the most recent request is allowed to write.
   const searchRequest = useRef(0);
@@ -95,7 +95,7 @@ export default function EditBenchmarkPage({ params }: { params: Promise<{ id: st
 
   useEffect(() => {
     if (loadError || notFound) {
-      document.title = "Benchmark not found — AIMBENCH";
+      document.title = "Benchmark not found Ã¢â‚¬â€ AIMBENCH";
     }
   }, [loadError, notFound]);
 
@@ -157,7 +157,7 @@ export default function EditBenchmarkPage({ params }: { params: Promise<{ id: st
         // form kept its hardcoded 8-rank default on every page load, so
         // removing a rank and saving appeared to work (the detail page showed
         // the shortened ladder) but the next visit showed the deleted rank
-        // again — and saving from that state re-added it.
+        // again Ã¢â‚¬â€ and saving from that state re-added it.
         setTiers(Array.isArray(data.tiers) ? data.tiers : []);
         setActiveSlug(typeof data.tierSlug === "string" ? data.tierSlug : null);
 
@@ -436,7 +436,7 @@ export default function EditBenchmarkPage({ params }: { params: Promise<{ id: st
 
     // Cutoffs are keyed by rank name, so the rename has to take them with
     // it. This used to only rename the rank, which left every scenario's
-    // requirement filed under a name no rank matched — the tier became
+    // requirement filed under a name no rank matched Ã¢â‚¬â€ the tier became
     // unreachable and every score below it wrong, silently, on save.
     setScenarios((prev) =>
       prev.map((s) => ({ ...s, cutoffs: renameCutoffKey(s.cutoffs, oldName, newName) }))
@@ -596,12 +596,9 @@ export default function EditBenchmarkPage({ params }: { params: Promise<{ id: st
         difficulty,
         platform,
         category_defs: categories,
-        scenarios: scenarios.map((s) => ({
-          id: s.id,
-          title: s.title,
-          category: s.category || "Other",
-          subCategory: s.subCategory || "",
-        })),
+        // Scenarios are NOT sent here. They belong to a tier and this route
+        // does not know which tier is meant; the tier endpoint owns them.
+        // Sending them anyway used to rewrite the benchmark-wide list.
       };
 
       const res = await fetch(`/api/benchmarks/${id}`, {
@@ -630,8 +627,14 @@ export default function EditBenchmarkPage({ params }: { params: Promise<{ id: st
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             tierId: activeTier.id,
-            cutoffs: scenarios.map((s) => ({
+            // The tier's whole scenario list: which scenarios it has, the
+            // category each is filed under, and the score required for each
+            // rank. One write, because they are one thing — a tier.
+            scenarios: scenarios.map((s) => ({
               id: s.id,
+              title: s.title,
+              category: s.category || "Other",
+              subCategory: s.subCategory || "",
               cutoffs: Object.fromEntries(
                 Object.entries(s.cutoffs).filter(
                   ([, v]) => v !== undefined && v !== ""
@@ -643,7 +646,9 @@ export default function EditBenchmarkPage({ params }: { params: Promise<{ id: st
 
         if (!tierRes.ok) {
           const data = await tierRes.json();
-          throw new Error(data.error || "Benchmark saved, but its tier was not");
+          throw new Error(
+            data.error || "Benchmark saved, but this tier's scenarios were not"
+          );
         }
 
         const patchRes = await fetch(`/api/benchmarks/${id}/tiers`, {
@@ -676,7 +681,7 @@ export default function EditBenchmarkPage({ params }: { params: Promise<{ id: st
 
   // Previously the load-failure paths set notFound but nothing rendered it,
   // so a deleted benchmark or a non-owner saw a blank edit form that looked
-  // like a brand new benchmark — and saving it would have overwritten
+  // like a brand new benchmark Ã¢â‚¬â€ and saving it would have overwritten
   // whatever was actually there.
   if (notFound || !isOwner) {
     return (
@@ -712,7 +717,7 @@ export default function EditBenchmarkPage({ params }: { params: Promise<{ id: st
       <SiteHeader loggedIn width="max-w-3xl" />
 
       <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6 sm:py-12">
-        <Link href={`/benchmarks/${id}`} className="text-sm text-zinc-500 hover:text-white mb-6 inline-block">← Back</Link>
+        <Link href={`/benchmarks/${id}`} className="text-sm text-zinc-500 hover:text-white mb-6 inline-block">Ã¢â€ Â Back</Link>
         <h1 className="text-3xl font-bold tracking-tight">Edit Benchmark</h1>
 
         <form onSubmit={handleSave} className="mt-8 space-y-6">
@@ -938,7 +943,7 @@ export default function EditBenchmarkPage({ params }: { params: Promise<{ id: st
                   list="add-sub-options"
                   value={addTargetSubCategory}
                   onChange={(e) => setAddTargetSubCategory(e.target.value)}
-                  placeholder="—"
+                  placeholder="Ã¢â‚¬â€"
                   className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-2 py-1.5 text-xs text-white outline-none placeholder:text-zinc-600 focus:border-zinc-500"
                 />
                 <datalist id="add-sub-options">
@@ -952,7 +957,7 @@ export default function EditBenchmarkPage({ params }: { params: Promise<{ id: st
                 {addTargetSubCategory.trim()
                   ? ` / ${addTargetSubCategory.trim()}`
                   : ""}
-                {" · new scenarios go here. You can change it per scenario below."}
+                {" Ã‚Â· new scenarios go here. You can change it per scenario below."}
               </p>
             </div>
 
@@ -968,7 +973,7 @@ export default function EditBenchmarkPage({ params }: { params: Promise<{ id: st
                       {addTargetSubCategory.trim()
                         ? ` / ${addTargetSubCategory.trim()}`
                         : ""}
-                      {r.author ? ` · by ${r.author}` : ""}
+                      {r.author ? ` Ã‚Â· by ${r.author}` : ""}
                     </span>
                   </button>
                 ))}
@@ -1025,7 +1030,7 @@ export default function EditBenchmarkPage({ params }: { params: Promise<{ id: st
                         list={`sub-options-${idx}`}
                         value={scenario.subCategory}
                         onChange={(e) => updateScenarioSubCategory(idx, e.target.value)}
-                        placeholder="—"
+                        placeholder="Ã¢â‚¬â€"
                         className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-2 py-1.5 text-xs text-white outline-none placeholder:text-zinc-600 focus:border-zinc-500"
                       />
                       <datalist id={`sub-options-${idx}`}>
@@ -1047,7 +1052,7 @@ export default function EditBenchmarkPage({ params }: { params: Promise<{ id: st
                           min="0"
                           value={scenario.cutoffs[rankDef.name] ?? ""}
                           onChange={(e) => updateCutoff(idx, rankDef.name, e.target.value)}
-                          placeholder="—"
+                          placeholder="Ã¢â‚¬â€"
                           className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-2 py-1.5 text-xs text-white outline-none placeholder:text-zinc-600 focus:border-zinc-500"
                         />
                       </div>

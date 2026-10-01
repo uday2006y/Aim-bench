@@ -15,7 +15,18 @@ export interface ScenarioInput {
   category: string;
   subCategory: string;
   cutoffs: Record<string, number>;
+  /**
+   * Which tier owns this scenario. A scenario belongs to a tier rather than to
+   * the benchmark, because Novice and Elite are different pages with different
+   * scenario sets — not one page with different numbers on it.
+   */
+  tierSlug: string;
+  /** Order within its tier, renumbered by groupScenariosByTier. */
+  position: number;
 }
+
+/** A scenario as a form sends it, before validation. Same shape, clearer name. */
+export type TierScenarioInput = ScenarioInput;
 
 export interface CategoryDef {
   name: string;
@@ -49,7 +60,65 @@ const MAX_NAME_LENGTH = 100;
  * as a requirement of zero, which every scenario passes, so an untouched rank
  * would become reachable while the page said it was not.
  */
-export function sanitizeScenarios(input: unknown): ScenarioInput[] {
+/** Slug used when a scenario arrives without saying which tier it is for. */
+export const DEFAULT_TIER_SLUG = "primary";
+
+/**
+ * The url segment for a tier name.
+ *
+ * Duplicated from benchmarkTiers.ts on purpose: benchmarkScenarios cannot
+ * import from it, because benchmarkTiers imports its defaults from
+ * benchmarkDefaults and the test runner resolves these by explicit extension.
+ * One implementation, one note — if the rules ever diverge, this is the place
+ * it will show.
+ */
+function slugifyTierName(input: string): string {
+  return input
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 48)
+    .replace(/-+$/g, "");
+}
+
+/**
+ * Groups a sanitised scenario list by the tier each one belongs to.
+ *
+ * A scenario is owned by a tier, not by the benchmark. Novice and Elite are
+ * different pages with different scenario sets, not one page with different
+ * numbers on it, and that is the whole reason tiers exist.
+ *
+ * Anything without a usable slug falls to `primary`, so a caller not yet
+ * updated for tiers still produces a working benchmark rather than one whose
+ * scenarios appear on no page at all.
+ *
+ * Positions are renumbered per tier: a shared counter would leave tier two
+ * starting at 5, and the table orders by position, so its rows would sort
+ * after rows that do not exist.
+ */
+export function groupScenariosByTier(
+  input: unknown
+): Map<string, TierScenarioInput[]> {
+  const grouped = new Map<string, TierScenarioInput[]>();
+
+  for (const scenario of sanitizeScenarios(input)) {
+    const list = grouped.get(scenario.tierSlug) ?? [];
+    list.push(scenario);
+    grouped.set(scenario.tierSlug, list);
+  }
+
+  for (const [slug, list] of grouped) {
+    grouped.set(
+      slug,
+      list.map((scenario, index) => ({ ...scenario, position: index }))
+    );
+  }
+
+  return grouped;
+}
+
+export function sanitizeScenarios(input: unknown): TierScenarioInput[] {
   if (!Array.isArray(input)) return [];
 
   const scenarios: ScenarioInput[] = [];
@@ -66,6 +135,7 @@ export function sanitizeScenarios(input: unknown): ScenarioInput[] {
       category?: unknown;
       subCategory?: unknown;
       sub_category?: unknown;
+      tierSlug?: unknown;
     };
 
     // Accept either shape so the same helper serves the create form
@@ -154,12 +224,19 @@ export function sanitizeScenarios(input: unknown): ScenarioInput[] {
         ? rawSubCategory.trim().slice(0, MAX_NAME_LENGTH)
         : "";
 
+    const rawTierSlug = (record as { tierSlug?: unknown }).tierSlug;
+
     scenarios.push({
       easyaimScenarioId: key,
       title,
       category,
       subCategory,
       cutoffs,
+      tierSlug:
+        typeof rawTierSlug === "string"
+          ? slugifyTierName(rawTierSlug) || DEFAULT_TIER_SLUG
+          : DEFAULT_TIER_SLUG,
+      position: scenarios.length,
     });
   }
 

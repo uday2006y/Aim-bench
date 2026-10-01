@@ -3,18 +3,15 @@ import { notFound } from "next/navigation";
 
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getSessionAccountId } from "@/lib/session";
-import { loadTierCutoffs, loadTiers } from "@/lib/tiers";
+import { loadTierScenarios, loadTiers } from "@/lib/tiers";
 import { loadViewerPins } from "@/lib/pins";
 import BenchmarkClient from "../BenchmarkClient";
 
 /**
- * One tier of a benchmark: the scenarios, scored against this tier's ladder.
+ * One tier of a benchmark: its scenarios, scored against its own ladder.
  *
- * The scenario list is shared across tiers ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â a tier is a different set of
- * requirements, not a different set of scenarios ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â so this reads the
- * benchmark's scenarios once and swaps in the tier's cutoffs. That also means
- * the aggregate walk is unchanged: it is handed cutoffs keyed by scenario and
- * told which ladder to walk, exactly as before.
+ * A tier owns its scenarios, so there is no benchmark-wide list to filter —
+ * this reads the tier's rows and that is the page.
  */
 export default async function BenchmarkTierPage({
   params,
@@ -23,15 +20,13 @@ export default async function BenchmarkTierPage({
 }) {
   const { id, tier: tierSlug } = await params;
 
-  // The tiers list is needed twice ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â once to find this one, once for the
-  // switcher ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â and both are knowable from the benchmark id, so they go out
+  // The tier list is needed twice — once to find this one, once for the
+  // switcher — and both are knowable from the benchmark id, so they go out
   // together with the session read rather than in sequence.
   const [tiers, accountId] = await Promise.all([
     loadTiers(id),
     getSessionAccountId(),
   ]);
-
-  const tier = tiers.find((candidate) => candidate.slug === tierSlug);
 
   // No tiers at all means a database that has not had the tier block run.
   // Say so plainly: the alternative is a table with no columns and no
@@ -40,20 +35,16 @@ export default async function BenchmarkTierPage({
     return <TiersNotInstalled />;
   }
 
+  const tier = tiers.find((candidate) => candidate.slug === tierSlug);
+
   if (!tier) {
     notFound();
   }
 
-  const [benchmarkResult, scenarioResult, cutoffs, myPins] = await Promise.all([
+  const [benchmarkResult, scenarioRows, myPins] = await Promise.all([
     supabaseAdmin.from("benchmarks").select("*").eq("id", id).maybeSingle(),
 
-    supabaseAdmin
-      .from("benchmark_scenarios")
-      .select("id, easyaim_scenario_id, title, position, category, sub_category")
-      .eq("benchmark_id", id)
-      .order("position", { ascending: true }),
-
-    loadTierCutoffs(tier.id),
+    loadTierScenarios(tier.id),
 
     loadViewerPins(accountId),
   ]);
@@ -66,7 +57,7 @@ export default async function BenchmarkTierPage({
         <div className="mx-auto flex max-w-xl flex-col items-center px-6 py-24 text-center">
           <p className="text-zinc-400">Benchmark not found.</p>
           <Link href="/benchmarks" className="mt-4 text-sm hover:underline">
-            ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â Back to benchmarks
+            ← Back to benchmarks
           </Link>
         </div>
       </main>
@@ -74,7 +65,7 @@ export default async function BenchmarkTierPage({
   }
 
   const scenarioIds = new Set(
-    (scenarioResult.data ?? []).map((s) => String(s.easyaim_scenario_id))
+    scenarioRows.map((s) => String(s.easyaim_scenario_id))
   );
 
   // Bests are keyed by account, so this does not have to wait for the
@@ -87,21 +78,20 @@ export default async function BenchmarkTierPage({
     : null;
 
   const pbMap = new Map<string, number>();
-  for (const row of (pbResult?.data ?? []) as { scenario_id: number; score: number }[]) {
+  for (const row of (pbResult?.data ?? []) as { scenario_id: string; score: number }[]) {
     if (scenarioIds.has(String(row.scenario_id))) {
       pbMap.set(String(row.scenario_id), row.score);
     }
   }
 
-  const scenarios = ((scenarioResult.data ?? []) as ScenarioRow[]).map((s) => ({
+  const scenarios = scenarioRows.map((s) => ({
     id: s.id,
-    easyaim_scenario_id: s.easyaim_scenario_id,
+    easyaim_scenario_id: String(s.easyaim_scenario_id),
     title: s.title,
     position: s.position,
     category: s.category || "Other",
     sub_category: s.sub_category || "",
-    // This tier's requirements, not the benchmark's default set.
-    cutoffs: cutoffs.get(String(s.easyaim_scenario_id)) ?? {},
+    cutoffs: s.cutoffs || {},
     best_score: pbMap.get(String(s.easyaim_scenario_id)) ?? 0,
   }));
 
@@ -123,15 +113,6 @@ export default async function BenchmarkTierPage({
   );
 }
 
-interface ScenarioRow {
-  id: string;
-  easyaim_scenario_id: string;
-  title: string;
-  position: number;
-  category: string | null;
-  sub_category: string | null;
-}
-
 function TiersNotInstalled() {
   return (
     <main className="min-h-screen bg-app text-white">
@@ -141,8 +122,8 @@ function TiersNotInstalled() {
           This benchmark has no tiers, which means the tier tables have not been
           created on the database yet. Run the tier block at the bottom of{" "}
           <code className="font-mono text-xs text-zinc-300">supabase-final.sql</code>{" "}
-          and reload ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â it creates the tables and gives every existing benchmark
-          a default tier from the ladder it already has.
+          and reload — it creates the tables, gives every existing benchmark a
+          default tier, and hands its existing scenarios to that tier.
         </p>
         <Link
           href="/benchmarks"

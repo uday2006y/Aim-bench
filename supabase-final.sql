@@ -291,33 +291,34 @@ alter table public.benchmark_tiers enable row level security;
 
 -- benchmark_tiers: no policies = server-only (service role).
 
--- Cutoffs per tier per scenario. Kept out of benchmark_scenarios so the
--- scenario list stays shared and adding a tier is a row per scenario rather
--- than a copy of the whole list.
-create table if not exists public.benchmark_tier_cutoffs (
-  tier_id uuid references public.benchmark_tiers(id) on delete cascade not null,
-  easyaim_scenario_id text not null,
-  cutoffs jsonb not null default '{}'::jsonb,
-  primary key (tier_id, easyaim_scenario_id)
-);
+-- Cutoffs per tier per scenario used to live here, in a side table, on the
+-- theory that the scenario list would be shared between tiers. It is not:
+-- a tier has its own scenarios, its own category for each one, and its own
+-- requirements, which is the whole point of Novice and Elite being different
+-- pages. Two owners for one scenario list meant every read had to join and
+-- every write had to decide which side was authoritative.
+--
+-- Scenarios now belong to a tier, so their cutoffs live on the row again.
+-- Dropped rather than left empty: a table nothing reads is worse than no
+-- table, because it looks like the feature is implemented somewhere.
+drop table if exists public.benchmark_tier_cutoffs;
 
-create index if not exists benchmark_tier_cutoffs_scenario_idx
-  on public.benchmark_tier_cutoffs (easyaim_scenario_id);
+-- ------------------------------------------------------------
+-- Scenarios belong to a tier, not to the benchmark.
+-- ------------------------------------------------------------
+-- Adding tier_id is what makes each tier a real page rather than the same page
+-- with different numbers on it. Before this, every tier showed every scenario,
+-- so two tiers could only differ by their cutoffs — you could not make Elite
+-- use a harder scenario set than Novice, which is the obvious thing to want.
+alter table public.benchmark_scenarios
+  add column if not exists tier_id uuid references public.benchmark_tiers(id) on delete cascade;
 
-alter table public.benchmark_tier_cutoffs enable row level security;
+create index if not exists benchmark_scenarios_tier_idx
+  on public.benchmark_scenarios (tier_id, position);
 
--- Column type must match benchmark_scenarios.easyaim_scenario_id, which the
--- type block above this one has already moved to text. Declaring it bigint
--- here made the seed insert below fail with
---   42804: column "easyaim_scenario_id" is of type bigint but expression is
---   of type text
--- and, worse, the create ran before the insert, so a re-run needed this to
--- repair a table that already existed with the wrong type. Idempotent either
--- way: a no-op on a fresh table, a repair on an existing one.
-alter table public.benchmark_tier_cutoffs
-  alter column easyaim_scenario_id type text using easyaim_scenario_id::text;
-
--- benchmark_tier_cutoffs: no policies = server-only (service role).
+-- Every existing scenario belongs to its benchmark's first tier. Done after the
+-- tier insert below so there is a tier to point at — see the note on ordering.
+alter table public.benchmark_scenarios enable row level security;
 
 -- ------------------------------------------------------------
 -- Give every existing benchmark one tier, built from what it already has.
@@ -340,14 +341,35 @@ where not exists (
   select 1 from public.benchmark_tiers t where t.benchmark_id = b.id
 );
 
--- Move each benchmark's existing cutoffs onto its new primary tier. Done after
--- the insert above so tier_id exists.
-insert into public.benchmark_tier_cutoffs
-  (tier_id, easyaim_scenario_id, cutoffs)
-select
-  t.id,
-  bs.easyaim_scenario_id,
-  coalesce(bs.cutoffs, '{}'::jsonb)
-from public.benchmark_scenarios bs
-join public.benchmark_tiers t on t.benchmark_id = bs.benchmark_id
-on conflict (tier_id, easyaim_scenario_id) do nothing;
+-- Now that a tier exists for every benchmark, hand each existing scenario to
+-- its benchmark's first tier. Without this every scenario has a null tier_id,
+-- belongs to no tier, and appears on no page at all.
+update public.benchmark_scenarios bs
+set tier_id = t.id
+from public.benchmark_tiers t
+where bs.tier_id is null
+  and t.benchmark_id = bs.benchmark_id
+  and t.slug = 'primary';
+
+-- The old unique constraint was (benchmark_id, easyaim_scenario_id), which
+-- says a scenario may appear once per benchmark. It now may appear once per
+-- tier — Novice and Elite are both allowed to use scenario 2683 — so the
+-- constraint has to move with it or the second tier cannot be built.
+alter table public.benchmark_scenarios
+  drop constraint if exists benchmark_scenarios_benchmark_id_easyaim_scenario_id_key;
+
+alter table public.benchmark_scenarios
+  drop constraint if exists benchmark_scenarios_pkey;
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conrelid = 'public.benchmark_scenarios'::regclass
+      and contype = 'u'
+  ) then
+    alter table public.benchmark_scenarios
+      add constraint benchmark_scenarios_tier_scenario_key
+      unique (tier_id, easyaim_scenario_id);
+  end if;
+end $$;
