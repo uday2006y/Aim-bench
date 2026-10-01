@@ -12,7 +12,7 @@
   /* rgb(79 79 79). Set here rather than per-component so every surface
      bound to --bg (body, bg-app, the benchmark shells) moves together;
      changing them individually is how the palette drifts apart. */
-  --bg: #4f4f4f;
+  --bg: #292929;
   --surface: #111111;
   --surface-raised: #0d0d0f;
   --accent: #b9f2fe;
