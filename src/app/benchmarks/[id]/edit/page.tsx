@@ -651,6 +651,31 @@ export default function EditBenchmarkPage({ params }: { params: Promise<{ id: st
           ranks.map((r) => r.color)
         );
 
+        // The LADDER goes first, deliberately.
+        //
+        // These two writes used to run scenarios-then-ladder, so any failure in
+        // the first threw before the second ran. That is how deleting half the
+        // ranks appeared to do nothing: the ladder was never sent, and on reload
+        // every rank was back. The user's most deliberate edit silently vanished
+        // because an unrelated write failed first.
+        //
+        // Ladder first means a scenario failure can no longer discard it, and a
+        // scenario failure still surfaces as an error rather than a silent loss.
+        const patchRes = await fetch(`/api/benchmarks/${id}/tiers`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            tierId: activeTier.id,
+            rankNames: ladder.rank_names,
+            rankColors: ladder.rank_colors,
+          }),
+        });
+
+        if (!patchRes.ok) {
+          const data = await patchRes.json();
+          throw new Error(data.error || "Benchmark saved, but its ladder was not");
+        }
+
         const tierRes = await fetch(`/api/benchmarks/${id}/tiers`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
@@ -678,21 +703,6 @@ export default function EditBenchmarkPage({ params }: { params: Promise<{ id: st
           throw new Error(
             data.error || "Benchmark saved, but this tier's scenarios were not"
           );
-        }
-
-        const patchRes = await fetch(`/api/benchmarks/${id}/tiers`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            tierId: activeTier.id,
-            rankNames: ladder.rank_names,
-            rankColors: ladder.rank_colors,
-          }),
-        });
-
-        if (!patchRes.ok) {
-          const data = await patchRes.json();
-          throw new Error(data.error || "Benchmark saved, but its ladder was not");
         }
       }
 
