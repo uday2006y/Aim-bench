@@ -156,20 +156,14 @@ export async function syncEasyAimAccount(accountId: string): Promise<SyncResult>
 
   // 3. Best run per attached scenario across everything we just read.
   //
-  // EasyAim marks the authoritative personal best on the run itself with
-  // `best: true`. That flag is ground truth, so it wins whenever it appears.
+  // EasyAim exposes a `best` flag on each run. It is treated as a HINT that can
+  // only ever raise the pick, never lower it -- see the note at the write step
+  // below for why trusting it as authority cost real scores.
   //
-  // Inferring a best from a page window cannot be trusted: once a sync is
-  // caught up it only reads the newest runs, so a personal best set months ago
-  // may never appear in any window this process reads. Taking the maximum over
-  // what happened to be in range stored the highest RECENT run as the personal
-  // best -- which, for a player whose latest run was their worst, stored their
-  // last score and called it their best. That is the bug this fixes.
-  //
-  // The max is still computed and still applied. A run outside the fetched
-  // window can legitimately beat the flagged one, and older EasyAim data may
-  // predate the flag entirely. Taking whichever of the two is higher cannot be
-  // undone by a stale flag and cannot lose a real improvement.
+  // Taking the maximum over the fetched window remains the primary rule: a
+  // genuine improvement inside the window is always picked. The flag is merged
+  // in second, and only where it is higher, so it can surface a better run the
+  // window happened not to contain without ever displacing a better one it did.
   const flaggedBestByScenario = new Map<string, EasyAimRun>();
   const bestRunByScenario = new Map<string, EasyAimRun>();
 
@@ -191,6 +185,10 @@ export async function syncEasyAimAccount(accountId: string): Promise<SyncResult>
     }
   }
 
+  // A flagged run is only ever allowed to RAISE the pick, never to lower it.
+  // Merging it in unconditionally would let a flagged 95 replace a real 120
+  // picked from the window, which is the same corruption as above one step
+  // earlier in the pipeline.
   for (const [key, run] of flaggedBestByScenario) {
     const current = bestRunByScenario.get(key);
     if (!current || run.score > current.score) {
@@ -226,16 +224,20 @@ export async function syncEasyAimAccount(accountId: string): Promise<SyncResult>
     for (const [scenarioId, run] of bestRunByScenario) {
       const previous = storedPbs.get(scenarioId) ?? null;
 
-      // A PB only ever goes up, EXCEPT when this run is the one EasyAim itself
-      // marks as the personal best. That case has to be allowed to correct a
-      // wrong stored value, because the bug this guards against wrote a last-
-      // played score into the table and "never lower it" would preserve that
-      // mistake forever. The flag is authoritative precisely for this: if
-      // EasyAim says this run is the best and we hold something higher, the
-      // higher number is the error, not the flag.
-      const isFlaggedBest = run.best === true;
-
-      if (previous !== null && run.score <= previous && !isFlaggedBest) continue;
+      // A personal best NEVER goes down. Not even for a run EasyAim flags.
+      //
+      // An earlier version of this file exempted flagged runs from that rule, on
+      // the theory that the flag is authoritative and could correct a stored
+      // value that was too high. That was wrong and it destroyed real data: it
+      // let a flagged run scoring 95 overwrite a correct stored best of 120, so
+      // the leaderboard showed 95 for a player whose best was 120. Whatever
+      // `best` means on the EasyAim side, it is not safe to trust as authority
+      // over what we already hold -- it is only ever used to RAISE a PB.
+      //
+      // Repairing a genuinely wrong stored PB is a deliberate rebuild, not
+      // something a sync should do on its own: clearing easyaim_pbs and letting
+      // the backfill repopulate. Guessing here silently lowers real scores.
+      if (previous !== null && run.score <= previous) continue;
 
       changed.push({
         account_id: accountId,
