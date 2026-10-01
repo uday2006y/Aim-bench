@@ -152,6 +152,30 @@ export async function buildLeaderboard(
     });
   }
 
+  // Which scenarios belong to each benchmark, so "last improved" only
+  // counts the PBs that actually count toward that benchmark's score.
+  //
+  // Built once, above the account loop. It used to be rebuilt inside it,
+  // which made this section cost (accounts x scenarios) instead of
+  // scenarios — invisible with three players, quadratic with three hundred.
+  const scenarioIdsByBenchmark = new Map<string, Set<number>>();
+  for (const scenario of scenarios) {
+    let ids = scenarioIdsByBenchmark.get(scenario.benchmark_id);
+    if (!ids) {
+      ids = new Set();
+      scenarioIdsByBenchmark.set(scenario.benchmark_id, ids);
+    }
+    ids.add(Number(scenario.easyaim_scenario_id));
+  }
+
+  // The rank walk only needs the ladder columns, so project once rather than
+  // rebuilding an object per account.
+  const rankSources = benchmarks.map((b) => ({
+    id: b.id,
+    rank_names: b.rank_names,
+    rank_thresholds: b.rank_thresholds,
+  }));
+
   const entries: LeaderboardEntry[] = [];
 
   for (const account of accounts) {
@@ -161,28 +185,12 @@ export async function buildLeaderboard(
     // Every account is scored against every benchmark in scope. The walk
     // is pure and in-memory, so the cost is arithmetic rather than queries.
     const standings = computeAggregates(
-      benchmarks.map((b) => ({
-        id: b.id,
-        rank_names: b.rank_names,
-        rank_thresholds: b.rank_thresholds,
-      })),
+      rankSources,
       scenarios,
       // computeAggregates takes a plain score map; the timestamps are read
       // separately below.
       new Map(Array.from(pbs, ([id, value]) => [id, value.score]))
     );
-
-    // Which scenarios belong to each benchmark, so "last improved" only
-    // counts the PBs that actually count toward that benchmark's score.
-    const scenarioIdsByBenchmark = new Map<string, Set<number>>();
-    for (const scenario of scenarios) {
-      let ids = scenarioIdsByBenchmark.get(scenario.benchmark_id);
-      if (!ids) {
-        ids = new Set();
-        scenarioIdsByBenchmark.set(scenario.benchmark_id, ids);
-      }
-      ids.add(Number(scenario.easyaim_scenario_id));
-    }
 
     for (const benchmark of benchmarks) {
       const standing = standings.get(benchmark.id);

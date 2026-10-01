@@ -2,6 +2,7 @@ import "server-only";
 
 import { supabaseAdmin } from "./supabaseAdmin";
 import { getRunPage, type EasyAimRun } from "./easyaim";
+import { computeAggregates, type RankSource, type ScenarioCutoffs } from "./aggregates";
 
 const PAGE_SIZE = 25;
 const NEW_RUNS_MAX_PAGES = 4;
@@ -159,7 +160,7 @@ export async function syncEasyAimAccount(accountId: string): Promise<SyncResult>
   const newPbs: NewPb[] = [];
 
   // No early return on an empty scan. The PB diff below needs runs, but
-  // step 4 does not — it works off stored PBs, so a sync that scanned
+  // step 4 does not â€” it works off stored PBs, so a sync that scanned
   // nothing new still has to run, otherwise a benchmark whose scenarios
   // are all older than the scan window would never get a row.
   if (bestRunByScenario.size > 0) {
@@ -216,7 +217,7 @@ export async function syncEasyAimAccount(accountId: string): Promise<SyncResult>
   //    Keyed off easyaim_pbs, not off the runs we happened to scan this
   //    pass. Once a sync is caught up it only reads the newest page, so a
   //    benchmark attached to an older scenario would never be recomputed
-  //    and never get a row — the aggregate is derived from stored PBs, so
+  //    and never get a row â€” the aggregate is derived from stored PBs, so
   //    stored PBs are the right input. Union with the scenarios we just
   //    synced so a brand new PB is covered even before it lands.
   //
@@ -253,9 +254,14 @@ export async function syncEasyAimAccount(accountId: string): Promise<SyncResult>
 
   let benchmarksUpdated = 0;
 
-  for (const benchmarkId of affectedBenchmarks) {
-    const updated = await recordAggregateFor(accountId, benchmarkId);
-    if (updated) benchmarksUpdated += 1;
+  // One batched recompute for every affected benchmark rather than a loop
+  // of per-benchmark ones. The old shape awaited recordAggregateFor in a
+  // for-loop, and each of those did three sequential round trips of its
+  // own, so a player attached to ten benchmarks spent thirty sequential
+  // trips here. One benchmark read, one scenario read, one bests read, one
+  // history read, all in parallel, then arithmetic.
+  if (affectedBenchmarks.length > 0) {
+    benchmarksUpdated = await recordAggregatesFor(accountId, affectedBenchmarks);
   }
 
   return {
@@ -266,161 +272,161 @@ export async function syncEasyAimAccount(accountId: string): Promise<SyncResult>
   };
 }
 
-interface Aggregate {
-  score: number;
-  rank: string | null;
-  rankIndex: number | null;
-}
+/**
+ * How many benchmarks one recompute pass will look at.
+ *
+ * A player is realistically attached to a handful. The cap exists so a
+ * pathological link cannot turn one sync into an unbounded `in (...)` list,
+ * and it is logged when hit rather than silently truncating, because a
+ * silently dropped benchmark is a player whose rank quietly stops updating.
+ */
+const MAX_BENCHMARKS_PER_RECOMPUTE = 500;
 
 /**
- * Recomputes one account's standing on one benchmark from their stored
- * PBs, and appends a benchmark_scores row only if the value actually
- * moved. benchmark_scores is append-only history, so "only if it changed"
- * is what keeps a re-sync from piling up duplicate rows.
+ * Recomputes one account's standing on any number of benchmarks from their
+ * stored personal bests, and appends a benchmark_scores row only where the
+ * value actually moved.
  *
- * Safe to call repeatedly. Returns true when a row was written.
+ * benchmark_scores is append-only history, so "only if it changed" is what
+ * keeps a re-sync from piling up duplicate rows.
+ *
+ * Everything is read in one parallel batch and the ranks come from
+ * computeAggregates â€” the same walk the benchmark cards and the leaderboard
+ * use. This function used to carry its own copy of that walk, with a comment
+ * explaining that the two had to be kept in agreement. Two hand-written
+ * copies of a rule do not stay in agreement, and a card disagreeing with a
+ * synced history row is exactly the bug the whole refactor existed to
+ * remove. There is one implementation now and this calls it.
+ *
+ * Safe to call repeatedly. Returns how many rows were written.
  */
-export async function recordAggregateFor(
+export async function recordAggregatesFor(
   accountId: string,
-  benchmarkId: string
-): Promise<boolean> {
-  const aggregate = await recomputeBenchmarkAggregate(accountId, benchmarkId);
-  if (!aggregate) return false;
+  benchmarkIds: string[]
+): Promise<number> {
+  const ids = [...new Set(benchmarkIds)].slice(0, MAX_BENCHMARKS_PER_RECOMPUTE);
 
-  const { data: lastRow } = await supabaseAdmin
-    .from("benchmark_scores")
-    .select("score, rank, rank_index")
-    .eq("benchmark_id", benchmarkId)
-    .eq("user_id", accountId)
-    .order("completed_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  if (ids.length === 0) return 0;
 
-  const last = lastRow as
-    | { score: number; rank: string | null; rank_index: number | null }
-    | null;
+  const [benchmarkResult, scenarioResult, pbResult, historyResult] =
+    await Promise.all([
+      supabaseAdmin
+        .from("benchmarks")
+        .select("id, rank_names, rank_thresholds")
+        .in("id", ids),
 
-  if (
-    last &&
-    last.score === aggregate.score &&
-    last.rank === aggregate.rank &&
-    last.rank_index === aggregate.rankIndex
-  ) {
-    return false;
+      supabaseAdmin
+        .from("benchmark_scenarios")
+        .select("benchmark_id, easyaim_scenario_id, cutoffs")
+        .in("benchmark_id", ids),
+
+      // Keyed by account, so this does not have to wait for the scenarios.
+      supabaseAdmin
+        .from("easyaim_pbs")
+        .select("scenario_id, score")
+        .eq("account_id", accountId),
+
+      // Newest first, so the first row seen for a benchmark is its latest.
+      supabaseAdmin
+        .from("benchmark_scores")
+        .select("benchmark_id, score, rank, rank_index, completed_at")
+        .eq("user_id", accountId)
+        .in("benchmark_id", ids)
+        .order("completed_at", { ascending: false }),
+    ]);
+
+  for (const [name, result] of [
+    ["benchmarks", benchmarkResult],
+    ["scenarios", scenarioResult],
+    ["pbs", pbResult],
+    ["history", historyResult],
+  ] as const) {
+    if (result.error) {
+      throw new Error(`RECOMPUTE: failed to load ${name}: ${result.error.message}`);
+    }
   }
 
-  const { error: insertError } = await supabaseAdmin
-    .from("benchmark_scores")
-    .insert({
-      benchmark_id: benchmarkId,
+  const benchmarks = (benchmarkResult.data ?? []) as RankSource[];
+
+  const scenarios = (scenarioResult.data ?? []) as unknown as ScenarioCutoffs[];
+
+  // A benchmark with no scenarios has nothing to score, so it gets no row â€”
+  // the same call computeAggregates makes when it reports one as unplayed.
+  const scored = new Set(scenarios.map((s) => s.benchmark_id));
+  const rankable = benchmarks.filter((b) => scored.has(b.id));
+
+  const pbByScenario = new Map<number, number>();
+  for (const row of (pbResult.data ?? []) as { scenario_id: number; score: number }[]) {
+    pbByScenario.set(Number(row.scenario_id), Number(row.score));
+  }
+
+  const aggregates = computeAggregates(rankable, scenarios, pbByScenario);
+
+  const latest = new Map<
+    string,
+    { score: number; rank: string | null; rank_index: number | null }
+  >();
+  for (const row of (historyResult.data ?? []) as {
+    benchmark_id: string;
+    score: number;
+    rank: string | null;
+    rank_index: number | null;
+  }[]) {
+    if (!latest.has(row.benchmark_id)) latest.set(row.benchmark_id, row);
+  }
+
+  const inserts: {
+    benchmark_id: string;
+    user_id: string;
+    score: number;
+    rank: string | null;
+    rank_index: number | null;
+  }[] = [];
+
+  for (const benchmark of rankable) {
+    const aggregate = aggregates.get(benchmark.id);
+    if (!aggregate) continue;
+
+    const previous = latest.get(benchmark.id);
+
+    if (
+      previous &&
+      previous.score === aggregate.score &&
+      previous.rank === aggregate.rank &&
+      previous.rank_index === aggregate.rankIndex
+    ) {
+      continue;
+    }
+
+    inserts.push({
+      benchmark_id: benchmark.id,
       user_id: accountId,
       score: aggregate.score,
       rank: aggregate.rank,
       rank_index: aggregate.rankIndex,
     });
-
-  if (insertError) {
-    console.error("EASYAIM AGGREGATE INSERT ERROR:", insertError);
-    return false;
   }
 
-  return true;
+  if (inserts.length === 0) return 0;
+
+  const { error } = await supabaseAdmin.from("benchmark_scores").insert(inserts);
+
+  if (error) {
+    console.error("EASYAIM AGGREGATE INSERT ERROR:", error);
+    return 0;
+  }
+
+  return inserts.length;
 }
 
-async function recomputeBenchmarkAggregate(
+/**
+ * Single-benchmark convenience wrapper over recordAggregatesFor. Used by the
+ * create and edit routes, which only ever touch the one benchmark they just
+ * wrote.
+ */
+export async function recordAggregateFor(
   accountId: string,
   benchmarkId: string
-): Promise<Aggregate | null> {
-  const { data: benchmarkData, error: benchmarkError } = await supabaseAdmin
-    .from("benchmarks")
-    .select("rank_names, rank_thresholds")
-    .eq("id", benchmarkId)
-    .maybeSingle();
-
-  if (benchmarkError) throw benchmarkError;
-  if (!benchmarkData) return null;
-
-  const benchmark = benchmarkData as {
-    rank_names: string[] | null;
-    rank_thresholds: Record<string, number> | null;
-  };
-
-  const { data: scenarioData, error: scenariosError } = await supabaseAdmin
-    .from("benchmark_scenarios")
-    .select("easyaim_scenario_id, cutoffs")
-    .eq("benchmark_id", benchmarkId);
-
-  if (scenariosError) throw scenariosError;
-
-  const scenarios = (scenarioData || []) as {
-    easyaim_scenario_id: number;
-    cutoffs: Record<string, number> | null;
-  }[];
-
-  if (scenarios.length === 0) return null;
-
-  const scenarioIds = scenarios.map((scenario) => scenario.easyaim_scenario_id);
-
-  const { data: pbData, error: pbError } = await supabaseAdmin
-    .from("easyaim_pbs")
-    .select("scenario_id, score")
-    .eq("account_id", accountId)
-    .in("scenario_id", scenarioIds);
-
-  if (pbError) throw pbError;
-
-  const pbs = new Map<number, number>();
-  for (const row of pbData || []) {
-    const pb = row as { scenario_id: number; score: number };
-    pbs.set(pb.scenario_id, pb.score);
-  }
-
-  const rankNames = benchmark.rank_names?.length
-    ? benchmark.rank_names
-    : Object.entries(benchmark.rank_thresholds || {})
-        .sort((a, b) => a[1] - b[1])
-        .map(([name]) => name);
-
-  const score = scenarioIds.reduce(
-    (sum, scenarioId) => sum + (pbs.get(scenarioId) ?? 0),
-    0
-  );
-
-  if (rankNames.length === 0) {
-    return { score, rank: null, rankIndex: null };
-  }
-
-  // Ranks with no cutoff on any scenario are skipped rather than
-  // auto-passed — see resolveRank in lib/aggregates.ts, which the benchmark
-  // list uses. Both must walk the ladder the same way or a card and a
-  // synced benchmark_scores row can disagree.
-  const scorableRanks = rankNames.filter((rank) =>
-    scenarios.some((scenario) => {
-      const needed = scenario.cutoffs?.[rank];
-      return typeof needed === "number";
-    })
-  );
-
-  let achieved: string | null = null;
-
-  for (let index = scorableRanks.length - 1; index >= 0; index--) {
-    const rank = scorableRanks[index];
-
-    const passesAll = scenarios.every((scenario) => {
-      const needed = scenario.cutoffs?.[rank];
-      if (needed === undefined || needed === null) return true;
-      return (pbs.get(scenario.easyaim_scenario_id) ?? 0) >= needed;
-    });
-
-    if (passesAll) {
-      achieved = rank;
-      break;
-    }
-  }
-
-  return {
-    score,
-    rank: achieved,
-    rankIndex: achieved ? rankNames.indexOf(achieved) : null,
-  };
+): Promise<boolean> {
+  return (await recordAggregatesFor(accountId, [benchmarkId])) > 0;
 }
