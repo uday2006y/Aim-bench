@@ -1,30 +1,43 @@
 /**
- * Sequential tiers: a tier only starts tracking once the tier before it is
- * finished.
+ * Sequential tier gating, per scenario.
  *
- * Tiers are ordered by position (Novice, then Intermediate, then Elite). A
- * player works them in order, so a later tier showing a half-filled bar before
- * the earlier one is complete is not information -- it is a score earned out
- * of order against requirements they have not reached yet.
+ * Tiers are worked in order, and a scenario only begins tracking in the next
+ * tier once that SAME scenario has passed the previous tier's final rank.
  *
- * The rule, stated once so every caller agrees:
+ * Worked example, which is the whole rule:
  *
- *   A tier is UNLOCKED when every tier before it is COMPLETE. The first tier is
- *   always unlocked. Once a tier is unlocked it stays unlocked, so dropping
- *   back to Novice does not re-lock Intermediate.
+ *   A scenario has a best of 780. In tier 1 its final rank, Gold, requires
+ *   860. 780 < 860, so this scenario does not track in tier 2 at all. Once the
+ *   best passes 860, tier 2 starts tracking it.
  *
- * "Complete" means the viewer has reached the top rank that actually has
- * cutoffs on at least one scenario -- the same meaning `maxed` carries in
- * computeAggregates. A rank with no cutoffs anywhere is skipped rather than
- * auto-passed, so a tier whose top rung has no requirements can never be
- * completed and would lock everything after it. That is a configuration
- * problem the author can fix by setting a cutoff, and it must not silently
- * hide every later tier forever; `lockReason` says so in words.
+ * This is deliberately PER SCENARIO. An earlier version gated whole tiers on
+ * every scenario clearing its top rank, which is a different and much harsher
+ * rule: one scenario left unfinished would freeze the entire next tier, so a
+ * player who had genuinely finished most of tier 1 saw nothing in tier 2 at
+ * all. One row's state decides that row.
  *
- * Pure and tested, like aggregates and tierBars: this decides whether a page
- * shows a score, and a second copy of the rule is how the tier ladder drifted
- * twice already.
+ * What counts as "the previous tier's final rank" for a scenario is the highest
+ * rank in that tier's ladder that THIS scenario actually has a requirement for.
+ * A scenario the author left without a cutoff on the top rungs is gated by
+ * whichever rung it does state -- grading against a requirement that was never
+ * set would lock a row that can never open.
+ *
+ * No requirement stated at all means no gate: the row tracks. A gate that can
+ * never be satisfied is worse than no gate, because the row would be frozen
+ * with nothing to fix.
+ *
+ * Pure and tested, like aggregates and tierBars. This decides whether a row
+ * shows a score, and the rank calculation stays in computeAggregates -- this
+ * module never computes a rank of its own.
  */
+
+/** A scenario as the gate needs it: which EasyAim scenario, what it requires,
+ *  and the viewer's best. */
+export interface GateScenario {
+  easyaim_scenario_id: string;
+  cutoffs: Record<string, number> | null;
+  pb: number | null;
+}
 
 export interface GateTier {
   id: string;
@@ -34,141 +47,135 @@ export interface GateTier {
   rank_names: string[];
 }
 
-export interface GateScenario {
-  cutoffs: Record<string, number> | null;
-  /** The viewer's personal best on this scenario, or null if unplayed. */
-  pb: number | null;
-}
-
-export interface TierUnlock {
-  slug: string;
-  unlocked: boolean;
-  /**
-   * Why it is locked, in words, so the page can say something better than an
-   * empty table. Null when unlocked.
-   */
-  lockReason: string | null;
-  /** The tier that must be finished first, when one exists. */
-  blockedBySlug: string | null;
-}
-
-/** Whether a cutoff states a real requirement. Mirrors aggregates.ts. */
 function statesRequirement(cutoffs: Record<string, number> | null, rank: string): boolean {
   const needed = cutoffs?.[rank];
   return typeof needed === "number" && needed > 0;
 }
 
 /**
- * Has the viewer cleared this tier's top rank?
+ * The cutoff that gates this scenario into the next tier: the highest rank in
+ * the ladder that the scenario actually states a requirement for.
  *
- * The top rank is the last one in the ladder that any scenario actually
- * requires. A rank nothing requires is skipped rather than granted, matching
- * computeAggregates: otherwise a player who opened the page would be handed
- * the top rank for free.
+ * Null when the scenario states nothing, which means it is not gated.
  */
-export function isTierComplete(
+export function finalRankCutoff(
   rankNames: string[],
-  scenarios: GateScenario[]
-): boolean {
-  if (scenarios.length === 0) return false;
-
-  const scorable = rankNames.filter((rank) =>
-    scenarios.some((scenario) => statesRequirement(scenario.cutoffs, rank))
-  );
-
-  if (scorable.length === 0) return false;
-
-  const topRank = scorable[scorable.length - 1];
-
-  return scenarios.every((scenario) => {
-    if (!statesRequirement(scenario.cutoffs, topRank)) return true;
-    return (scenario.pb ?? 0) >= (scenario.cutoffs?.[topRank] as number);
-  });
-}
-
-/**
- * Whether this tier states any requirement at all.
- *
- * False is the real deadlock: with no rank required anywhere, `isTierComplete`
- * has no scorable rank to test against and returns false forever, so every
- * tier behind this one stays locked with no way to earn them. An author who
- * filled in the rank names but no cutoffs produces exactly this.
- *
- * Note that a tier missing only its TOP rank is NOT deadlocked: the unstated
- * top rank is skipped, and the tier completes at the highest rank that does
- * carry a requirement.
- */
-function tierStatesAnyRequirement(
-  rankNames: string[],
-  scenarios: GateScenario[]
-): boolean {
-  return rankNames.some((rank) =>
-    scenarios.some((scenario) => statesRequirement(scenario.cutoffs, rank))
-  );
-}
-
-/**
- * Per-tier unlock state, in tier order.
- *
- * `scenariosByTierSlug` supplies each tier's own scenarios; a tier with no
- * entry is treated as unplayed, which locks it and everything after.
- */
-export function computeTierUnlocks(
-  tiers: GateTier[],
-  scenariosByTierSlug: Map<string, GateScenario[]>
-): TierUnlock[] {
-  const ordered = [...tiers].sort(
-    (a, b) => a.position - b.position || a.name.localeCompare(b.name)
-  );
-
-  const result: TierUnlock[] = [];
-  // Latches: once unlocked, a tier stays unlocked.
-  let blockedBy: GateTier | null = null;
-  // A Set, not an array: identity comparison is what we want and `includes`
-  // on an array of objects compares references, which is fragile to copy.
-  const unreachable = new Set<GateTier>();
-
-  for (const tier of ordered) {
-    const scenarios = scenariosByTierSlug.get(tier.slug) ?? [];
-    const complete = isTierComplete(tier.rank_names, scenarios);
-    const statesAnything = tierStatesAnyRequirement(tier.rank_names, scenarios);
-
-    if (blockedBy) {
-      // The tier we are waiting on may be one that can never be finished.
-      // Say the real cause instead of "finish X" forever.
-      const reason = unreachable.has(blockedBy)
-        ? `${blockedBy.name} cannot be completed because no score requirement is set on it. Add one on the edit page to unlock this tier.`
-        : `Finish ${blockedBy.name} to start tracking this tier.`;
-
-      result.push({
-        slug: tier.slug,
-        unlocked: false,
-        lockReason: reason,
-        blockedBySlug: blockedBy.slug,
-      });
-      continue;
-    }
-
-    if (complete) {
-      result.push({ slug: tier.slug, unlocked: true, lockReason: null, blockedBySlug: null });
-      continue;
-    }
-
-    // Incomplete, so this tier is the gate for everything after it.
-    blockedBy = tier;
-    result.push({ slug: tier.slug, unlocked: true, lockReason: null, blockedBySlug: null });
-
-    if (!statesAnything) {
-      // Deadlocked as authored; remember it so the tiers behind it explain the
-      // real cause instead of "finish Novice" forever.
-      unreachable.add(tier);
+  cutoffs: Record<string, number> | null
+): number | null {
+  for (let i = rankNames.length - 1; i >= 0; i--) {
+    if (statesRequirement(cutoffs, rankNames[i])) {
+      return cutoffs?.[rankNames[i]] as number;
     }
   }
-
-  return result;
+  return null;
 }
 
-/** Convenience: is one slug unlocked? */
-export function isTierUnlocked(unlocks: TierUnlock[], slug: string): boolean {
-  return unlocks.find((u) => u.slug === slug)?.unlocked ?? false;
+/** Tiers in switcher order. Position decides, name breaks ties. */
+export function orderGateTiers<T extends { position: number; name: string }>(tiers: T[]): T[] {
+  return [...tiers].sort((a, b) => a.position - b.position || a.name.localeCompare(b.name));
+}
+
+/**
+ * For each tier, the set of EasyAim scenario ids that are currently tracking.
+ *
+ * Returns tierSlug -> Set<easyaim_scenario_id>. A tier missing from the result
+ * tracks nothing, which is the safe reading: an unknown tier has no gate
+ * computed for it.
+ */
+export function computeTrackedScenarios(
+  tiers: GateTier[],
+  scenariosByTierSlug: Map<string, GateScenario[]>
+): Map<string, Set<string>> {
+  const ordered = orderGateTiers(tiers);
+  const tracked = new Map<string, Set<string>>();
+
+  // Index every tier's scenarios by EasyAim id so the previous tier can be
+  // consulted per row rather than the whole tier being gated at once.
+  const byTierId = new Map<string, Map<string, GateScenario>>();
+  for (const tier of ordered) {
+    const index = new Map<string, GateScenario>();
+    for (const scenario of scenariosByTierSlug.get(tier.slug) ?? []) {
+      index.set(scenario.easyaim_scenario_id, scenario);
+    }
+    byTierId.set(tier.id, index);
+  }
+
+  for (let i = 0; i < ordered.length; i++) {
+    const tier = ordered[i];
+    const previous = i > 0 ? ordered[i - 1] : null;
+    const previousScenarios = previous ? byTierId.get(previous.id) : null;
+
+    const active = new Set<string>();
+
+    for (const scenario of scenariosByTierSlug.get(tier.slug) ?? []) {
+      const id = scenario.easyaim_scenario_id;
+
+      // The first tier has nothing before it, so it always tracks.
+      if (!previous || !previousScenarios) {
+        active.add(id);
+        continue;
+      }
+
+      const gate = previousScenarios.get(id);
+      if (!gate) {
+        // Not in the previous tier: the author asked nothing of it here, so
+        // there is no gate to clear.
+        active.add(id);
+        continue;
+      }
+
+      const cutoff = finalRankCutoff(previous.rank_names, gate.cutoffs);
+
+      // No requirement stated for this scenario in the previous tier, so there
+      // is nothing to have passed.
+      if (cutoff === null) {
+        active.add(id);
+        continue;
+      }
+
+      if ((scenario.pb ?? 0) >= cutoff) {
+        active.add(id);
+      }
+    }
+
+    tracked.set(tier.slug, active);
+  }
+
+  return tracked;
+}
+
+/** Does this scenario track in this tier? Unknown tiers and ids are not tracking. */
+export function isScenarioTracked(
+  tracked: Map<string, Set<string>> | undefined,
+  tierSlug: string,
+  easyaimScenarioId: string
+): boolean {
+  if (!tracked) return true; // no gating supplied: behave as before
+  return tracked.get(tierSlug)?.has(easyaimScenarioId) ?? false;
+}
+
+/**
+ * The cutoff a scenario is waiting on, for the "locked" hint on a row.
+ *
+ * Returns the gate value so the page can say what it is waiting for, which is
+ * more use than a padlock alone.
+ */
+export function scenarioGate(
+  tiers: GateTier[],
+  scenariosByTierSlug: Map<string, GateScenario[]>,
+  tierSlug: string,
+  easyaimScenarioId: string
+): number | null {
+  const ordered = orderGateTiers(tiers);
+  const index = ordered.findIndex((tier) => tier.slug === tierSlug);
+
+  if (index <= 0) return null;
+
+  const previous = ordered[index - 1];
+  const gate = (scenariosByTierSlug.get(previous.slug) ?? []).find(
+    (scenario) => scenario.easyaim_scenario_id === easyaimScenarioId
+  );
+
+  if (!gate) return null;
+  return finalRankCutoff(previous.rank_names, gate.cutoffs);
 }

@@ -6,7 +6,6 @@ import PinButton from "@/components/PinButton";
 import TierSwitcher from "@/components/TierSwitcher";
 import { computeTierFills } from "@/lib/tierBars";
 import type { Tier } from "@/lib/benchmarkTiers";
-import type { TierUnlock } from "@/lib/tierGates";
 
 interface CategoryDef {
   name: string;
@@ -73,9 +72,8 @@ export default function BenchmarkClient({
   isAuthorized,
   myPinned,
   loggedIn,
-  tierUnlocks,
-  tierLocked = false,
-  tierLockReason = null,
+  gatedRows = [],
+  previousTierName = null,
 }: {
   id: string;
   benchmark: Benchmark;
@@ -87,18 +85,36 @@ export default function BenchmarkClient({
   isAuthorized: boolean;
   myPinned: boolean;
   loggedIn: boolean;
-  /** Per-tier unlock state, in tier order. Drives the lock badge in the switcher. */
-  tierUnlocks?: TierUnlock[];
-  /** True when this tier has not been earned yet. */
-  tierLocked?: boolean;
-  /** Why this tier is locked, in words. Null when it is not locked. */
-  tierLockReason?: string | null;
+  /**
+   * Scenarios in this tier that have not started tracking yet, each with the
+   * score it is waiting on.
+   *
+   * Gating is per scenario, not per tier: a row opens once that same scenario
+   * cleared the previous tier's final rank. So this is a list of rows, not a
+   * single flag for the whole tier.
+   */
+  gatedRows?: { easyaim_scenario_id: string; waitingFor: number | null }[];
+  /** Name of the tier before this one, for the wording. Null on the first tier. */
+  previousTierName?: string | null;
 }) {
   // The stored preference, read as a subscription rather than copied into
   // state on mount. Remounting this component for a different benchmark
   // re-reads it for free, which is what the old effect's [id] dependency was
   // doing by hand.
   const [barStyle] = useBarStyle();
+
+  /**
+   * Scenario ids in this tier that have not started tracking yet.
+   *
+   * A Set, because the table asks once per row per render and the list is
+   * looked up by id rather than scanned.
+   */
+  const gated = new Set(gatedRows.map((row) => row.easyaim_scenario_id));
+
+  /** What a row is waiting on, for its tooltip. Null when ungated. */
+  const waitingFor = new Map(
+    gatedRows.map((row) => [row.easyaim_scenario_id, row.waitingFor] as const)
+  );
 
   /**
    * The ladder for this tier.
@@ -272,20 +288,26 @@ export default function BenchmarkClient({
               width where it still had room. */}
           {tiers.length > 1 ? (
             <div className="mt-5 border-t border-white/5 pt-5">
-              <TierSwitcher benchmarkId={id} tiers={tiers} activeSlug={tier.slug} unlocks={tierUnlocks} />
+              <TierSwitcher benchmarkId={id} tiers={tiers} activeSlug={tier.slug} />
             </div>
           ) : null}
 
-          {/* Tiers unlock in order. Until the tier before this one is finished, this
-              page shows the ladder but no scores: a score earned against
-              requirements the player has not reached yet is not progress, and a
-              half-filled bar on Elite before Novice is done reads as a bug. */}
-          {tierLocked ? (
+          {/* Tiers are worked in order, and it is per scenario: a row here starts
+              tracking once that same scenario cleared the previous tier's final
+              rank. Rows that have not show no score. */}
+          {gatedRows.length > 0 ? (
             <div className="mt-4 rounded-lg border border-white/10 bg-white/[0.03] px-4 py-3 text-xs text-zinc-400">
-              <span className="font-semibold text-white">{tier.name}</span> is
-              locked.{" "}
-              {tierLockReason ??
-                `Finish the tier before this one to start tracking ${tier.name}.`}
+              {gatedRows.length === 1
+                ? "1 scenario has not"
+                : `${gatedRows.length} scenarios have not`}{" "}
+              started tracking in {tier.name}
+              {previousTierName ? (
+                <>
+                  {" "}
+                  yet — each one opens when it passes {previousTierName}&apos;s
+                  final rank.
+                </>
+              ) : null}
             </div>
           ) : null}
 
@@ -371,10 +393,14 @@ export default function BenchmarkClient({
                       const groupRows = subGroup.rows.length;
 
                       return subGroup.rows.map((scenario, rowIdx) => {
-                        // A locked tier reports no score at all. Reading the real best here would
-                        // draw a filled bar and a percentage, which is exactly
-                        // the out-of-order progress the lock exists to hide.
-                        const score = tierLocked ? 0 : scenario.best_score ?? 0;
+                        // A scenario that has not cleared the previous tier's final rank reports no
+                        // score at all. Reading the real best here would draw a
+                        // filled bar, which is the out-of-order progress the
+                        // gate exists to hide.
+                        const scenarioId = String(scenario.easyaim_scenario_id);
+                        const isGated = gated.has(scenarioId);
+                        const gate = waitingFor.get(scenarioId) ?? null;
+                        const score = isGated ? 0 : scenario.best_score ?? 0;
                         const staggerIndex =
                           rowOffsets[groupIdx].before +
                           rowOffsets[groupIdx].subOffsets[subIdx] +
@@ -501,7 +527,16 @@ export default function BenchmarkClient({
                                   {score ? score.toLocaleString() : "—"}
                                 </span>
                                 <span className="text-[10px] font-medium text-zinc-500">
-                                  {pctStr}
+                                  {isGated && gate ? (
+                                    <span
+                                      title={`Pass ${gate.toLocaleString()} to start tracking this tier`}
+                                      className="text-zinc-600"
+                                    >
+                                      needs {gate.toLocaleString()}
+                                    </span>
+                                  ) : (
+                                    pctStr
+                                  )}
                                 </span>
                               </div>
                             </td>

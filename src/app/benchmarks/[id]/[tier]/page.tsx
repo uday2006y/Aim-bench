@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getSessionAccountId } from "@/lib/session";
 import { loadTierScenarios, loadTiers } from "@/lib/tiers";
-import { computeTierUnlocks, type GateScenario } from "@/lib/tierGates";
+import { computeTrackedScenarios, scenarioGate, type GateScenario } from "@/lib/tierGates";
 import { loadViewerPins } from "@/lib/pins";
 import BenchmarkClient from "../BenchmarkClient";
 
@@ -135,15 +135,30 @@ export default async function BenchmarkTierPage({
     if (!owner) continue;
     const list = scenariosByTierSlug.get(owner.slug) ?? [];
     list.push({
+      easyaim_scenario_id: String(row.easyaim_scenario_id),
       cutoffs: row.cutoffs,
       pb: pbByScenario.get(String(row.easyaim_scenario_id)) ?? null,
     });
     scenariosByTierSlug.set(owner.slug, list);
   }
 
-  const unlocks = computeTierUnlocks(tiers, scenariosByTierSlug);
-  const gate = unlocks.find((entry) => entry.slug === tier.slug);
-  const tierLocked = Boolean(gate && !gate.unlocked);
+  // Which scenarios are tracking in which tier. Per scenario: a row opens in
+  // this tier once that same scenario cleared the previous tier's final rank,
+  // and rows that have not are reported as untracked rather than as a locked
+  // tier.
+  const tracked = computeTrackedScenarios(tiers, scenariosByTierSlug);
+
+  const gatedRows = scenarios
+    .filter(
+      (scenario) =>
+        !tracked.get(tier.slug)?.has(String(scenario.easyaim_scenario_id))
+    )
+    .map((scenario) => ({
+      easyaim_scenario_id: String(scenario.easyaim_scenario_id),
+      waitingFor:
+        scenarioGate(tiers, scenariosByTierSlug, tier.slug, String(scenario.easyaim_scenario_id)) ??
+        null,
+    }));
 
   return (
     <BenchmarkClient
@@ -155,9 +170,10 @@ export default async function BenchmarkTierPage({
       isAuthorized={isAuthorized}
       myPinned={myPins.has(id)}
       loggedIn={Boolean(accountId)}
-      tierUnlocks={unlocks}
-      tierLocked={tierLocked}
-      tierLockReason={gate?.lockReason ?? null}
+      gatedRows={gatedRows}
+      previousTierName={
+        tiers.filter((candidate) => candidate.position < tier.position).pop()?.name ?? null
+      }
     />
   );
 }

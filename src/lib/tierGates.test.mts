@@ -1,186 +1,220 @@
 /**
- * Sequential tier unlocking.
+ * Per-scenario sequential tier gating.
  *
- * The rule under test: a tier starts tracking only once every tier before it
- * is complete, and unlocking latches so going back does not re-lock.
+ * The rule, in the terms the author used: a scenario with a best of 780, whose
+ * tier-1 final rank requires 860, does not track in tier 2. Past 860 it does.
+ * Per scenario, never per tier.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
 import {
-  computeTierUnlocks,
-  isTierComplete,
-  isTierUnlocked,
+  computeTrackedScenarios,
+  finalRankCutoff,
+  isScenarioTracked,
+  scenarioGate,
   type GateScenario,
   type GateTier,
 } from "./tierGates.ts";
 
-/** A tier whose ladder is Iron -> Gold. `name` is the display name. */
-function tier(slug: string, position: number, rankNames?: string[]): GateTier {
+/** Novice: Iron 640, Bronze 700, Silver 780, Gold 860. */
+const CUTOFFS = { Iron: 640, Bronze: 700, Silver: 780, Gold: 860 };
+
+function tier(slug: string, position: number): GateTier {
   return {
     id: slug,
     slug,
     position,
-    // Display name, as an author would type it. The slug is the url segment.
-    name: slug.charAt(0).toUpperCase() + slug.slice(1),
-    rank_names: rankNames ?? ["Iron", "Gold"],
-  };
-}
-
-/** One scenario requiring `req` for the top rank. */
-function scenario(req: number, pb: number | null): GateScenario {
-  return {
-    cutoffs: { Iron: req / 2, Gold: req },
-    pb,
+    name: slug,
+    rank_names: ["Iron", "Bronze", "Silver", "Gold"],
   };
 }
 
 const NOVICE = tier("novice", 0);
 const INTERMEDIATE = tier("intermediate", 1);
-const ELITE = tier("elite", 2);
 
-// ------------------------------------------------------------ completeness
+function scenario(
+  id: string,
+  pb: number | null,
+  cutoffs: Record<string, number> = CUTOFFS
+): GateScenario {
+  return { easyaim_scenario_id: id, cutoffs, pb };
+}
 
-test("a tier with no scenarios is not complete", () => {
-  assert.equal(isTierComplete(NOVICE.rank_names, []), false);
+// ---------------------------------------------------------- final rank
+
+test("the final rank cutoff is the top rung the scenario states", () => {
+  assert.equal(finalRankCutoff(NOVICE.rank_names, CUTOFFS), 860);
 });
 
-test("clearing the top rank on every scenario completes the tier", () => {
-  assert.equal(isTierComplete(NOVICE.rank_names, [scenario(200, 250)]), true);
+test("an unstated top rank is skipped, not treated as a gate", () => {
+  // Gold says nothing, so Silver is the rung that actually gates.
+  const partial = { Iron: 640, Bronze: 700, Silver: 780 };
+  assert.equal(finalRankCutoff(NOVICE.rank_names, partial), 780);
 });
 
-test("missing the top rank on any scenario leaves it incomplete", () => {
-  assert.equal(isTierComplete(NOVICE.rank_names, [scenario(200, 250), scenario(200, 100)]), false);
+test("a scenario stating nothing is not gated", () => {
+  assert.equal(finalRankCutoff(NOVICE.rank_names, {}), null);
 });
 
-test("an unplayed scenario counts as zero, not as a pass", () => {
-  assert.equal(isTierComplete(NOVICE.rank_names, [scenario(200, 250), scenario(200, null)]), false);
+test("a zero cutoff is not a requirement", () => {
+  assert.equal(finalRankCutoff(NOVICE.rank_names, { Iron: 0, Gold: 0 }), null);
 });
 
-test("a rank nothing requires is skipped rather than granted", () => {
-  // Only Iron is specified. Someone at 999 clears it, but the ladder's real
-  // ceiling is Iron because nothing states a requirement for Gold.
-  const onlyIron: GateScenario[] = [{ cutoffs: { Iron: 100 }, pb: 999 }];
-  assert.equal(isTierComplete(NOVICE.rank_names, onlyIron), true);
-});
+// ------------------------------------------------------------- the example
 
-test("a scenario stating nothing for the top rank does not block completion", () => {
-  const mixed: GateScenario[] = [
-    { cutoffs: { Iron: 100, Gold: 200 }, pb: 250 },
-    { cutoffs: { Iron: 100 }, pb: 250 },
-  ];
-  assert.equal(isTierComplete(NOVICE.rank_names, mixed), true);
-});
-
-// ------------------------------------------------------------------ gating
-
-test("the first tier is always unlocked", () => {
-  const out = computeTierUnlocks([NOVICE], new Map([["novice", [scenario(200, 0)]]]));
-  assert.equal(isTierUnlocked(out, "novice"), true);
-});
-
-test("a later tier is locked while the earlier one is incomplete", () => {
-  const byTier = new Map([
-    ["novice", [scenario(200, 150)]], // short of Gold (200)
-    ["intermediate", [scenario(200, 250)]],
-  ]);
-  const out = computeTierUnlocks([NOVICE, INTERMEDIATE], byTier);
-  assert.equal(isTierUnlocked(out, "novice"), true);
-  assert.equal(isTierUnlocked(out, "intermediate"), false);
-});
-
-test("completing the earlier tier unlocks the next one", () => {
-  const byTier = new Map([
-    ["novice", [scenario(200, 250)]],
-    ["intermediate", [scenario(200, 0)]],
-  ]);
-  const out = computeTierUnlocks([NOVICE, INTERMEDIATE], byTier);
-  assert.equal(isTierUnlocked(out, "intermediate"), true);
-});
-
-test("locking cascades through every later tier", () => {
-  const byTier = new Map([
-    ["novice", [scenario(200, 0)]],
-    ["intermediate", [scenario(200, 0)]],
-    ["elite", [scenario(200, 0)]],
-  ]);
-  const out = computeTierUnlocks([NOVICE, INTERMEDIATE, ELITE], byTier);
-  assert.equal(isTierUnlocked(out, "novice"), true);
-  assert.equal(isTierUnlocked(out, "intermediate"), false);
-  assert.equal(isTierUnlocked(out, "elite"), false);
-});
-
-test("unlocking latches: the gate stays unlocked once earned", () => {
-  // Novice complete here, so Intermediate is open even though Intermediate is
-  // itself far from complete.
-  const byTier = new Map([
-    ["novice", [scenario(200, 250)]],
-    ["intermediate", [scenario(200, 0)]],
-  ]);
-  const out = computeTierUnlocks([NOVICE, INTERMEDIATE], byTier);
-  assert.equal(isTierUnlocked(out, "intermediate"), true);
-});
-
-test("the lock names the tier that has to be finished", () => {
-  const byTier = new Map([
-    ["novice", [scenario(200, 0)]],
-    ["intermediate", [scenario(200, 0)]],
-  ]);
-  const out = computeTierUnlocks([NOVICE, INTERMEDIATE], byTier);
-  const locked = out.find((u) => u.slug === "intermediate");
-  assert.equal(locked?.blockedBySlug, "novice");
-  assert.match(locked?.lockReason ?? "", /Finish Novice/);
-});
-
-test("tiers are gated in position order, not array order", () => {
-  // Elite listed first. Position decides, so Novice is still the gate.
-  const byTier = new Map([
-    ["novice", [scenario(200, 0)]],
-    ["elite", [scenario(200, 250)]],
-  ]);
-  const out = computeTierUnlocks([ELITE, NOVICE], byTier);
-  assert.equal(isTierUnlocked(out, "novice"), true);
-  assert.equal(isTierUnlocked(out, "elite"), false);
-});
-
-test("a tier with no scenarios locks itself and everything after", () => {
-  const byTier = new Map<string, GateScenario[]>([["novice", []]]);
-  const out = computeTierUnlocks([NOVICE, INTERMEDIATE], byTier);
-  assert.equal(isTierUnlocked(out, "intermediate"), false);
-});
-
-test("a tier missing only its top rank still completes at a lower rank", () => {
-  // Nothing states Gold, so Gold is skipped and Iron becomes the ceiling. This
-  // must NOT be treated as a deadlock.
+test("780 does not track in tier 2 while tier 1's final rank is 860", () => {
   const byTier = new Map<string, GateScenario[]>([
-    ["novice", [{ cutoffs: { Iron: 100 }, pb: 150 }]],
-    ["intermediate", [scenario(200, 0)]],
+    ["novice", [scenario("mira", 780)]],
+    ["intermediate", [scenario("mira", 780)]],
   ]);
-  const out = computeTierUnlocks([NOVICE, INTERMEDIATE], byTier);
-  assert.equal(isTierUnlocked(out, "intermediate"), true);
+  const tracked = computeTrackedScenarios([NOVICE, INTERMEDIATE], byTier);
+
+  assert.equal(isScenarioTracked(tracked, "intermediate", "mira"), false);
 });
 
-test("a tier with no requirements at all says why instead of locking forever", () => {
-  // Cutoffs empty everywhere: nothing is scorable, so Novice can never be
-  // completed and Intermediate must explain the real cause.
-  const deadlocked = new Map<string, GateScenario[]>([
-    ["novice", [{ cutoffs: {}, pb: 0 }]],
-    ["intermediate", [scenario(200, 0)]],
+test("past 860 it starts tracking in tier 2", () => {
+  const byTier = new Map<string, GateScenario[]>([
+    ["novice", [scenario("mira", 900)]],
+    ["intermediate", [scenario("mira", 900)]],
   ]);
-  const out = computeTierUnlocks([NOVICE, INTERMEDIATE], deadlocked);
-  const locked = out.find((u) => u.slug === "intermediate");
-  assert.equal(locked?.unlocked, false);
-  assert.match(locked?.lockReason ?? "", /cannot be completed/);
+  const tracked = computeTrackedScenarios([NOVICE, INTERMEDIATE], byTier);
+
+  assert.equal(isScenarioTracked(tracked, "intermediate", "mira"), true);
 });
 
-test("a tier with no scenarios says why rather than naming itself forever", () => {
-  const byTier = new Map<string, GateScenario[]>([["novice", []]]);
-  const out = computeTierUnlocks([NOVICE, INTERMEDIATE], byTier);
-  const locked = out.find((u) => u.slug === "intermediate");
-  assert.match(locked?.lockReason ?? "", /cannot be completed/);
+test("exactly 860 is enough", () => {
+  const byTier = new Map<string, GateScenario[]>([
+    ["novice", [scenario("mira", 860)]],
+    ["intermediate", [scenario("mira", 860)]],
+  ]);
+  const tracked = computeTrackedScenarios([NOVICE, INTERMEDIATE], byTier);
+  assert.equal(isScenarioTracked(tracked, "intermediate", "mira"), true);
 });
 
-test("an unknown slug is treated as locked", () => {
-  const out = computeTierUnlocks([NOVICE], new Map());
-  assert.equal(isTierUnlocked(out, "nope"), false);
+test("859 is not enough", () => {
+  const byTier = new Map<string, GateScenario[]>([
+    ["novice", [scenario("mira", 859)]],
+    ["intermediate", [scenario("mira", 859)]],
+  ]);
+  const tracked = computeTrackedScenarios([NOVICE, INTERMEDIATE], byTier);
+  assert.equal(isScenarioTracked(tracked, "intermediate", "mira"), false);
+});
+
+// ------------------------------------------------------ the first tier
+
+test("the first tier always tracks", () => {
+  const byTier = new Map<string, GateScenario[]>([
+    ["novice", [scenario("mira", 0)]],
+  ]);
+  const tracked = computeTrackedScenarios([NOVICE], byTier);
+  assert.equal(isScenarioTracked(tracked, "novice", "mira"), true);
+});
+
+// ------------------------------------------- per scenario, NOT per tier
+
+test("one finished row does not unlock the others", () => {
+  // The whole point. "mira" has passed Gold, "little" has not. Only "mira"
+  // tracks in tier 2 -- gating the tier as a whole was the earlier, wrong rule.
+  const byTier = new Map<string, GateScenario[]>([
+    ["novice", [scenario("mira", 900), scenario("little", 780)]],
+    ["intermediate", [scenario("mira", 900), scenario("little", 780)]],
+  ]);
+  const tracked = computeTrackedScenarios([NOVICE, INTERMEDIATE], byTier);
+
+  assert.equal(isScenarioTracked(tracked, "intermediate", "mira"), true);
+  assert.equal(isScenarioTracked(tracked, "intermediate", "little"), false);
+});
+
+test("one unfinished row does not freeze the whole tier", () => {
+  const byTier = new Map<string, GateScenario[]>([
+    ["novice", [scenario("a", 0)]],
+    ["intermediate", [scenario("a", 0), scenario("b", 900)]],
+  ]);
+  const tracked = computeTrackedScenarios([NOVICE, INTERMEDIATE], byTier);
+
+  assert.equal(isScenarioTracked(tracked, "intermediate", "a"), false);
+  // "b" is not in Novice at all, so nothing was asked of it there.
+  assert.equal(isScenarioTracked(tracked, "intermediate", "b"), true);
+});
+
+// ------------------------------------------------------------ edge cases
+
+test("a scenario with no best does not track past the gate", () => {
+  const byTier = new Map<string, GateScenario[]>([
+    ["novice", [scenario("mira", null)]],
+    ["intermediate", [scenario("mira", null)]],
+  ]);
+  const tracked = computeTrackedScenarios([NOVICE, INTERMEDIATE], byTier);
+  assert.equal(isScenarioTracked(tracked, "intermediate", "mira"), false);
+});
+
+test("a scenario the previous tier never stated tracks, rather than freezing", () => {
+  const byTier = new Map<string, GateScenario[]>([
+    ["novice", [scenario("other", 0)]],
+    ["intermediate", [scenario("fresh", 0)]],
+  ]);
+  const tracked = computeTrackedScenarios([NOVICE, INTERMEDIATE], byTier);
+  assert.equal(isScenarioTracked(tracked, "intermediate", "fresh"), true);
+});
+
+test("a previous tier that states no requirement for this scenario does not gate it", () => {
+  // Novice has the scenario but set no cutoff on it, so there is nothing to
+  // have passed. A gate that can never be satisfied would freeze the row with
+  // nothing the author could fix.
+  const byTier = new Map<string, GateScenario[]>([
+    ["novice", [scenario("mira", 0, {})]],
+    ["intermediate", [scenario("mira", 0)]],
+  ]);
+  const tracked = computeTrackedScenarios([NOVICE, INTERMEDIATE], byTier);
+  assert.equal(isScenarioTracked(tracked, "intermediate", "mira"), true);
+});
+
+test("gating follows position order, not array order", () => {
+  const byTier = new Map<string, GateScenario[]>([
+    ["novice", [scenario("mira", 900)]],
+    ["intermediate", [scenario("mira", 0)]],
+  ]);
+  const tracked = computeTrackedScenarios([INTERMEDIATE, NOVICE], byTier);
+  // Novice is first by position, so it gates Intermediate.
+  assert.equal(isScenarioTracked(tracked, "intermediate", "mira"), false);
+});
+
+test("three tiers chain: each is gated by the one before it", () => {
+  const ELITE = tier("elite", 2);
+  const byTier = new Map<string, GateScenario[]>([
+    ["novice", [scenario("mira", 900)]],
+    // Intermediate's own final rank for this scenario is 860 too.
+    ["intermediate", [scenario("mira", 900)]],
+    ["elite", [scenario("mira", 900)]],
+  ]);
+  const tracked = computeTrackedScenarios([NOVICE, INTERMEDIATE, ELITE], byTier);
+
+  assert.equal(isScenarioTracked(tracked, "novice", "mira"), true);
+  assert.equal(isScenarioTracked(tracked, "intermediate", "mira"), true);
+  assert.equal(isScenarioTracked(tracked, "elite", "mira"), true);
+});
+
+test("an unknown tier is not treated as tracking", () => {
+  const tracked = computeTrackedScenarios([NOVICE], new Map());
+  assert.equal(isScenarioTracked(tracked, "nope", "mira"), false);
+});
+
+test("no gating supplied means track, so callers stay backwards compatible", () => {
+  assert.equal(isScenarioTracked(undefined, "intermediate", "mira"), true);
+});
+
+// ------------------------------------------------------------ gate readout
+
+test("scenarioGate reports the cutoff the row is waiting on", () => {
+  const byTier = new Map<string, GateScenario[]>([
+    ["novice", [scenario("mira", 780)]],
+    ["intermediate", [scenario("mira", 780)]],
+  ]);
+  assert.equal(scenarioGate([NOVICE, INTERMEDIATE], byTier, "intermediate", "mira"), 860);
+});
+
+test("scenarioGate is null in the first tier, which has nothing to wait for", () => {
+  const byTier = new Map<string, GateScenario[]>([["novice", [scenario("mira", 780)]]]);
+  assert.equal(scenarioGate([NOVICE], byTier, "novice", "mira"), null);
 });
