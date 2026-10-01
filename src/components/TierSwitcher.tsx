@@ -3,6 +3,7 @@
 import Link from "next/link";
 
 import { orderTiers, tierHref, tierLabel, type Tier } from "@/lib/benchmarkTiers";
+import type { TierUnlock } from "@/lib/tierGates";
 
 /**
  * Moves between a benchmark's tiers.
@@ -21,10 +22,14 @@ export default function TierSwitcher({
   benchmarkId,
   tiers,
   activeSlug,
+  unlocks,
 }: {
   benchmarkId: string;
   tiers: Tier[];
   activeSlug: string | null;
+  /** Locked tiers get a padlock, so the order you have to work them in is visible
+      before you click rather than only after. */
+  unlocks?: TierUnlock[];
 }) {
   const ordered = orderTiers(tiers);
 
@@ -41,6 +46,7 @@ export default function TierSwitcher({
     >
       {ordered.map((tier) => {
         const active = tier.slug === activeSlug;
+        const locked = unlocks?.find((u) => u.slug === tier.slug)?.unlocked === false;
 
         return (
           <Link
@@ -59,6 +65,11 @@ export default function TierSwitcher({
             ].join(" ")}
           >
             {tierLabel(tier)}
+            {locked ? (
+              <span className="ml-1.5 text-zinc-600" aria-label="locked" title="Finish the tier before this one first">
+                🔒
+              </span>
+            ) : null}
           </Link>
         );
       })}

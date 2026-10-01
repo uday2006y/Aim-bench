@@ -6,6 +6,7 @@ import PinButton from "@/components/PinButton";
 import TierSwitcher from "@/components/TierSwitcher";
 import { computeTierFills } from "@/lib/tierBars";
 import type { Tier } from "@/lib/benchmarkTiers";
+import type { TierUnlock } from "@/lib/tierGates";
 
 interface CategoryDef {
   name: string;
@@ -72,6 +73,9 @@ export default function BenchmarkClient({
   isAuthorized,
   myPinned,
   loggedIn,
+  tierUnlocks,
+  tierLocked = false,
+  tierLockReason = null,
 }: {
   id: string;
   benchmark: Benchmark;
@@ -83,6 +87,12 @@ export default function BenchmarkClient({
   isAuthorized: boolean;
   myPinned: boolean;
   loggedIn: boolean;
+  /** Per-tier unlock state, in tier order. Drives the lock badge in the switcher. */
+  tierUnlocks?: TierUnlock[];
+  /** True when this tier has not been earned yet. */
+  tierLocked?: boolean;
+  /** Why this tier is locked, in words. Null when it is not locked. */
+  tierLockReason?: string | null;
 }) {
   // The stored preference, read as a subscription rather than copied into
   // state on mount. Remounting this component for a different benchmark
@@ -262,7 +272,20 @@ export default function BenchmarkClient({
               width where it still had room. */}
           {tiers.length > 1 ? (
             <div className="mt-5 border-t border-white/5 pt-5">
-              <TierSwitcher benchmarkId={id} tiers={tiers} activeSlug={tier.slug} />
+              <TierSwitcher benchmarkId={id} tiers={tiers} activeSlug={tier.slug} unlocks={tierUnlocks} />
+            </div>
+          ) : null}
+
+          {/* Tiers unlock in order. Until the tier before this one is finished, this
+              page shows the ladder but no scores: a score earned against
+              requirements the player has not reached yet is not progress, and a
+              half-filled bar on Elite before Novice is done reads as a bug. */}
+          {tierLocked ? (
+            <div className="mt-4 rounded-lg border border-white/10 bg-white/[0.03] px-4 py-3 text-xs text-zinc-400">
+              <span className="font-semibold text-white">{tier.name}</span> is
+              locked.{" "}
+              {tierLockReason ??
+                `Finish the tier before this one to start tracking ${tier.name}.`}
             </div>
           ) : null}
 
@@ -348,7 +371,10 @@ export default function BenchmarkClient({
                       const groupRows = subGroup.rows.length;
 
                       return subGroup.rows.map((scenario, rowIdx) => {
-                        const score = scenario.best_score ?? 0;
+                        // A locked tier reports no score at all. Reading the real best here would
+                        // draw a filled bar and a percentage, which is exactly
+                        // the out-of-order progress the lock exists to hide.
+                        const score = tierLocked ? 0 : scenario.best_score ?? 0;
                         const staggerIndex =
                           rowOffsets[groupIdx].before +
                           rowOffsets[groupIdx].subOffsets[subIdx] +

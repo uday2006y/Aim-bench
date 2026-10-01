@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getSessionAccountId } from "@/lib/session";
 import { loadTierScenarios, loadTiers } from "@/lib/tiers";
+import { computeTierUnlocks, type GateScenario } from "@/lib/tierGates";
 import { loadViewerPins } from "@/lib/pins";
 import BenchmarkClient from "../BenchmarkClient";
 
@@ -99,6 +100,51 @@ export default async function BenchmarkTierPage({
     benchmark.user_id && accountId && benchmark.user_id === accountId
   );
 
+  // Tiers unlock in order: this one only starts tracking once every tier before
+  // it is finished. Deciding that needs every tier's scenarios and the viewer's
+  // bests on all of them, not just this tier's, so this is one extra pair of
+  // reads -- both keyed by the benchmark id and the account id respectively, so
+  // they go out together rather than in sequence.
+  const [allScenarioRows, allPbRows] = await Promise.all([
+    supabaseAdmin
+      .from("benchmark_scenarios")
+      .select("tier_id, easyaim_scenario_id, cutoffs")
+      .eq("benchmark_id", id),
+    accountId
+      ? supabaseAdmin
+          .from("easyaim_pbs")
+          .select("scenario_id, score")
+          .eq("account_id", accountId)
+      : null,
+  ]);
+
+  const pbByScenario = new Map<string, number>();
+  for (const row of (allPbRows?.data ?? []) as { scenario_id: string; score: number }[]) {
+    pbByScenario.set(String(row.scenario_id), row.score);
+  }
+
+  const scenariosByTierSlug = new Map<string, GateScenario[]>();
+  for (const ref of tiers) scenariosByTierSlug.set(ref.slug, []);
+
+  for (const row of (allScenarioRows.data ?? []) as {
+    tier_id: string | null;
+    easyaim_scenario_id: string;
+    cutoffs: Record<string, number> | null;
+  }[]) {
+    const owner = tiers.find((candidate) => candidate.id === row.tier_id);
+    if (!owner) continue;
+    const list = scenariosByTierSlug.get(owner.slug) ?? [];
+    list.push({
+      cutoffs: row.cutoffs,
+      pb: pbByScenario.get(String(row.easyaim_scenario_id)) ?? null,
+    });
+    scenariosByTierSlug.set(owner.slug, list);
+  }
+
+  const unlocks = computeTierUnlocks(tiers, scenariosByTierSlug);
+  const gate = unlocks.find((entry) => entry.slug === tier.slug);
+  const tierLocked = Boolean(gate && !gate.unlocked);
+
   return (
     <BenchmarkClient
       id={id}
@@ -109,6 +155,9 @@ export default async function BenchmarkTierPage({
       isAuthorized={isAuthorized}
       myPinned={myPins.has(id)}
       loggedIn={Boolean(accountId)}
+      tierUnlocks={unlocks}
+      tierLocked={tierLocked}
+      tierLockReason={gate?.lockReason ?? null}
     />
   );
 }
