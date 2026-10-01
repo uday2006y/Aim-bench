@@ -181,6 +181,28 @@ export default function SiteHeader({
         </div>
       </div>
 
+      {/* Scores only move when the sync engine runs, which is nightly or on
+          demand from the profile page. Without this, a player who just beat a
+          score reloads a page that still shows the old number and concludes
+          the score did not count. One line, above the content, on every page. */}
+      {loggedIn && !pathname.startsWith("/profile") && (
+        <div className="border-b border-white/10 bg-white/[0.03]">
+          <div
+            className={`mx-auto flex items-center gap-2 px-4 py-2 text-xs sm:px-6 ${width}`}
+          >
+            <span className="text-zinc-400">
+              Scores update when you sync.
+            </span>
+            <Link
+              href="/profile"
+              className="font-medium text-white underline decoration-white/30 underline-offset-2 transition hover:decoration-white"
+            >
+              Go to Profile and click “Sync now”
+            </Link>
+          </div>
+        </div>
+      )}
+
       {/* Mobile sheet */}
       {open && (
         <>
