@@ -2,8 +2,9 @@
 
 import { useState, useEffect, use, useRef } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { renameCutoffKey } from "@/lib/benchmarkScenarios";
+import { MAX_TIERS, sanitizeLadder, type Tier } from "@/lib/benchmarkTiers";
 import SiteHeader from "@/components/SiteHeader";
 
 interface CategoryDef {
@@ -43,6 +44,7 @@ interface SearchHit {
 export default function EditBenchmarkPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -75,6 +77,14 @@ export default function EditBenchmarkPage({ params }: { params: Promise<{ id: st
   const [isOwner, setIsOwner] = useState<boolean | null>(null);
   const [notFound, setNotFound] = useState(false);
 
+  // Tiers. The ladder being edited and the tier selected to edit it are the
+  // same thing here, so one state holds both rather than a ladder per tier
+  // that would all have to be kept in sync.
+  const [tiers, setTiers] = useState<Tier[]>([]);
+  const [activeSlug, setActiveSlug] = useState<string | null>(null);
+  const [newTierName, setNewTierName] = useState("");
+  const [tierBusy, setTierBusy] = useState(false);
+
   // Search responses can arrive out of order — a slow request for "eas"
   // landing after a fast one for "easyaim" would replace the newer results
   // with the older ones. Only the most recent request is allowed to write.
@@ -95,7 +105,13 @@ export default function EditBenchmarkPage({ params }: { params: Promise<{ id: st
     // the page on "Loading..." for good with no way forward and no message.
     async function checkAndLoad() {
       try {
-        const res = await fetch(`/api/benchmarks/${id}`);
+        // The tab the user arrived on wins over the tier we would default to,
+        // so "Edit Benchmark" from a tier page opens that tier.
+        const wanted = searchParams.get("tab");
+
+        const res = await fetch(
+          `/api/benchmarks/${id}${wanted ? `?tier=${encodeURIComponent(wanted)}` : ""}`
+        );
 
         if (!res.ok) {
           setNotFound(true);
@@ -137,19 +153,28 @@ export default function EditBenchmarkPage({ params }: { params: Promise<{ id: st
         setPlatform(benchmarkData.platform || "easyaim");
         setDifficulty(benchmarkData.difficulty || "medium");
 
-        // Load the rank ladder from the benchmark. Without this the form
-        // kept its hardcoded 8-rank default on every page load, so removing
-        // a rank and saving appeared to work (the detail page showed the
-        // shortened ladder) but the next visit showed the deleted rank
+        // Load the rank ladder from the tier being edited. Without this the
+        // form kept its hardcoded 8-rank default on every page load, so
+        // removing a rank and saving appeared to work (the detail page showed
+        // the shortened ladder) but the next visit showed the deleted rank
         // again — and saving from that state re-added it.
-        if (
-          Array.isArray(benchmarkData.rank_names) &&
-          benchmarkData.rank_names.length > 0
-        ) {
+        setTiers(Array.isArray(data.tiers) ? data.tiers : []);
+        setActiveSlug(typeof data.tierSlug === "string" ? data.tierSlug : null);
+
+        const activeTier = Array.isArray(data.tiers)
+          ? data.tiers.find(
+              (t: Tier) => t.slug === data.tierSlug
+            ) as Tier | undefined
+          : undefined;
+
+        const ladderNames = activeTier?.rank_names ?? benchmarkData.rank_names;
+        const ladderColors = activeTier?.rank_colors ?? benchmarkData.rank_colors;
+
+        if (Array.isArray(ladderNames) && ladderNames.length > 0) {
           setRanks(
-            benchmarkData.rank_names.map((name: string, index: number) => ({
+            ladderNames.map((name: string, index: number) => ({
               name,
-              color: benchmarkData.rank_colors?.[index] || "#ffffff",
+              color: ladderColors?.[index] || "#ffffff",
             }))
           );
         }
@@ -181,7 +206,7 @@ export default function EditBenchmarkPage({ params }: { params: Promise<{ id: st
     }
 
     checkAndLoad();
-  }, [id]);
+  }, [id, searchParams]);
 
   useEffect(() => {
     // Invalidate anything in flight before doing anything else, so a response
@@ -436,39 +461,208 @@ export default function EditBenchmarkPage({ params }: { params: Promise<{ id: st
     setRanks((prev) => prev.map((r, i) => i === index ? { ...r, color } : r));
   }
 
+  // ------------------------------------------------------------------ tiers
+
+  const activeTier = tiers.find((tier) => tier.slug === activeSlug) ?? null;
+
+  /**
+   * Switching tiers swaps the ladder and the cutoffs in one go, so what is on
+   * screen always describes exactly one tier. Both come from the same request,
+   * which is why this is a navigation rather than a local toggle.
+   */
+  async function selectTier(slug: string) {
+    setTierBusy(true);
+    setError("");
+
+    try {
+      const res = await fetch(`/api/benchmarks/${id}?tier=${encodeURIComponent(slug)}`);
+      if (!res.ok) throw new Error("Could not load that tier");
+
+      const data = await res.json();
+      const tier = (data.tiers ?? []).find((t: Tier) => t.slug === slug) as
+        | Tier
+        | undefined;
+
+      setActiveSlug(slug);
+
+      setRanks(
+        (tier?.rank_names ?? []).map((name: string, index: number) => ({
+          name,
+          color: tier?.rank_colors?.[index] || "#ffffff",
+        }))
+      );
+
+      setScenarios(
+        ((data.scenarios ?? []) as EditScenarioRow[]).map((s) => ({
+          id: Number(s.easyaim_scenario_id),
+          title: s.title,
+          cutoffs: s.cutoffs || {},
+          category: s.category || "Other",
+          subCategory: s.sub_category || "",
+        }))
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not load that tier");
+    } finally {
+      setTierBusy(false);
+    }
+  }
+
+  async function addTier() {
+    const name = newTierName.trim();
+
+    if (!name) return;
+    if (tiers.length >= MAX_TIERS) {
+      setError(`A benchmark can have at most ${MAX_TIERS} tiers`);
+      return;
+    }
+
+    setTierBusy(true);
+    setError("");
+
+    try {
+      const res = await fetch(`/api/benchmarks/${id}/tiers`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.error || "Could not add the tier");
+        return;
+      }
+
+      setNewTierName("");
+      await selectTier(data.slug);
+      router.refresh();
+    } catch {
+      setError("Could not reach the server");
+    } finally {
+      setTierBusy(false);
+    }
+  }
+
+  async function removeTier() {
+    if (!activeTier) return;
+    if (tiers.length <= 1) return;
+
+    const confirmed = window.confirm(
+      `Remove the "${activeTier.name}" tier?\n\n` +
+        "Its rank ladder and every score requirement in it are deleted. " +
+        "The scenarios themselves are not affected."
+    );
+
+    if (!confirmed) return;
+
+    setTierBusy(true);
+    setError("");
+
+    try {
+      const res = await fetch(
+        `/api/benchmarks/${id}/tiers?tierId=${encodeURIComponent(activeTier.id)}`,
+        { method: "DELETE" }
+      );
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.error || "Could not remove the tier");
+        return;
+      }
+
+      // Land on whatever is now first rather than on a tier that is gone.
+      const remaining = tiers.filter((tier) => tier.id !== activeTier.id);
+      setTiers(remaining);
+      await selectTier(remaining[0].slug);
+      router.refresh();
+    } catch {
+      setError("Could not reach the server");
+    } finally {
+      setTierBusy(false);
+    }
+  }
+
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true);
     setError("");
+
     try {
       const payload = {
         title: title.trim(),
         description,
         difficulty,
         platform,
-        rank_names: ranks.map((r) => r.name),
-        rank_colors: ranks.map((r) => r.color),
         category_defs: categories,
         scenarios: scenarios.map((s) => ({
           id: s.id,
           title: s.title,
           category: s.category || "Other",
           subCategory: s.subCategory || "",
-          cutoffs: Object.fromEntries(
-            Object.entries(s.cutoffs).filter(([, v]) => v !== undefined && v !== "")
-          ),
         })),
       };
+
       const res = await fetch(`/api/benchmarks/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
+
       if (!res.ok) {
         const data = await res.json();
         throw new Error(data.error || "Failed to save");
       }
-      router.push(`/benchmarks/${id}`);
+
+      // The ladder and the cutoffs now belong to the tier, not the benchmark,
+      // so they are a second write. Done after the benchmark so a tier failure
+      // cannot leave a benchmark whose scenarios have moved but whose cutoffs
+      // have not.
+      if (activeTier) {
+        const ladder = sanitizeLadder(
+          ranks.map((r) => r.name),
+          ranks.map((r) => r.color)
+        );
+
+        const tierRes = await fetch(`/api/benchmarks/${id}/tiers`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            tierId: activeTier.id,
+            cutoffs: scenarios.map((s) => ({
+              id: s.id,
+              cutoffs: Object.fromEntries(
+                Object.entries(s.cutoffs).filter(
+                  ([, v]) => v !== undefined && v !== ""
+                )
+              ),
+            })),
+          }),
+        });
+
+        if (!tierRes.ok) {
+          const data = await tierRes.json();
+          throw new Error(data.error || "Benchmark saved, but its tier was not");
+        }
+
+        const patchRes = await fetch(`/api/benchmarks/${id}/tiers`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            tierId: activeTier.id,
+            rankNames: ladder.rank_names,
+            rankColors: ladder.rank_colors,
+          }),
+        });
+
+        if (!patchRes.ok) {
+          const data = await patchRes.json();
+          throw new Error(data.error || "Benchmark saved, but its ladder was not");
+        }
+      }
+
+      router.push(`/benchmarks/${id}/${activeTier?.slug ?? "primary"}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save");
     } finally {
@@ -522,9 +716,90 @@ export default function EditBenchmarkPage({ params }: { params: Promise<{ id: st
         <h1 className="text-3xl font-bold tracking-tight">Edit Benchmark</h1>
 
         <form onSubmit={handleSave} className="mt-8 space-y-6">
+          {/* TIERS */}
+          <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-5">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="text-sm font-semibold text-white">
+                  Editing the{" "}
+                  <span className="text-accent">{activeTier?.name ?? "only tier"}</span>{" "}
+                  tier
+                </h2>
+                <p className="mt-0.5 text-xs text-zinc-600">
+                  The rank ladder and the score requirements below belong to
+                  this tier only. Each tier is its own page on the benchmark.
+                </p>
+              </div>
+
+              {tiers.length > 1 ? (
+                <button
+                  type="button"
+                  onClick={removeTier}
+                  disabled={tierBusy}
+                  className="rounded-lg border border-red-900/60 px-3 py-1.5 text-xs font-medium text-red-400 transition hover:bg-red-950/30 disabled:opacity-50"
+                >
+                  Remove tier
+                </button>
+              ) : null}
+            </div>
+
+            <div className="mt-4 flex flex-wrap items-center gap-1 rounded-xl border border-white/10 bg-black/40 p-1">
+              {tiers.map((tier) => {
+                const active = tier.slug === activeSlug;
+
+                return (
+                  <button
+                    key={tier.id}
+                    type="button"
+                    onClick={() => selectTier(tier.slug)}
+                    disabled={tierBusy}
+                    aria-current={active ? "true" : undefined}
+                    className={[
+                      "relative rounded-lg px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50",
+                      "before:absolute before:inset-y-1 before:left-0 before:w-[3px] before:rounded-full before:content-['']",
+                      active
+                        ? "bg-white/[0.07] text-white before:bg-accent"
+                        : "text-zinc-400 hover:bg-white/[0.04] hover:text-white before:bg-transparent",
+                    ].join(" ")}
+                  >
+                    {tier.is_official ? tier.name : `${tier.name} (Unofficial)`}
+                  </button>
+                );
+              })}
+
+              {tiers.length < MAX_TIERS ? (
+                <div className="ml-auto flex items-center gap-1.5 pl-2">
+                  <input
+                    type="text"
+                    value={newTierName}
+                    onChange={(e) => setNewTierName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        addTier();
+                      }
+                    }}
+                    placeholder="New tier name"
+                    maxLength={40}
+                    aria-label="New tier name"
+                    className="w-32 rounded-lg border border-zinc-800 bg-zinc-950 px-2 py-1.5 text-xs text-white outline-none placeholder:text-zinc-600 focus:border-zinc-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={addTier}
+                    disabled={tierBusy || !newTierName.trim()}
+                    className="rounded-lg border border-zinc-700 px-2.5 py-1.5 text-xs font-medium text-white transition hover:bg-white/10 disabled:opacity-40"
+                  >
+                    Add
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          </div>
+
           <div>
             <label className="block text-sm text-zinc-400 mb-2">Title</label>
-            <input value={title} onChange={(e) => setTitle(e.target.value)} className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-3 text-white focus:border-zinc-500 outline-none" required />
+            <input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={200} className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-3 text-white focus:border-zinc-500 outline-none" required />
           </div>
 
           <div>

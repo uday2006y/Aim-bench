@@ -248,3 +248,95 @@ alter table public.easyaim_links
 -- The dead table, if a previous version of this schema created it. Harmless
 -- if it was never there.
 drop table if exists public.benchmark_edits;
+
+-- ============================================================
+-- Tiers — a benchmark's difficulty variants
+-- ============================================================
+-- A benchmark can have up to six named tiers, each with its own rank ladder
+-- and its own cutoffs. "Novice" might ladder Iron → Bronze → Silver → Gold
+-- while "Elite" ladders Nova → Astra → Celestial → Stellaris, off the same
+-- scenarios. /benchmarks/[id]/[tier] renders one of them and the switcher in
+-- the header moves between them.
+--
+-- The scenario list stays shared: a tier is a different way to score the same
+-- scenarios, not a different set of them. Only the requirements differ.
+--
+-- rank_names / rank_colors live here rather than on `benchmarks`, because a
+-- ladder is per tier. `benchmarks` keeps its own copy only so that rows
+-- written before this existed still resolve — see the migration below.
+create table if not exists public.benchmark_tiers (
+  id uuid default gen_random_uuid() primary key,
+  benchmark_id uuid references public.benchmarks(id) on delete cascade not null,
+  -- The url segment. Lower-case, hyphenated, unique per benchmark so that
+  -- "Elite (Unofficial)" and "elite unofficial" cannot both exist and make
+  -- /benchmarks/<id>/<slug> ambiguous.
+  slug text not null,
+  name text not null,
+  -- Order in the switcher. Ascending; ties fall back to created_at.
+  position integer not null default 0,
+  rank_names text[] not null default '{"Bronze","Silver","Gold","Platinum","Diamond","Champion","Radiant","Immortal"}',
+  rank_colors text[] not null default '{"#b87333","#c0c0c0","#ffd700","#e5e4e2","#b9f2fe","#ffd700","#ff0000","#9f9f9f"}',
+  -- Mirrors the "(Unofficial)" suffix in the reference. A tier the author
+  -- made for themselves rather than as part of the benchmark's intent; it is
+  -- labelled, not hidden or gated.
+  is_official boolean not null default true,
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null,
+  unique (benchmark_id, slug)
+);
+
+create index if not exists benchmark_tiers_benchmark_idx
+  on public.benchmark_tiers (benchmark_id, position);
+
+alter table public.benchmark_tiers enable row level security;
+
+-- benchmark_tiers: no policies = server-only (service role).
+
+-- Cutoffs per tier per scenario. Kept out of benchmark_scenarios so the
+-- scenario list stays shared and adding a tier is a row per scenario rather
+-- than a copy of the whole list.
+create table if not exists public.benchmark_tier_cutoffs (
+  tier_id uuid references public.benchmark_tiers(id) on delete cascade not null,
+  easyaim_scenario_id bigint not null,
+  cutoffs jsonb not null default '{}'::jsonb,
+  primary key (tier_id, easyaim_scenario_id)
+);
+
+create index if not exists benchmark_tier_cutoffs_scenario_idx
+  on public.benchmark_tier_cutoffs (easyaim_scenario_id);
+
+alter table public.benchmark_tier_cutoffs enable row level security;
+
+-- benchmark_tier_cutoffs: no policies = server-only (service role).
+
+-- ------------------------------------------------------------
+-- Give every existing benchmark one tier, built from what it already has.
+-- Without this a benchmark created before tiers existed would have no ladder
+-- to render and every rank would silently collapse to null.
+--
+-- 'primary' is the slug, so /benchmarks/<id>/primary always resolves.
+-- ------------------------------------------------------------
+insert into public.benchmark_tiers
+  (benchmark_id, slug, name, position, rank_names, rank_colors)
+select
+  b.id,
+  'primary',
+  'Standard',
+  0,
+  coalesce(b.rank_names, '{"Bronze","Silver","Gold","Platinum","Diamond","Champion","Radiant","Immortal"}'),
+  coalesce(b.rank_colors, '{"#b87333","#c0c0c0","#ffd700","#e5e4e2","#b9f2fe","#ffd700","#ff0000","#9f9f9f"}')
+from public.benchmarks b
+where not exists (
+  select 1 from public.benchmark_tiers t where t.benchmark_id = b.id
+);
+
+-- Move each benchmark's existing cutoffs onto its new primary tier. Done after
+-- the insert above so tier_id exists.
+insert into public.benchmark_tier_cutoffs
+  (tier_id, easyaim_scenario_id, cutoffs)
+select
+  t.id,
+  bs.easyaim_scenario_id,
+  coalesce(bs.cutoffs, '{}'::jsonb)
+from public.benchmark_scenarios bs
+join public.benchmark_tiers t on t.benchmark_id = bs.benchmark_id
+on conflict (tier_id, easyaim_scenario_id) do nothing;

@@ -9,6 +9,9 @@ import {
   type RankSource,
   type ScenarioCutoffs,
 } from "@/lib/aggregates";
+import { sanitizeTiers } from "@/lib/benchmarkTiers";
+import { createTiersForBenchmark } from "@/lib/tiers";
+import { DEFAULT_RANK_NAMES, DEFAULT_RANK_COLORS } from "@/lib/benchmarkDefaults";
 
 /**
  * Upper bound on the scenario rows read for rank cutoffs. Comfortably above
@@ -149,8 +152,19 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-        const { title, description, platform, difficulty, scenarioCount, scenarios, rank_names, rank_colors, rank_thresholds, category_defs } =
-      await request.json();
+    const {
+      title,
+      description,
+      platform,
+      difficulty,
+      scenarioCount,
+      scenarios,
+      rank_names,
+      rank_colors,
+      rank_thresholds,
+      category_defs,
+      tiers,
+    } = await request.json();
 
     if (!title) {
       return NextResponse.json(
@@ -182,9 +196,9 @@ export async function POST(request: Request) {
         description,
         platform: scenarioList.length > 0 ? "easyaim" : platform || "easyaim",
         difficulty: difficulty || "medium",
-        rank_names: rank_names || '{"Bronze","Silver","Gold","Platinum","Diamond","Champion","Radiant","Immortal"}',
-        rank_colors: rank_colors || '{"#b87333","#c0c0c0","#ffd700","#e5e4e2","#b9f2fe","#ffd700","#ff0000","#9f9f9f"}',
-                rank_thresholds: rank_thresholds || '{"Bronze":0,"Silver":1000,"Gold":2500,"Platinum":5000,"Diamond":10000,"Champion":15000,"Radiant":20000,"Immortal":30000}',
+        rank_names: rank_names || DEFAULT_RANK_NAMES,
+        rank_colors: rank_colors || DEFAULT_RANK_COLORS,
+        rank_thresholds: rank_thresholds || '{"Bronze":0,"Silver":1000,"Gold":2500,"Platinum":5000,"Diamond":10000,"Champion":15000,"Radiant":20000,"Immortal":30000}',
         category_defs: categoryDefs,
         user_id: accountId,
         scenario_count:
@@ -199,7 +213,7 @@ export async function POST(request: Request) {
       const { error: scenariosError } = await supabaseAdmin
         .from("benchmark_scenarios")
         .insert(
-                    scenarioList.map((scenario, index) => ({
+          scenarioList.map((scenario, index) => ({
             benchmark_id: benchmark.id,
             easyaim_scenario_id: scenario.easyaimScenarioId,
             title: scenario.title,
@@ -211,6 +225,22 @@ export async function POST(request: Request) {
         );
 
       if (scenariosError) throw scenariosError;
+
+      // The tiers. Each one starts from the benchmark's own ladder and a copy
+      // of its cutoffs, so a benchmark is never created with a tier that has no
+      // requirements and can therefore never be reached. What each tier is
+      // *for* — Novice being easier than Elite — is the author's next move,
+      // on the edit page.
+      await createTiersForBenchmark(
+        benchmark.id,
+        sanitizeTiers(tiers),
+        DEFAULT_RANK_NAMES,
+        DEFAULT_RANK_COLORS,
+        scenarioList.map((scenario) => ({
+          easyaimScenarioId: scenario.easyaimScenarioId,
+          cutoffs: scenario.cutoffs,
+        }))
+      );
 
       // Existing linked players get one full re-scan so their PBs on the
       // scenarios just added show up right away.

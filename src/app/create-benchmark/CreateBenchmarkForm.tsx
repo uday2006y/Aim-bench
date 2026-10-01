@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useRef, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import SiteHeader from "@/components/SiteHeader";
@@ -8,6 +8,11 @@ import {
   renameCutoffKey,
   MAX_SCENARIOS_PER_BENCHMARK,
 } from "@/lib/benchmarkScenarios";
+import {
+  MAX_TIERS,
+  slugifyTierName,
+  type TierDraft,
+} from "@/lib/benchmarkTiers";
 
 const DEFAULT_RANKS = [
   { name: "Bronze", color: "#b87333" },
@@ -50,6 +55,26 @@ interface AddedScenario {
 }
 
 /**
+ * A tier being named on the create form.
+ *
+ * Cutoffs are not collected here. A tier's ladder and its per-scenario
+ * requirements are the same shape of work as the benchmark's own, and asking
+ * for six of them before the benchmark exists would mean re-entering the same
+ * ladder six times in one sitting. Every tier starts from the benchmark's
+ * ladder and its scenarios' cutoffs are copied in, so each tier is immediately
+ * real and can be tuned on the edit page one tier at a time.
+ */
+interface TierDraftRow extends TierDraft {
+  id: string;
+  /**
+   * Set once the slug stops tracking the name. Editing the create form does not
+   * need it — there are no addresses yet — but it keeps the "slug follows the
+   * name" rule in one place for the edit form, which does.
+   */
+  slugLocked?: boolean;
+}
+
+/**
  * The platform value stored on the row. Lower-case on purpose: the list
  * endpoint filters with an exact `.eq("platform", ...)`, and this used to
  * initialise as "EasyAim" while the only <option> was value="easyaim". A
@@ -70,6 +95,12 @@ export default function CreateBenchmarkForm() {
   const [scenarios, setScenarios] = useState<AddedScenario[]>([]);
   const [ranks, setRanks] = useState<RankDef[]>(DEFAULT_RANKS);
   const [categories, setCategories] = useState<CategoryDef[]>(DEFAULT_CATEGORIES);
+  // How many tiers this benchmark has, and what they are called. The count is
+  // the author's choice up to six — the switcher in the header is a menu, and
+  // past six it stops being one.
+  const [tiers, setTiers] = useState<TierDraftRow[]>([
+    { id: "tier-0", slug: "standard", name: "Standard", isOfficial: true },
+  ]);
   // Preselect the first category so the add-destination picker is never
   // blank on a fresh benchmark.
   const [addTargetCategory, setAddTargetCategory] = useState(
@@ -323,12 +354,101 @@ export default function CreateBenchmarkForm() {
     setRanks((prev) => prev.map((r, i) => (i === index ? { ...r, color } : r)));
   }
 
+  // ------------------------------------------------------------------ tiers
+
+  function setTierCount(count: number) {
+    const next = Math.max(1, Math.min(MAX_TIERS, count));
+
+    setTiers((current) => {
+      if (next <= current.length) return current.slice(0, next);
+
+      // Names offered in the order an author would reach for them. Only a
+      // suggestion: the field is a text input and whatever is typed wins.
+      const suggestions = [
+        "Novice",
+        "Intermediate",
+        "Advanced",
+        "Elite",
+        "Legendary",
+        "Custom",
+      ];
+
+      const added: TierDraftRow[] = [];
+
+      for (let index = current.length; index < next; index++) {
+        const name = suggestions[index] ?? `Tier ${index + 1}`;
+        added.push({
+          id: `tier-${index}`,
+          slug: slugifyTierName(name),
+          name,
+          isOfficial: true,
+        });
+      }
+
+      return [...current, ...added];
+    });
+  }
+
+  function updateTierName(index: number, name: string) {
+    setTiers((current) =>
+      current.map((tier, i) =>
+        i === index
+          ? {
+              ...tier,
+              name,
+              // Slug tracks the name only while the author has not typed one
+              // themselves; once it does, renaming is free without moving the
+              // tier's address.
+              slug: tier.slugLocked ? tier.slug : slugifyTierName(name) || tier.slug,
+            }
+          : tier
+      )
+    );
+  }
+
+  function toggleTierOfficial(index: number) {
+    setTiers((current) =>
+      current.map((tier, i) =>
+        i === index ? { ...tier, isOfficial: !tier.isOfficial } : tier
+      )
+    );
+  }
+
+  /**
+   * Two tiers cannot slugify to the same address, so flag it here rather than
+   * letting the server silently drop the second one.
+   */
+  const tierSlugClash = useMemo(() => {
+    const seen = new Set<string>();
+    const clashes = new Set<string>();
+
+    for (const tier of tiers) {
+      const slug = slugifyTierName(tier.name) || tier.slug;
+      if (seen.has(slug)) clashes.add(tier.id);
+      seen.add(slug);
+    }
+
+    return clashes;
+  }, [tiers]);
+
+  const unnamedTiers = tiers.filter((tier) => !tier.name.trim());
+
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError("");
 
     if (!title.trim()) {
       setError("Give the benchmark a title");
+      return;
+    }
+
+    if (unnamedTiers.length > 0) {
+      setError("Every tier needs a name, or remove the ones you do not want");
+      return;
+    }
+
+    if (tierSlugClash.size > 0) {
+      setError("Two tiers end up with the same address — give them different names");
       return;
     }
 
@@ -390,6 +510,14 @@ export default function CreateBenchmarkForm() {
           rank_thresholds: {},
           category_defs: categories,
           scenarios: payloadScenarios,
+          // Each tier starts from the benchmark's ladder. The server copies the
+          // benchmark's cutoffs onto every tier too, so all of them are real
+          // and editable the moment the benchmark exists.
+          tiers: tiers.map((tier) => ({
+            name: tier.name.trim(),
+            slug: tier.slug,
+            isOfficial: tier.isOfficial,
+          })),
         }),
       });
 
@@ -782,6 +910,102 @@ export default function CreateBenchmarkForm() {
                 </div>
                 <button type="button" onClick={addCategory} className="mt-3 text-xs border border-zinc-600 text-white px-3 py-1 rounded font-medium hover:bg-zinc-800">+ Add Category</button>
               </div>
+            </div>
+
+            {/* TIERS */}
+            <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-6 shadow-2xl">
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                  <h2 className="text-xl font-bold tracking-tight">Tiers</h2>
+                  <p className="mt-1 max-w-md text-xs text-zinc-600">
+                    Up to {MAX_TIERS} ways to score this benchmark. Each tier
+                    gets its own rank ladder and its own cutoffs, and each is a
+                    page of its own at{" "}
+                    <code className="font-mono">/benchmarks/&lt;id&gt;/&lt;tier&gt;</code>{" "}
+                    with a switcher in the header. One tier is fine — the
+                    switcher only appears once there is a choice to make.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <label
+                    htmlFor="tier-count"
+                    className="text-xs uppercase tracking-wider text-zinc-500"
+                  >
+                    How many
+                  </label>
+                  <input
+                    id="tier-count"
+                    type="number"
+                    min={1}
+                    max={MAX_TIERS}
+                    step={1}
+                    value={tiers.length}
+                    onChange={(e) => setTierCount(Number(e.target.value) || 1)}
+                    className="w-16 rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-white outline-none focus:border-zinc-500"
+                  />
+                </div>
+              </div>
+
+              <div className="mt-5 space-y-2">
+                {tiers.map((tier, index) => {
+                  const clash = tierSlugClash.has(tier.id);
+                  const slug = slugifyTierName(tier.name) || tier.slug;
+
+                  return (
+                    <div
+                      key={tier.id}
+                      className={`flex flex-wrap items-center gap-3 rounded-lg border bg-zinc-900/60 p-3 ${
+                        clash ? "border-red-900/60" : "border-zinc-800"
+                      }`}
+                    >
+                      <span className="w-5 shrink-0 text-xs font-mono text-zinc-600">
+                        {index + 1}
+                      </span>
+
+                      <input
+                        type="text"
+                        value={tier.name}
+                        onChange={(e) => updateTierName(index, e.target.value)}
+                        placeholder="Tier name"
+                        maxLength={40}
+                        aria-label={`Tier ${index + 1} name`}
+                        className="min-w-0 flex-1 rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-white outline-none focus:border-zinc-500"
+                      />
+
+                      {/* The address this tier will live at. Shown because a
+                          name that slugs badly is otherwise invisible until
+                          someone shares the link. */}
+                      <code className="shrink-0 font-mono text-[11px] text-zinc-600">
+                        /{slug}
+                      </code>
+
+                      <label className="flex shrink-0 items-center gap-1.5 text-[11px] text-zinc-500">
+                        <input
+                          type="checkbox"
+                          checked={!tier.isOfficial}
+                          onChange={() => toggleTierOfficial(index)}
+                          className="rounded border-zinc-600 bg-zinc-900 text-white"
+                        />
+                        Unofficial
+                      </label>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {tierSlugClash.size > 0 && (
+                <p role="alert" className="mt-3 text-xs text-red-400">
+                  Two of those names produce the same address. Change one.
+                </p>
+              )}
+
+              {tiers.length > 1 && (
+                <p className="mt-3 text-xs text-zinc-600">
+                  Every tier starts from the rank ladder and cutoffs below. Tune
+                  each one separately on the edit page after saving.
+                </p>
+              )}
             </div>
 
             <div>

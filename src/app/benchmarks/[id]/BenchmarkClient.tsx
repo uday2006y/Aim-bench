@@ -3,7 +3,9 @@
 import Link from "next/link";
 import { useBarStyle } from "@/lib/useBarStyle";
 import PinButton from "@/components/PinButton";
+import TierSwitcher from "@/components/TierSwitcher";
 import { computeTierFills } from "@/lib/tierBars";
+import type { Tier } from "@/lib/benchmarkTiers";
 
 interface CategoryDef {
   name: string;
@@ -63,6 +65,8 @@ function withAlpha(hex: string, alpha: number): string {
 export default function BenchmarkClient({
   id,
   benchmark,
+  tier,
+  tiers,
   scenarios,
   isAuthorized,
   myPinned,
@@ -70,6 +74,10 @@ export default function BenchmarkClient({
 }: {
   id: string;
   benchmark: Benchmark;
+  /** The tier being viewed. Its ladder names and colours drive every column. */
+  tier: Tier;
+  /** Every tier on this benchmark, for the switcher. */
+  tiers: Tier[];
   scenarios: BenchmarkScenario[];
   isAuthorized: boolean;
   myPinned: boolean;
@@ -81,22 +89,18 @@ export default function BenchmarkClient({
   // doing by hand.
   const [barStyle] = useBarStyle();
 
-  const rankOrder =
-    benchmark.rank_names?.length
-      ? benchmark.rank_names.map((name, i) => ({
-          name,
-          color: benchmark.rank_colors?.[i] || "#b87333",
-        }))
-      : [
-          { name: "Bronze", color: "#b87333" },
-          { name: "Silver", color: "#c0c0c0" },
-          { name: "Gold", color: "#ffd700" },
-          { name: "Platinum", color: "#e5e4e2" },
-          { name: "Diamond", color: "#b9f2fe" },
-          { name: "Champion", color: "#ffd700" },
-          { name: "Radiant", color: "#ff0000" },
-          { name: "Immortal", color: "#9f9f9f" },
-        ];
+  /**
+   * The ladder for this tier.
+   *
+   * Read from the tier rather than the benchmark: that is the whole point of
+   * tiers. Novice can be Iron → Bronze → Silver → Gold while Elite is Nova →
+   * Astra → Celestial, off the same scenarios, and the columns below have to
+   * change with it.
+   */
+  const rankOrder = tier.rank_names.map((name, i) => ({
+    name,
+    color: tier.rank_colors?.[i] || "#b87333",
+  }));
 
   const hasScenarios = (scenarios || []).length > 0;
 
@@ -208,9 +212,28 @@ export default function BenchmarkClient({
         {/* Benchmark header */}
         <div className="animate-card-in mb-6 rounded-2xl border border-zinc-800 bg-surface p-6 shadow-2xl">
           <div className="flex flex-wrap items-center justify-between gap-4">
-            <h1 className="text-3xl font-extrabold tracking-tight">
-              {benchmark.title || "Benchmark"}
-            </h1>
+            <div className="min-w-0">
+              <h1 className="text-3xl font-extrabold tracking-tight">
+                {benchmark.title || "Benchmark"}
+              </h1>
+
+              {hasScenarios && (
+                <div className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-1 text-[10px] uppercase tracking-wider text-zinc-500">
+                  <span>
+                    {scenarios.length} scenario{scenarios.length === 1 ? "" : "s"}
+                  </span>
+                  <span>
+                    {groups.length} categor{groups.length === 1 ? "y" : "ies"}
+                  </span>
+                  {tiers.length > 1 ? (
+                    <span>
+                      {tiers.length} tier{tiers.length === 1 ? "" : "s"}
+                    </span>
+                  ) : null}
+                </div>
+              )}
+            </div>
+
             {/* Star sits with the title rather than the Edit button: it is
                 something any visitor can do, so it must not read as part of
                 the owner's controls. */}
@@ -223,7 +246,7 @@ export default function BenchmarkClient({
               />
               {isAuthorized ? (
                 <Link
-                  href={`/benchmarks/${id}/edit`}
+                  href={`/benchmarks/${id}/edit?tab=${encodeURIComponent(tier.slug)}`}
                   className="rounded bg-white px-3 py-1.5 text-xs font-medium text-black transition hover:bg-zinc-200"
                 >
                   Edit Benchmark
@@ -232,14 +255,15 @@ export default function BenchmarkClient({
             </div>
           </div>
 
-          {hasScenarios && (
-            <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1 text-[10px] uppercase tracking-wider text-zinc-500">
-              <span>
-                {scenarios.length} scenario{scenarios.length === 1 ? "" : "s"}
-              </span>
-              <span>{groups.length} categor{groups.length === 1 ? "y" : "ies"}</span>
+          {/* The switcher. Below the title rather than beside it because the
+              benchmark title is variable length and the pills are not: side by
+              side, a long title would push the switcher into a second row at a
+              width where it still had room. */}
+          {tiers.length > 1 ? (
+            <div className="mt-5 border-t border-white/5 pt-5">
+              <TierSwitcher benchmarkId={id} tiers={tiers} activeSlug={tier.slug} />
             </div>
-          )}
+          ) : null}
 
           {isAuthorized && ranksWithNoCutoffs.length > 0 && (
             <div className="mt-4 rounded-lg border border-amber-900/40 bg-amber-950/20 px-4 py-3 text-xs text-amber-300/90">

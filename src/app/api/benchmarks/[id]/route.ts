@@ -4,6 +4,7 @@ import { getSessionAccountId } from "@/lib/session";
 import { sanitizeScenarios, sanitizeCategoryDefs, syncSubCategoriesIntoDefs } from "@/lib/benchmarkScenarios";
 import { resetLinkedAccountsBackfill } from "@/lib/resetBackfill";
 import { recordAggregateFor } from "@/lib/easyaimSync";
+import { loadTierCutoffs, loadTiers } from "@/lib/tiers";
 
 export async function PUT(
   request: Request,
@@ -154,7 +155,7 @@ export async function PUT(
 }
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
@@ -164,7 +165,7 @@ export async function GET(
     // The benchmark id comes from the URL, so the scenarios are knowable
     // before the benchmark row arrives. Only the not-found branch needs the
     // benchmark first, and a 404 is cheap enough to gate on.
-    const [benchmarkResult, scenarioResult] = await Promise.all([
+    const [benchmarkResult, scenarioResult, tiers] = await Promise.all([
       supabaseAdmin
         .from("benchmarks")
         .select("*")
@@ -176,6 +177,10 @@ export async function GET(
         .select("id, easyaim_scenario_id, title, position, category, sub_category, cutoffs")
         .eq("benchmark_id", id)
         .order("position", { ascending: true }),
+
+      // Keyed by benchmark id, so this does not have to wait for the benchmark
+      // row. The edit page needs the whole ladder list to render its tabs.
+      loadTiers(id),
     ]);
 
     const benchmark = benchmarkResult.data;
@@ -232,6 +237,20 @@ export async function GET(
       }
     }
 
+    // The tier the caller asked to edit, with its cutoffs. Absent when the
+    // database has no tier tables, which the page reports rather than
+    // rendering an empty ladder.
+    const tierSlug = new URL(request.url).searchParams.get("tier");
+    const tier = tierSlug ? tiers.find((t) => t.slug === tierSlug) ?? null : tiers[0] ?? null;
+    const tierCutoffs = tier ? await loadTierCutoffs(tier.id) : null;
+
+    const scenariosWithTierCutoffs = tierCutoffs
+      ? scenarios.map((scenario) => ({
+          ...scenario,
+          cutoffs: tierCutoffs.get(Number(scenario.easyaim_scenario_id)) ?? {},
+        }))
+      : scenarios;
+
     return NextResponse.json({
       benchmark,
       // The edit page used to fetch this, then immediately fetch
@@ -245,7 +264,9 @@ export async function GET(
       isOwner:
         Boolean(accountId) &&
         (benchmark as { user_id: string | null }).user_id === accountId,
-      scenarios,
+      tiers,
+      tierSlug: tier?.slug ?? null,
+      scenarios: scenariosWithTierCutoffs,
     });
   } catch (error) {
     console.error("BENCHMARK DETAIL ERROR:", error);

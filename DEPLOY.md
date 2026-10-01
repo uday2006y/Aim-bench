@@ -21,6 +21,12 @@ them is not, the build is not ready to ship — the lint baseline used to be
    type block at the bottom of `supabase-final.sql` — scores are being
    rounded and alphanumeric ids will be rejected until you do.
 
+   **The same block creates the tier tables** (`benchmark_tiers`,
+   `benchmark_tier_cutoffs`) and gives every existing benchmark one default
+   tier built from the ladder it already has. Without it, every benchmark page
+   says "Tiers are not set up" and names this file. Both blocks are idempotent
+   — running them twice is fine.
+
 2. Push. `.env*` is gitignored and `.env.local` holds template values only.
 
 3. In Vercel → Project → Settings → Environment Variables:

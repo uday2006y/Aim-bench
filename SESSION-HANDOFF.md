@@ -144,13 +144,34 @@ user runs by hand:
 
 | File | What |
 |---|---|
-| `supabase-final.sql` (type block at the bottom) | **Run this.** Scores → `numeric`, ids → `text` |
+| `supabase-final.sql` (type + tier block at the bottom) | **Run this.** Scores → `double precision`, ids → `text`, tier tables created |
 | `supabase-pins.sql` | `benchmark_pins` table + `benchmark_pin_totals` view |
 | `supabase-verify.sql` | **Read-only.** Checks the whole schema is current |
 
 **Run `supabase-verify.sql` first** in any new session. Schema drift has
 bitten this project repeatedly and the symptom is always "a feature silently
 does nothing".
+
+### Tiers
+
+A benchmark has up to six named tiers, each with its own rank ladder and its
+own per-scenario cutoffs. `/benchmarks/<id>/<tier>` renders one and the
+switcher in the header moves between them; `/benchmarks/<id>` redirects to the
+first. The scenario list is **shared** — a tier is a different set of
+requirements, not a different set of scenarios.
+
+| Path | What |
+|---|---|
+| `src/lib/benchmarkTiers.ts` | Pure: count cap, slug rules, ladder validation. Tested |
+| `src/lib/tiers.ts` | The only module that knows the tier table names |
+| `src/components/TierSwitcher.tsx` | The header pills |
+| `src/app/benchmarks/[id]/[tier]/page.tsx` | One tier's table |
+| `src/app/api/benchmarks/[id]/tiers/route.ts` | POST add · PATCH rename/ladder · PUT cutoffs · DELETE |
+
+**The aggregate walk did not change.** A tier is just a different set of
+cutoffs handed to `computeAggregates` with that tier's ladder, so it is the
+same function and the same rule. Ranks and the leaderboard currently resolve
+against the benchmark's own `rank_names`, not a tier's — see open items.
 
 Three column types were wrong, and wrong *quietly*:
 
@@ -191,9 +212,21 @@ Verify by deploying or by asking the user to run SQL.
 1. **`supabase-pins.sql` — the user has never confirmed running it.** The
    star fails without it. There is now a toast that names the fix, but they
    may not have seen it. Ask.
-2. **The type block in `supabase-final.sql` has not been run.** Until it is,
-   scores round and alphanumeric ids are rejected. Section 7 of
-   `supabase-verify.sql` reports both.
+2. **The type + tier block in `supabase-final.sql` has not been run.** Until
+   it is, scores round, alphanumeric ids are rejected, and every benchmark
+   page says "Tiers are not set up". Section 7 of `supabase-verify.sql` reports
+   the column types.
+2b. **Tiers do not yet feed the rank walk.** `/benchmarks/<id>/<tier>` renders
+   the right cutoffs and the right columns, but `computeAggregates` is still
+   called with `benchmarks.rank_names` and `benchmark_scenarios.cutoffs` from
+   the list and leaderboard paths, and the sync engine writes one
+   `benchmark_scores` row per benchmark rather than per tier. So a card and a
+   leaderboard row still describe the benchmark's default ladder, not whichever
+   tier you are looking at. Threading a tier through means: a `tier_id` on
+   `benchmark_scores`, a tier argument on the read paths, and a decision about
+   whether a player's rank is per tier. That is the next piece of work, and it
+   is deliberately not guessed at — the schema supports it and nothing else
+   pretends to.
 3. **`vercel.json` says `bom1` (Mumbai)** — that was a *guess*. Confirm the
    Supabase region (Project Settings → Database → connection string host
    contains `ap-south-1` etc.) and change the one word if wrong. Wrong =
