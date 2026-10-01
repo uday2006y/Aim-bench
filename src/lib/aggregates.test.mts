@@ -190,3 +190,54 @@ test("a missing scenario counts as zero rather than being skipped", () => {
   assert.equal(a.rank, null, "scenario 2 has no PB, which is a zero against Gold");
   assert.equal(a.score, 5000);
 });
+
+test("a cutoff of zero is no cutoff, not a requirement of nothing", () => {
+  // Regression, and it started in storage rather than here. Clearing a number
+  // input sent "" (or null), sanitizeScenarios ran it through Number(), and
+  // Number("") is 0 — so every untouched cutoff field was written as 0. The
+  // walk tested `typeof cutoff === "number"`, so those ranks counted as
+  // scorable, and `pb >= 0` passed on every scenario. A benchmark author was
+  // handed the top rank for leaving a field blank, while the detail page's
+  // own warning said that same rank could never be reached.
+  //
+  // computeTierFills and the UI both already treated 0 as absent; this makes
+  // the rank walk agree with them.
+  const a = ladder(
+    NAMES,
+    [
+      { id: 1, cutoffs: { Bronze: 600, Gold: 0 } },
+      { id: 2, cutoffs: { Bronze: 600, Gold: 0 } },
+    ],
+    [[1, 700], [2, 700]]
+  );
+
+  assert.equal(
+    a.rank,
+    "Bronze",
+    "Gold's cutoffs are all zero, so Gold states no requirement and is skipped"
+  );
+  assert.equal(a.maxed, true, "Bronze is then the ceiling");
+});
+
+test("a zero cutoff does not make an otherwise-empty tier reachable", () => {
+  // The top rank of the ladder, with only zero cutoffs set.
+  const a = ladder(
+    ["Bronze", "Gold"],
+    [{ id: 1, cutoffs: { Bronze: 600, Gold: 0 } }],
+    []
+  );
+
+  assert.equal(a.rank, null, "no PB and no real requirement anywhere");
+  assert.equal(a.maxed, false);
+});
+
+test("a positive cutoff still counts after the zero rule", () => {
+  const a = ladder(
+    NAMES,
+    [{ id: 1, cutoffs: { Bronze: 600, Silver: 0, Gold: 1000 } }],
+    [[1, 1500]]
+  );
+
+  assert.equal(a.rank, "Gold", "Silver being zero does not block Gold");
+  assert.equal(a.maxed, true);
+});

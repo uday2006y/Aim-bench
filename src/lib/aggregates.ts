@@ -44,6 +44,21 @@ export interface ScenarioCutoffs {
 }
 
 /**
+ * Whether a cutoff actually states a requirement.
+ *
+ * `> 0`, not "is a number". A cutoff of zero is indistinguishable from an
+ * empty form field at the storage layer — sanitizeScenarios drops both — and
+ * even where a zero does survive, "score zero or more" is not a requirement
+ * anyone sets on purpose. computeTierFills and the detail page's
+ * unreachable-rank warning both test `> 0`; this keeps the rank walk in
+ * agreement with them instead of treating a blank tier as auto-passed.
+ */
+function statesRequirement(cutoffs: Record<string, number> | null, rank: string): boolean {
+  const needed = cutoffs?.[rank];
+  return typeof needed === "number" && needed > 0;
+}
+
+/**
  * Highest rank that every scenario clears.
  *
  * A rank with no cutoff set on any scenario is skipped rather than
@@ -57,20 +72,16 @@ function resolveRank(
   scenarios: { cutoffs: Record<string, number> | null; pb: number | null }[]
 ): { rank: string | null; rankIndex: number | null } {
   const scorable = rankNames.filter((rank) =>
-    scenarios.some((scenario) => {
-      const needed = scenario.cutoffs?.[rank];
-      return typeof needed === "number";
-    })
+    scenarios.some((scenario) => statesRequirement(scenario.cutoffs, rank))
   );
 
   for (let index = scorable.length - 1; index >= 0; index--) {
     const rank = scorable[index];
 
     const passesAll = scenarios.every((scenario) => {
-      const needed = scenario.cutoffs?.[rank];
       // A scenario with no cutoff for this rank doesn't count against it.
-      if (needed === undefined || needed === null) return true;
-      return (scenario.pb ?? 0) >= needed;
+      if (!statesRequirement(scenario.cutoffs, rank)) return true;
+      return (scenario.pb ?? 0) >= (scenario.cutoffs?.[rank] as number);
     });
 
     if (passesAll) return { rank, rankIndex: rankNames.indexOf(rank) };
@@ -142,7 +153,7 @@ export function computeAggregates(
 
     // The top rank that actually has cutoffs — the ceiling for "Complete".
     const scorable = rankNames.filter((name) =>
-      withPbs.some((scenario) => typeof scenario.cutoffs?.[name] === "number")
+      withPbs.some((scenario) => statesRequirement(scenario.cutoffs, name))
     );
     const topRank = scorable.length > 0 ? scorable[scorable.length - 1] : null;
 

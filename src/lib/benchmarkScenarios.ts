@@ -28,8 +28,15 @@ const MAX_NAME_LENGTH = 100;
  * scenario list down with it, or lands in the DB as a string that quietly
  * breaks rank comparison during sync.
  *
- * Ids are de-duplicated and cutoffs are coerced to finite, non-negative
- * numbers so `benchmark_scenarios.cutoffs` is always numeric jsonb.
+ * Ids are de-duplicated and cutoffs are coerced to finite, positive numbers so
+ * `benchmark_scenarios.cutoffs` is always numeric jsonb.
+ *
+ * "Positive" rather than "non-negative" on purpose: a cutoff of zero and no
+ * cutoff at all are the same thing everywhere else in the app —
+ * `computeTierFills` and the detail page's unreachable-rank warning both test
+ * `> 0`. Storing 0 here would make `computeAggregates` treat an unfilled field
+ * as a requirement of zero, which every scenario passes, so an untouched rank
+ * would become reachable while the page said it was not.
  */
 export function sanitizeScenarios(input: unknown): ScenarioInput[] {
   if (!Array.isArray(input)) return [];
@@ -64,10 +71,26 @@ export function sanitizeScenarios(input: unknown): ScenarioInput[] {
       for (const [rank, value] of Object.entries(
         record.cutoffs as Record<string, unknown>
       )) {
-        // Number() also collapses the "" and null that number inputs and
-        // cleared fields produce, which we want to drop rather than store.
+        // Empties are dropped *before* coercion, not after.
+        //
+        // The old code leaned on Number() to collapse the "" and null that
+        // cleared number inputs produce — but Number("") and Number(null) are
+        // both 0, and 0 passes both guards, so every cleared field was stored
+        // as a cutoff of zero.
+        //
+        // That is not a harmless rounding. aggregates.ts decides which ranks
+        // are scorable with `typeof cutoff === "number"`, so a zero cutoff
+        // made an unfilled rank reachable, and `pb >= 0` made it pass on
+        // every scenario. Meanwhile computeTierFills and the detail page's
+        // "this rank can never be reached" warning both test `> 0` and
+        // ignored it. The engine granted a rank the interface was telling the
+        // author was impossible.
+        if (value === null || value === undefined || value === "") continue;
+        if (typeof value === "boolean") continue;
+
         const numeric = Number(value);
-        if (Number.isFinite(numeric) && numeric >= 0) {
+
+        if (Number.isFinite(numeric) && numeric > 0) {
           cutoffs[rank] = numeric;
         }
       }
@@ -99,6 +122,40 @@ export function sanitizeScenarios(input: unknown): ScenarioInput[] {
   }
 
   return scenarios.slice(0, MAX_SCENARIOS_PER_BENCHMARK);
+}
+
+/**
+ * Moves one rank's cutoffs onto a new name, in place.
+ *
+ * Cutoffs are keyed by rank name, so renaming a rank has to carry every
+ * scenario's requirement across with it. Both the create form and the edit
+ * form rename ranks, and both used to do this differently: create remapped
+ * the keys, edit only renamed the rank. On the edit page that left every
+ * cutoff filed under a name no rank matched any more, so the whole tier
+ * silently became unreachable on save — with a line of on-screen text
+ * promising the opposite.
+ *
+ * Lives here, and is tested, rather than inline in either page: it is pure,
+ * it is the rule that decides whether a tier keeps its requirements, and
+ * two hand-written copies of it is how they drifted apart in the first
+ * place.
+ *
+ * Renaming into a name that already exists overwrites that rank's cutoffs.
+ * That is deliberate — the author asked for one rank to become the other,
+ * and there is no sensible way to keep both sets.
+ */
+export function renameCutoffKey<T>(
+  cutoffs: Record<string, T>,
+  oldName: string,
+  newName: string
+): Record<string, T> {
+  if (oldName === newName || !(oldName in cutoffs)) return cutoffs;
+
+  const next = { ...cutoffs };
+  next[newName] = next[oldName];
+  delete next[oldName];
+
+  return next;
 }
 
 /**
