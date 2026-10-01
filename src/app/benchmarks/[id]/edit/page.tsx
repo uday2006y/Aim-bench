@@ -74,6 +74,14 @@ export default function EditBenchmarkPage({ params }: { params: Promise<{ id: st
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  /**
+   * Confirms a destructive edit before it is saved.
+   *
+   * Removing a rank deletes every scenario requirement for it, straight away
+   * and with no undo. The row simply vanishing was the only feedback, which
+   * is indistinguishable from the button misfiring.
+   */
+  const [notice, setNotice] = useState("");
   const [isOwner, setIsOwner] = useState<boolean | null>(null);
   const [notFound, setNotFound] = useState(false);
 
@@ -432,6 +440,7 @@ export default function EditBenchmarkPage({ params }: { params: Promise<{ id: st
 
     if (oldName === newName) return;
 
+    setNotice("");
     setRanks((prev) => prev.map((r, i) => i === index ? { ...r, name: newName } : r));
 
     // Cutoffs are keyed by rank name, so the rename has to take them with
@@ -444,20 +453,40 @@ export default function EditBenchmarkPage({ params }: { params: Promise<{ id: st
   }
 
   function addRank() {
+    setNotice("");
     setRanks((prev) => [...prev, { name: `Rank ${prev.length + 1}`, color: "#ffffff" }]);
   }
 
+  /**
+   * Deletes a rank and every scenario requirement filed under it.
+   *
+   * The requirement count is taken from the scenarios as they are now, before
+   * the state update lands, so the message reports what was on screen when the
+   * button was pressed. Saying so matters because there is no undo and no
+   * confirmation step: without a message, a vanished row reads as a button
+   * that did nothing.
+   */
   function removeRank(index: number) {
     const rankName = ranks[index].name;
+    const dropped = scenarios.filter((s) => s.cutoffs?.[rankName] !== undefined).length;
+
     setRanks((prev) => prev.filter((_, i) => i !== index));
     setScenarios((prev) => prev.map((s) => {
       const newCutoffs = { ...s.cutoffs };
       delete newCutoffs[rankName];
       return { ...s, cutoffs: newCutoffs };
     }));
+
+    setNotice(
+      dropped > 0
+        ? `Deleted ${rankName} and its score requirement on ${dropped} scenario${dropped === 1 ? "" : "s"}.`
+        : `Deleted ${rankName}. It had no score requirements set.`
+    );
+    setError("");
   }
 
   function updateRankColor(index: number, color: string) {
+    setNotice("");
     setRanks((prev) => prev.map((r, i) => i === index ? { ...r, color } : r));
   }
 
@@ -1100,7 +1129,17 @@ export default function EditBenchmarkPage({ params }: { params: Promise<{ id: st
             <p className="mt-2 text-xs text-zinc-600">Changing rank names updates scenario score inputs. Removing a rank removes its scores.</p>
           </div>
 
-          {error && <div className="rounded-lg border border-red-900/50 bg-red-950/30 px-4 py-3 text-sm text-red-400">{error}</div>}
+          {notice && (
+              <div
+                role="status"
+                aria-live="polite"
+                className="rounded-lg border border-amber-900/50 bg-amber-950/20 px-4 py-3 text-sm text-amber-300"
+              >
+                {notice} Save to make it permanent.
+              </div>
+            )}
+
+            {error && <div className="rounded-lg border border-red-900/50 bg-red-950/30 px-4 py-3 text-sm text-red-400">{error}</div>}
 
           <button type="submit" disabled={saving} className="w-full rounded-lg bg-white px-4 py-3 font-semibold text-black hover:bg-zinc-200 disabled:opacity-50">
             {saving ? "Saving..." : "Save Changes"}

@@ -242,7 +242,7 @@ export async function PUT(request: Request, { params }: Params) {
       )
     );
 
-    await replaceTierScenarios(tier.id, cleaned);
+    await replaceTierScenarios(id, tier.id, cleaned);
 
     await recordAggregateFor(guard.accountId, id);
 

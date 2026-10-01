@@ -188,6 +188,7 @@ export async function loadAllTierRefs(): Promise<TierRef[]> {
  * but that a later re-add would silently inherit.
  */
 export async function replaceTierScenarios(
+  benchmarkId: string,
   tierId: string,
   rows: TierScenarioInput[]
 ): Promise<void> {
@@ -202,6 +203,11 @@ export async function replaceTierScenarios(
 
   const { error } = await supabaseAdmin.from("benchmark_scenarios").insert(
     rows.map((row) => ({
+      // benchmark_id is NOT NULL and predates tier_id. A scenario belongs to
+      // a tier, but it still belongs to the benchmark the tier hangs off, and
+      // every benchmark-level read joins on this column -- so omitting it
+      // fails the insert with 23502 rather than storing something unusable.
+      benchmark_id: benchmarkId,
       tier_id: tierId,
       easyaim_scenario_id: row.easyaimScenarioId,
       title: row.title,

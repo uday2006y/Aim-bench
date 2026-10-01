@@ -116,6 +116,12 @@ export default function CreateBenchmarkForm() {
   const [results, setResults] = useState<ScenarioResult[]>([]);
   const [searching, setSearching] = useState(false);
   const [error, setError] = useState("");
+  /**
+   * Confirms a destructive edit. Removing a rank drops every scenario
+   * requirement filed under it, and the row just disappearing gives no clue
+   * that anything else went with it.
+   */
+  const [notice, setNotice] = useState("");
   const [loading, setLoading] = useState(false);
 
   // Search responses can arrive out of order — a slow request for "eas"
@@ -328,11 +334,21 @@ export default function CreateBenchmarkForm() {
   }
 
   function addRank() {
+    setNotice("");
     setRanks((prev) => [...prev, { name: `Rank ${prev.length + 1}`, color: "#ffffff" }]);
   }
 
+  /**
+   * Deletes a rank and every scenario requirement filed under it.
+   *
+   * The count comes from the scenarios as they are now, before the state
+   * update lands, so it reports what was on screen when the button was
+   * pressed rather than what survived the re-render.
+   */
   function removeRank(index: number) {
     const rankName = ranks[index].name;
+    const dropped = scenarios.filter((s) => s.cutoffs?.[rankName] !== undefined).length;
+
     setRanks((prev) => prev.filter((_, i) => i !== index));
     // Remove this rank from all scenario cutoffs
     setScenarios((prev) => prev.map((s) => {
@@ -340,6 +356,13 @@ export default function CreateBenchmarkForm() {
       delete newCutoffs[rankName];
       return { ...s, cutoffs: newCutoffs };
     }));
+
+    setNotice(
+      dropped > 0
+        ? `Deleted ${rankName} and its score requirement on ${dropped} scenario${dropped === 1 ? "" : "s"}.`
+        : `Deleted ${rankName}. It had no score requirements set.`
+    );
+    setError("");
   }
 
   function updateRankName(index: number, value: string) {
@@ -348,6 +371,7 @@ export default function CreateBenchmarkForm() {
 
     if (oldName === newName) return;
 
+    setNotice("");
     setRanks((prev) => prev.map((r, i) => i === index ? { ...r, name: newName } : r));
     // Carry every scenario's requirement onto the new key. Shared with the
     // edit form via renameCutoffKey, because the two used to disagree here.
@@ -357,6 +381,7 @@ export default function CreateBenchmarkForm() {
   }
 
   function updateRankColor(index: number, color: string) {
+    setNotice("");
     setRanks((prev) => prev.map((r, i) => (i === index ? { ...r, color } : r)));
   }
 
@@ -1118,6 +1143,16 @@ export default function CreateBenchmarkForm() {
                   so its score can only be read from the value above. Adding
                   scenarios is what makes it playable.
                 </p>
+              </div>
+            )}
+
+            {notice && (
+              <div
+                role="status"
+                aria-live="polite"
+                className="rounded-lg border border-amber-900/50 bg-amber-950/20 px-4 py-3 text-sm text-amber-300"
+              >
+                {notice}
               </div>
             )}
 
