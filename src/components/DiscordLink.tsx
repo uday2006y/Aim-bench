@@ -19,7 +19,16 @@ export default function DiscordLink() {
       href={INVITE_URL}
       target="_blank"
       rel="noopener noreferrer"
-      className="group fixed bottom-4 right-4 z-40 inline-flex items-center gap-2 rounded-xl border border-white/15 bg-zinc-950/90 px-3 py-2 shadow-2xl backdrop-blur transition hover:border-[#5865F2]/60 hover:bg-zinc-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#5865F2]"
+      // bottom/right use max() against the safe-area insets. On a notched
+      // phone in landscape, or any device with a home indicator, a plain
+      // bottom-4 puts the button under the system chrome and it reads as
+      // missing.
+      //
+      // No backdrop-blur: it forces a GPU-composited layer, and on some mobile
+      // GPUs a composited layer over a scrolling page is dropped entirely --
+      // the button simply does not paint. A solid background is one less thing
+      // to go wrong, and this floats over content anyway.
+      className="group fixed bottom-[max(1rem,env(safe-area-inset-bottom))] right-[max(1rem,env(safe-area-inset-right))] z-50 inline-flex items-center gap-2 rounded-xl border border-white/15 bg-zinc-950 px-3 py-2 shadow-2xl transition hover:border-[#5865F2]/60 hover:bg-zinc-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#5865F2]"
     >
       {/* Inline SVG rather than an <img>: no network request, no layout shift,
           and it inherits currentColor so it tints with the hover state. */}
