@@ -39,7 +39,12 @@ export interface RankSource {
 
 export interface ScenarioCutoffs {
   benchmark_id: string;
-  easyaim_scenario_id: number;
+  /**
+   * A string, matching the column and `sanitizeScenarios`. Numeric-looking ids
+   * arrive from Postgres as text, so `Map<number, …>` lookups silently missed
+   * every row — an aggregate of all zeros with no error anywhere.
+   */
+  easyaim_scenario_id: string;
   cutoffs: Record<string, number> | null;
 }
 
@@ -107,12 +112,12 @@ function rankLadderOf(benchmark: RankSource): string[] {
  *
  * `pbByScenario` is the viewer's personal best per EasyAim scenario id. Any
  * scenario missing from it counts as zero, which is the same thing the
- * cutoffs compare against.
+ * cutoffs compare against. Keyed by the id as a string, matching the column.
  */
 export function computeAggregates(
   benchmarks: RankSource[],
   scenarios: ScenarioCutoffs[],
-  pbByScenario: Map<number, number>
+  pbByScenario: Map<string, number>
 ): Map<string, Aggregate> {
   const result = new Map<string, Aggregate>();
 

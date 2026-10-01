@@ -32,7 +32,7 @@ interface TierRow {
 
 function toTier(row: TierRow): Tier {
   // The ladder goes through the same validator the forms do, so a row written
-  // by an older build — or by hand — cannot reach a table with a colour ladder
+  // by an older build ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â or by hand ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â cannot reach a table with a colour ladder
   // shorter than its name ladder.
   const ladder = sanitizeLadder(row.rank_names ?? [], row.rank_colors ?? []);
 
@@ -84,7 +84,7 @@ export async function loadTier(benchmarkId: string, slug: string): Promise<Tier 
  * Keyed by scenario id rather than returned as rows so the caller can hang it
  * straight off the scenario list it already has.
  */
-export async function loadTierCutoffs(tierId: string): Promise<Map<number, Record<string, number>>> {
+export async function loadTierCutoffs(tierId: string): Promise<Map<string, Record<string, number>>> {
   const { data, error } = await supabaseAdmin
     .from("benchmark_tier_cutoffs")
     .select("easyaim_scenario_id, cutoffs")
@@ -96,13 +96,13 @@ export async function loadTierCutoffs(tierId: string): Promise<Map<number, Recor
     return new Map();
   }
 
-  const result = new Map<number, Record<string, number>>();
+  const result = new Map<string, Record<string, number>>();
 
   for (const row of (data ?? []) as {
     easyaim_scenario_id: number;
     cutoffs: Record<string, number> | null;
   }[]) {
-    result.set(Number(row.easyaim_scenario_id), row.cutoffs ?? {});
+    result.set(String(row.easyaim_scenario_id), row.cutoffs ?? {});
   }
 
   return result;
@@ -113,7 +113,7 @@ export async function loadTierCutoffs(tierId: string): Promise<Map<number, Recor
  *
  * Seeding matters. A tier whose scenarios have no cutoffs has no rank that can
  * be reached, so creating six tiers and leaving them empty would hand the
- * author six pages of "—". Copying the benchmark's own requirements means each
+ * author six pages of "ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â". Copying the benchmark's own requirements means each
  * tier is immediately real and can be tuned from there.
  *
  * Best-effort: a database without the tier tables still gets its benchmark.
@@ -125,7 +125,7 @@ export async function createTiersForBenchmark(
   drafts: TierDraft[],
   fallbackNames: string[],
   fallbackColors: string[],
-  seedCutoffs: { easyaimScenarioId: number; cutoffs: Record<string, number> }[]
+  seedCutoffs: { easyaimScenarioId: string; cutoffs: Record<string, number> }[]
 ): Promise<void> {
   // No tiers asked for still means one tier: every benchmark has a default
   // address, and /benchmarks/<id> forwards to it.
@@ -162,7 +162,7 @@ export async function createTiersForBenchmark(
   const cutoffRows = (created ?? []).flatMap((tier) =>
     seedCutoffs.map((cutoff) => ({
       tier_id: (tier as { id: string }).id,
-      easyaim_scenario_id: cutoff.easyaimScenarioId,
+      easyaim_scenario_id: String(cutoff.easyaimScenarioId),
       cutoffs: cutoff.cutoffs,
     }))
   );
@@ -186,7 +186,7 @@ export async function createTiersForBenchmark(
  */
 export async function replaceTierCutoffs(
   tierId: string,
-  cutoffs: { easyaimScenarioId: number; cutoffs: Record<string, number> }[]
+  cutoffs: { easyaimScenarioId: string; cutoffs: Record<string, number> }[]
 ): Promise<void> {
   const { error: deleteError } = await supabaseAdmin
     .from("benchmark_tier_cutoffs")
@@ -200,7 +200,7 @@ export async function replaceTierCutoffs(
   const { error } = await supabaseAdmin.from("benchmark_tier_cutoffs").insert(
     cutoffs.map((row) => ({
       tier_id: tierId,
-      easyaim_scenario_id: row.easyaimScenarioId,
+      easyaim_scenario_id: String(row.easyaimScenarioId),
       cutoffs: row.cutoffs,
     }))
   );

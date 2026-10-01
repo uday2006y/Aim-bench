@@ -296,7 +296,7 @@ alter table public.benchmark_tiers enable row level security;
 -- than a copy of the whole list.
 create table if not exists public.benchmark_tier_cutoffs (
   tier_id uuid references public.benchmark_tiers(id) on delete cascade not null,
-  easyaim_scenario_id bigint not null,
+  easyaim_scenario_id text not null,
   cutoffs jsonb not null default '{}'::jsonb,
   primary key (tier_id, easyaim_scenario_id)
 );
@@ -305,6 +305,17 @@ create index if not exists benchmark_tier_cutoffs_scenario_idx
   on public.benchmark_tier_cutoffs (easyaim_scenario_id);
 
 alter table public.benchmark_tier_cutoffs enable row level security;
+
+-- Column type must match benchmark_scenarios.easyaim_scenario_id, which the
+-- type block above this one has already moved to text. Declaring it bigint
+-- here made the seed insert below fail with
+--   42804: column "easyaim_scenario_id" is of type bigint but expression is
+--   of type text
+-- and, worse, the create ran before the insert, so a re-run needed this to
+-- repair a table that already existed with the wrong type. Idempotent either
+-- way: a no-op on a fresh table, a repair on an existing one.
+alter table public.benchmark_tier_cutoffs
+  alter column easyaim_scenario_id type text using easyaim_scenario_id::text;
 
 -- benchmark_tier_cutoffs: no policies = server-only (service role).
 

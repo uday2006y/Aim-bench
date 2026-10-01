@@ -29,7 +29,7 @@ export interface LeaderboardEntry {
   rank_color: string;
   /**
    * When this player last set one of the personal bests that make up the
-   * score. Not a completion date — benchmark_scores used to supply one, but
+   * score. Not a completion date ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â benchmark_scores used to supply one, but
    * that is exactly the table this stopped reading, and "when did you last
    * improve here" is the more useful column anyway.
    */
@@ -65,7 +65,7 @@ interface BenchmarkRow extends RankSource {
  * reasonably report it as broken.
  *
  * Both now call the same rank walk over the same source, so a card and a
- * leaderboard row cannot disagree — there is nothing left to disagree
+ * leaderboard row cannot disagree ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â there is nothing left to disagree
  * about. benchmark_scores keeps its real job, which is history: it records
  * *when* someone completed something, which is what the rank history page
  * reads and what no amount of live arithmetic can reconstruct.
@@ -116,7 +116,7 @@ export async function buildLeaderboard(
 
   if (truncated) {
     console.error(
-      `LEADERBOARD: hit the ${PB_SCAN_LIMIT}-row personal-bests cap — the board is incomplete. ` +
+      `LEADERBOARD: hit the ${PB_SCAN_LIMIT}-row personal-bests cap ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â the board is incomplete. ` +
         "Raise PB_SCAN_LIMIT."
     );
   }
@@ -129,7 +129,7 @@ export async function buildLeaderboard(
   // every benchmark.
   const pbsByAccount = new Map<
     string,
-    Map<number, { score: number; achievedAt: string | null }>
+    Map<string, { score: number; achievedAt: string | null }>
   >();
 
   for (const row of pbResult.data || []) {
@@ -146,7 +146,7 @@ export async function buildLeaderboard(
       pbsByAccount.set(pb.account_id, byScenario);
     }
 
-    byScenario.set(Number(pb.scenario_id), {
+    byScenario.set(String(pb.scenario_id), {
       score: pb.score,
       achievedAt: pb.achieved_at ?? null,
     });
@@ -157,15 +157,15 @@ export async function buildLeaderboard(
   //
   // Built once, above the account loop. It used to be rebuilt inside it,
   // which made this section cost (accounts x scenarios) instead of
-  // scenarios — invisible with three players, quadratic with three hundred.
-  const scenarioIdsByBenchmark = new Map<string, Set<number>>();
+  // scenarios ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â invisible with three players, quadratic with three hundred.
+  const scenarioIdsByBenchmark = new Map<string, Set<string>>();
   for (const scenario of scenarios) {
     let ids = scenarioIdsByBenchmark.get(scenario.benchmark_id);
     if (!ids) {
       ids = new Set();
       scenarioIdsByBenchmark.set(scenario.benchmark_id, ids);
     }
-    ids.add(Number(scenario.easyaim_scenario_id));
+    ids.add(String(scenario.easyaim_scenario_id));
   }
 
   // The rank walk only needs the ladder columns, so project once rather than
@@ -196,7 +196,7 @@ export async function buildLeaderboard(
       const standing = standings.get(benchmark.id);
       if (!standing || standing.score <= 0) continue;
 
-      const ownScenarios = scenarioIdsByBenchmark.get(benchmark.id) ?? new Set<number>();
+      const ownScenarios = scenarioIdsByBenchmark.get(benchmark.id) ?? new Set<string>();
 
       let lastImproved: string | null = null;
       for (const scenarioId of ownScenarios) {

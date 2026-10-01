@@ -23,7 +23,7 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     // Defaults to no filter. This used to default to "easyaim", which was
-    // invisible while the list page always sent an explicit "all" — and
+    // invisible while the list page always sent an explicit "all" Ã¢â‚¬â€ and
     // would have silently hidden every benchmark on a second platform once
     // the page stopped sending the parameter at all.
     const platform = searchParams.get("platform") || "all";
@@ -33,7 +33,7 @@ export async function GET(request: Request) {
 
     // One round trip, not five. Every one of these used to be awaited in
     // sequence, and each await is a full HTTPS round trip to Postgres from
-    // a serverless function — roughly a third of a second each regardless
+    // a serverless function Ã¢â‚¬â€ roughly a third of a second each regardless
     // of how little data comes back. Five in a row was most of the two and
     // a half seconds this endpoint took to answer.
     //
@@ -94,7 +94,7 @@ export async function GET(request: Request) {
       // Ranks derived from a truncated scenario set are wrong in a way
       // nothing on the page would reveal, so make it loud in the logs.
       console.error(
-        `BENCHMARKS: hit the ${SCENARIO_SCAN_LIMIT}-row scenario cap — ranks may be wrong. ` +
+        `BENCHMARKS: hit the ${SCENARIO_SCAN_LIMIT}-row scenario cap Ã¢â‚¬â€ ranks may be wrong. ` +
           "Raise SCENARIO_SCAN_LIMIT, or scope the query to the visible benchmarks."
       );
     }
@@ -107,10 +107,10 @@ export async function GET(request: Request) {
 
     const rows = (benchmarksResult.data || []) as RankSource[];
 
-    const pbByScenario = new Map<number, number>();
+    const pbByScenario = new Map<string, number>();
     for (const row of pbResult?.data || []) {
       const pb = row as { scenario_id: number; score: number };
-      pbByScenario.set(Number(pb.scenario_id), pb.score);
+      pbByScenario.set(String(pb.scenario_id), pb.score);
     }
 
     const myPins = new Set<string>();
@@ -229,7 +229,7 @@ export async function POST(request: Request) {
       // The tiers. Each one starts from the benchmark's own ladder and a copy
       // of its cutoffs, so a benchmark is never created with a tier that has no
       // requirements and can therefore never be reached. What each tier is
-      // *for* — Novice being easier than Elite — is the author's next move,
+      // *for* Ã¢â‚¬â€ Novice being easier than Elite Ã¢â‚¬â€ is the author's next move,
       // on the edit page.
       await createTiersForBenchmark(
         benchmark.id,

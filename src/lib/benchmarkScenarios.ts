@@ -1,5 +1,16 @@
 export interface ScenarioInput {
-  easyaimScenarioId: number;
+  /**
+   * Always a string.
+   *
+   * The column is `text`, because EasyAim ids are alphanumeric
+   * (692fc9afe296376b3bdceed2 and so on) and a `bigint` column cannot store
+   * one. PostgREST does not cast a JSON number into a text column — it
+   * answers `column "easyaim_scenario_id" is of type text but expression is of
+   * type integer` — so a number here is not merely wrong, it is a 500 on every
+   * write. Normalising at this boundary means every caller below can forget
+   * about it.
+   */
+  easyaimScenarioId: string;
   title: string;
   category: string;
   subCategory: string;
@@ -42,7 +53,7 @@ export function sanitizeScenarios(input: unknown): ScenarioInput[] {
   if (!Array.isArray(input)) return [];
 
   const scenarios: ScenarioInput[] = [];
-  const seen = new Set<number>();
+  const seen = new Set<string>();
 
   for (const item of input) {
     if (!item || typeof item !== "object") continue;
@@ -59,11 +70,34 @@ export function sanitizeScenarios(input: unknown): ScenarioInput[] {
 
     // Accept either shape so the same helper serves the create form
     // (`id`) and a future server-side caller (`easyaim_scenario_id`).
+    //
+    // Kept as a string, never coerced with Number(). Two reasons, and the
+    // second one used to be a silent data-loss bug:
+    //
+    //   1. The column is `text`, and PostgREST will not cast a JSON number
+    //      into a text column — it answers "column easyaim_scenario_id is of
+    //      type text but expression is of type integer". Writing a number here
+    //      was a 500 on every save.
+    //   2. EasyAim ids are alphanumeric (692fc9afe296376b3bdceed2 and so on).
+    //      Number() turned those into NaN, and NaN failed the isFinite guard,
+    //      so the scenario was dropped from the benchmark entirely — with no
+    //      error anywhere, just a scenario that quietly was not there.
     const rawId = record.id ?? record.easyaim_scenario_id;
-    const id = Number(rawId);
 
-    if (!Number.isFinite(id) || id <= 0 || seen.has(id)) continue;
-    seen.add(id);
+    if (typeof rawId !== "string" && typeof rawId !== "number") continue;
+
+    const id = String(rawId).trim();
+
+    // Bounded and a known shape, so this is not a hole for writing an
+    // arbitrary string into a text column that is also used to look up runs.
+    if (!/^[A-Za-z0-9_-]{1,64}$/.test(id)) continue;
+
+    // "1" and " 1" are the same scenario; without this they would both
+    // survive and collide on the unique (benchmark_id, easyaim_scenario_id).
+    const key = /^\d+$/.test(id) ? String(Number(id)) : id;
+
+    if (seen.has(key)) continue;
+    seen.add(key);
 
     const cutoffs: Record<string, number> = {};
 
@@ -113,7 +147,7 @@ export function sanitizeScenarios(input: unknown): ScenarioInput[] {
         : "";
 
     scenarios.push({
-      easyaimScenarioId: id,
+      easyaimScenarioId: key,
       title,
       category,
       subCategory,
