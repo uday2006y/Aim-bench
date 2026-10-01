@@ -21,11 +21,21 @@ them is not, the build is not ready to ship — the lint baseline used to be
    type block at the bottom of `supabase-final.sql` — scores are being
    rounded and alphanumeric ids will be rejected until you do.
 
-   **The same block creates the tier tables** (`benchmark_tiers`,
-   `benchmark_tier_cutoffs`) and gives every existing benchmark one default
-   tier built from the ladder it already has. Without it, every benchmark page
-   says "Tiers are not set up" and names this file. Both blocks are idempotent
-   — running them twice is fine.
+   **The same block owns tiers.** It creates `benchmark_tiers`, adds
+   `benchmark_scenarios.tier_id`, hands every existing scenario to its
+   benchmark's `primary` tier, moves the unique constraint from
+   `(benchmark_id, easyaim_scenario_id)` to `(tier_id, easyaim_scenario_id)`,
+   and **drops `benchmark_tier_cutoffs`** — that table existed and the code no
+   longer uses it, because a scenario belongs to one tier so its cutoffs live on
+   its own row.
+
+   Everything is idempotent; running it twice is fine. Without it, every
+   benchmark page says "Tiers are not set up" and names this file.
+
+   **After a type change, grep the whole file for the old type.** The first
+   version of this block declared a new table's column `bigint` in the same
+   file that had just moved the equivalent column to `text`, and the migration
+   failed on the seed insert that followed.
 
 2. Push. `.env*` is gitignored and `.env.local` holds template values only.
 

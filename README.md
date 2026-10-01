@@ -25,8 +25,9 @@ npm run lint
 npm run build
 ```
 
-All four are expected to be clean. See `SESSION-HANDOFF.md` for what the
-architecture is and why, and `DEPLOY.md` for shipping it.
+All four are expected to be clean — 83 tests at present. See
+`SESSION-HANDOFF.md` for what the architecture is, **what is unfinished**, and
+why things are the way they are. `DEPLOY.md` for shipping it.
 
 ## Reading the code
 
@@ -37,8 +38,10 @@ else calls it.
 | Path | What |
 |---|---|
 | `src/lib/aggregates.ts` | The rank walk. Pure, tested, the only one |
+| `src/lib/tiers.ts` | Tier reads and writes. The only module that knows those table names |
 | `src/lib/tierBars.ts` | How full each rank's bar draws. Pure, tested |
-| `src/lib/benchmarkScenarios.ts` | Input normalisation for the create/edit forms. Pure, tested |
+| `src/lib/benchmarkScenarios.ts` | Input normalisation for the create/edit forms, and grouping scenarios by tier. Pure, tested |
+| `src/lib/benchmarkTiers.ts` | Tier count, slugs, ladder validation, primary-tier scoping. Pure, tested |
 | `src/lib/leaderboard.ts` | Standings, computed from personal bests |
 | `src/lib/easyaimSync.ts` | Pulls runs from EasyAim, records bests, writes history |
 | `src/app/` | Pages and route handlers |

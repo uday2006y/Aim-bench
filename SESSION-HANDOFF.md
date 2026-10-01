@@ -1,342 +1,353 @@
 # AIMBENCH — Session Handoff
 
-Read this first in a new session.
+Read this first in a new session. **Section 0 is unfinished work — start there.**
+
+Written 1 Oct 2026, at commit `6bed3c2`.
 
 ---
 
-## What this is
+## 0. Where this stands
 
-A community aim-benchmark leaderboard. People create benchmarks out of
-EasyAim scenarios, set a score cutoff per rank tier, and everyone competes
-on the same scenarios. Scores come from the EasyAim API, not from anyone
-typing a number in.
+The last commit (`6bed3c2`, "scenarios, categories and cutoffs belong to a tier")
+is **code-complete and verified, but not deployed and not run against the
+database.** tsc clean, 83 tests pass, lint clean, build passes.
 
-Live at `aim-bench.vercel.app`. Repo at `C:\Users\uki\Music\aim-bench`,
-branch `main`, remote `uday2006y/Aim-bench`.
+### Do this first, in this order
+
+**1. Run the migration.** `supabase-final.sql`, the tier section at the bottom.
+It has not been run against the live database in its current form. It:
+
+- creates `benchmark_tiers`
+- adds `benchmark_scenarios.tier_id`
+- **drops** `benchmark_tier_cutoffs` — it existed, the code no longer uses it
+- hands every existing scenario to its benchmark's `primary` tier
+- moves the unique constraint from `(benchmark_id, easyaim_scenario_id)` to
+  `(tier_id, easyaim_scenario_id)`
+
+All idempotent. Re-runnable. Run `supabase-verify.sql` afterwards.
+
+**2. Push, then manually test this specific path**, because no automated test
+can reach it:
+
+- Create a benchmark with 2 tiers, put a different scenario in each
+- Open tier A, confirm it shows *only* tier A's scenarios
+- Switch to tier B, confirm the columns and rows change
+- Edit tier B: rename a rank, change a cutoff, add a scenario, save, reload
+- Check the tier still exists and the switcher still lists both
+
+**3. Known gaps, in the order I'd do them.** These are real and unfinished:
+
+| Gap | Where | Why it matters |
+|---|---|---|
+| **Per-tier ranks on cards/leaderboard** | `api/benchmarks/route.ts`, `leaderboard.ts`, `easyaimSync.ts` | A card and a leaderboard row still describe the *first* tier. Correct and deliberate, but a player on Elite sees a Novice number. Needs `tier_id` on `benchmark_scores` and a tier argument on the read paths. |
+| **Leaderboard tier filter** | `leaderboard/page.tsx` | The dropdown picks a benchmark. It should pick a tier too, once ranks are per tier. |
+| **`benchmark_scenarios.scenario_count`** | `api/benchmarks/[id]/route.ts` PUT | Recomputed as a count across *all* tiers. Arguably right for a card, definitely wrong for a tier page. Decide and comment. |
+| **Sync does not recompute per tier** | `easyaimSync.ts` `recordAggregatesFor` | Same root cause as the first row. PBs are stored per EasyAim scenario, correctly, but the aggregate written to `benchmark_scores` is primary-tier only. |
+| **Category rails are per benchmark** | `benchmarks.category_defs` | Fine — evxl.app shares its rails across tiers too. Left alone on purpose. |
+
+### Things that were mid-edit when the session ended
+
+The per-tier scenario list on the **edit page** is wired end to end
+(`replaceTierScenarios` in `lib/tiers.ts`, `PUT` on the tiers route, the form
+posts `scenarios` with `tierSlug`, the page round-trips through
+`selectTier`). It was **not** manually exercised. If the edit page's scenario
+list misbehaves, look there first — it is the least-tested path in the app.
 
 ---
 
-## Stack
+## 1. What this is
+
+A community aim-benchmark leaderboard. People create benchmarks out of EasyAim
+scenarios, set a score cutoff per rank tier, and everyone competes on the same
+scenarios. Scores come from the EasyAim API, not from anyone typing a number in.
+
+Live at `aim-bench.vercel.app`. Repo at `C:\Users\uki\Music\aim-bench`, branch
+`main`, remote `uday2006y/Aim-bench`.
+
+---
+
+## 2. Stack
 
 - Next.js 16.3.5, App Router, TypeScript, React 19
 - Tailwind v4, Vercel
 - Supabase (Postgres + PostgREST), accessed **server-side only** via the
   service-role key
-- Discord OAuth for login, with auto-linking to EasyAim
+- Discord OAuth for login, auto-linking to EasyAim
 - No test framework — `npm test` uses Node 24's built-in runner
 
 ---
 
-## Commands
+## 3. Commands
 
 ```
-npm test          # 46 tests, no dependencies needed
+npm test          # 83 tests, no dependencies needed
 npx tsc --noEmit  # must be clean
 npm run lint      # must be clean
 npm run build     # must compile
 ```
 
-All four are clean. There is no lint baseline to ignore any more — the old
-"42 errors, all pre-existing" line is retired, and most of what it covered
-was dead code and `any`.
-
-Dev server pattern used throughout:
-
-```
-npx next dev -p 31XX          # background
-npx next dev -p 31XX          # then kill the port and delete .next/dev
-```
+All four are clean. There is no lint baseline to ignore any more.
 
 **Gotcha:** removing a route or page requires deleting `.next` — a stale
-`validator.ts` in `.next/dev/types` fails the build. After clearing `.next`,
-`tsc` fails until `next build` runs, because `LayoutProps<"/">` is a
-generated type.
+`validator.ts` fails the build. After clearing `.next`, `tsc` fails until
+`next build` runs, because `LayoutProps<"/">` is a generated type.
 
 ---
 
-## Architecture you need to know
+## 4. Tiers — the newest subsystem
 
-### Two sources of score data, and why
+A benchmark has up to six named tiers. Each has its own **scenarios, categories,
+cutoffs and rank ladder**. `/benchmarks/<id>/<tier>` renders one;
+`/benchmarks/<id>` redirects to the first, so old links still land somewhere.
+
+| Path | What |
+|---|---|
+| `src/lib/benchmarkTiers.ts` | Pure: count cap, slug rules, ladder validation, **primary-tier scoping**. Tested |
+| `src/lib/tiers.ts` | The only module that knows the tier table names |
+| `src/lib/benchmarkScenarios.ts` | `groupScenariosByTier`, `tierSlug` on every scenario. Tested |
+| `src/components/TierSwitcher.tsx` | The header pills |
+| `src/app/benchmarks/[id]/[tier]/page.tsx` | One tier's page |
+| `src/app/api/benchmarks/[id]/tiers/route.ts` | POST add · PATCH rename/ladder · PUT scenarios · DELETE |
+
+### The rule that matters most
+
+**`scenariosInPrimaryTiers`.** Scenarios belong to a tier, so a three-tier
+benchmark has three times the rows. Summing them all into one aggregate adds a
+player's Novice score to their Elite score and calls the total neither — a card
+and a leaderboard row both wrong, no error anywhere. Every benchmark-level read
+narrows to the first tier through this one function, and it is tested.
+
+If you add a read that touches scenarios across benchmarks, it must go through
+this. It is the same class of bug as the two rank-walk copies that came before.
+
+### Ownership, in one line each
+
+- **Scenario → tier.** A tier's page is its own rows.
+- **Cutoffs → scenario row.** Not a side table. With one owner per scenario there
+  was nothing to share, and two owners means every read has to arbitrate.
+- **Rank ladder → tier.** `benchmarks.rank_names` survives only so pre-tier rows
+  still resolve.
+- **Category rails → benchmark.** Shared across tiers, like the reference.
+
+### Slugs
+
+`Elite (Unofficial)` → `/elite-unofficial`. Display names keep their
+punctuation; only the address is slugified. Two tiers cannot normalise to the
+same slug — `sanitizeTiers` drops the second, and `slugifyTierName` is tested
+against it.
+
+---
+
+## 5. The two data sources, and why
 
 | | Used for | Source |
 |---|---|---|
 | `easyaim_pbs` | Benchmark cards, **leaderboard** | Live — computed on read |
 | `benchmark_scores` | Rank history only | Written by the sync engine |
 
-`benchmark_scores` is *history* — it records **when** someone completed
-something. Live standings are computed from `easyaim_pbs` on every read.
+`benchmark_scores` is *history* — when someone completed something. Live
+standings are computed from `easyaim_pbs` on every read.
 
-This was deliberate. They used to disagree: the cards derived a rank the
-moment a PB existed, while the leaderboard only showed people the sync had
-reached, so a player could see "Gold" on their card and be absent from the
-board. Both now call the same `computeAggregates`, so they cannot disagree
-by construction. **Do not reintroduce a second rank calculation.**
+Both go through the same `computeAggregates`, so they cannot disagree by
+construction. **Do not reintroduce a second rank calculation.** There were two
+violations of that rule and both are gone: the sync engine's hand-copied walk,
+and `POST /api/scores`, which let anyone publish arbitrary numbers into the
+public rank history. Scores come from EasyAim. That endpoint is deleted and
+its dead UI with it.
 
-There was exactly one violation of that rule and it is gone:
-`easyaimSync.ts` carried its own hand-copied walk, with a comment saying the
-two had to be kept in agreement. It calls `computeAggregates` like
-everything else now.
+---
 
-### `src/lib/aggregates.ts` — pure, no I/O
+## 6. Pure modules — all tested
 
-`computeAggregates(benchmarks, scenarios, pbByScenario)` → `Map<id, Aggregate>`.
-The single rank walk. Tested in `aggregates.test.mts`.
-
-### `src/lib/tierBars.ts` — pure
-
-`computeTierFills(cutoffs, score)` → fill percentages per tier. Each bar
-fills across the **gap between the rung below and its own cutoff**, not
-`score / cutoff`. Tested in `tierBars.test.mts`.
-
-### `src/lib/benchmarkScenarios.ts` — pure
-
-`sanitizeScenarios`, `sanitizeCategoryDefs`, `renameCutoffKey`. Tested in
-`benchmarkScenarios.test.mts`. `renameCutoffKey` exists because the edit form
-and the create form used to disagree about renaming a rank, and the edit form
-was silently losing cutoffs over it.
-
-### `src/lib/leaderboard.ts` — the one I/O module for standings
-
-`buildLeaderboard(benchmarkId?)`. Four parallel queries, then pure
-arithmetic.
-
-### Query discipline — do not regress this
-
-Every page was audited for sequential awaits. Each `await` on a Supabase
-query is a full HTTPS round trip from a serverless function, ~300ms each.
-
-| Page | Server round trips, before → after |
+| Module | Rule it owns |
 |---|---|
-| `/profile` | 5 → 1 |
-| `/benchmarks` | 5 → 1 |
-| `/benchmarks/[id]` | 6 → 2 |
-| `/` | 2 → 1 |
+| `lib/aggregates.ts` | The rank walk. One implementation. |
+| `lib/tierBars.ts` | How full each rank's bar draws — fills the *gap* below, not from zero |
+| `lib/benchmarkScenarios.ts` | Scenario/category normalisation, tier grouping, `renameCutoffKey` |
+| `lib/benchmarkTiers.ts` | Tier count, slugs, ladder validation, primary-tier scoping |
 
-And browser requests per page load: leaderboard 3 → 1, rank-history 3 → 1,
-benchmarks 3 → 1, edit page 2 → 1, settings 2 → 0.
+**If a rule protects data, it lives in one of these with a test.** Every
+serious bug in this codebase was a copy of a rule that had drifted from its
+original: the edit form's rank rename, the sync engine's rank walk, the
+zero-cutoff storage rule, the scenario-id type. Four times. That is the pattern
+to watch for.
 
-**Rules that came out of it:**
-- Fetch independent things in one `Promise.all`. Never chain awaits that
-  don't depend on each other.
-- Don't make the browser fetch something a server already knows.
-  `loggedIn` and the dropdown options ride along in the page's own response.
+### Scenario ids are strings
+
+The columns are `text` because EasyAim ids are alphanumeric. PostgREST will not
+cast a JSON number into a text column, so a number is a 500 on every write.
+`sanitizeScenarios` normalises at the boundary and every map keyed by a scenario
+id is keyed by string. Getting this wrong is invisible — a `Map<number,…>`
+looked up with a string misses every row and produces an aggregate of all
+zeros.
+
+---
+
+## 7. Query discipline
+
+Each `await` on Supabase is a full HTTPS round trip from a serverless function,
+~300ms.
+
+- Fetch independent things in one `Promise.all`. Never chain dependent-looking
+  awaits.
+- Don't make the browser fetch what the server already knows. `/api/scores` and
+  `/api/session` are gone for this reason.
 - No debounce on first load — only on typing.
-- `/api/scores` and `/api/session` are gone. If you find yourself adding an
-  endpoint so a client component can learn something the server already had,
-  the answer is a server component.
 - Client pages that do fetch keep a monotonic request ticket in a ref, so a
   slow earlier response cannot overwrite a newer one.
 
-### Deliberate trade-off: unfiltered PB reads
+Round trips: `/profile` 5→1, `/benchmarks` 5→1, `/benchmarks/[id]` 6→2, `/` 2→1.
 
-The list and detail pages read a viewer's `easyaim_pbs` **by account only**,
-not filtered to the scenarios on screen. That is what lets those queries go
-out *in parallel with* the scenarios instead of after them. Bounded by how
-much that one person has played. Nothing that would change a rank is
-skipped.
+**Deliberate trade-off:** list and detail pages read a viewer's `easyaim_pbs`
+by account only, not filtered to the scenarios on screen. That is what lets the
+query go out *in parallel with* the scenarios. Bounded by one person's play.
 
 ---
 
-## Database
-
-Schema in `supabase-setup.sql` and `supabase-final.sql`. Migrations the
-user runs by hand:
+## 8. Database
 
 | File | What |
 |---|---|
-| `supabase-final.sql` (type + tier block at the bottom) | **Run this.** Scores → `double precision`, ids → `text`, tier tables created |
-| `supabase-pins.sql` | `benchmark_pins` table + `benchmark_pin_totals` view |
+| `supabase-final.sql` | Schema, **plus the type + tier migration block at the bottom** |
+| `supabase-pins.sql` | `benchmark_pins` + `benchmark_pin_totals` view |
 | `supabase-verify.sql` | **Read-only.** Checks the whole schema is current |
 
-**Run `supabase-verify.sql` first** in any new session. Schema drift has
-bitten this project repeatedly and the symptom is always "a feature silently
-does nothing".
+**Run `supabase-verify.sql` first** in any new session. Schema drift has bitten
+this project repeatedly and the symptom is always "a feature silently does
+nothing".
 
-### Tiers
+Three column types were fixed in the same block, all wrong quietly:
 
-A benchmark has up to six named tiers, each with its own rank ladder and its
-own per-scenario cutoffs. `/benchmarks/<id>/<tier>` renders one and the
-switcher in the header moves between them; `/benchmarks/<id>` redirects to the
-first. The scenario list is **shared** — a tier is a different set of
-requirements, not a different set of scenarios.
-
-| Path | What |
-|---|---|
-| `src/lib/benchmarkTiers.ts` | Pure: count cap, slug rules, ladder validation. Tested |
-| `src/lib/tiers.ts` | The only module that knows the tier table names |
-| `src/components/TierSwitcher.tsx` | The header pills |
-| `src/app/benchmarks/[id]/[tier]/page.tsx` | One tier's table |
-| `src/app/api/benchmarks/[id]/tiers/route.ts` | POST add · PATCH rename/ladder · PUT cutoffs · DELETE |
-
-**The aggregate walk did not change.** A tier is just a different set of
-cutoffs handed to `computeAggregates` with that tier's ladder, so it is the
-same function and the same rule. Ranks and the leaderboard currently resolve
-against the benchmark's own `rank_names`, not a tier's — see open items.
-
-Three column types were wrong, and wrong *quietly*:
-
-- `easyaim_pbs.score` and `benchmark_scores.score` were `integer` while
-  EasyAim scores are fractional. Postgres rounded on insert, so 1,012.667
-  became 1013 and a benchmark's total drifted on every re-sync. Nothing
-  noticed because the tests exercise the pure function, not the column.
-- `benchmark_scenarios.easyaim_scenario_id`, `easyaim_pbs.scenario_id` and
-  `easyaim_links.easyaim_player_id` were `bigint` while the code has handled
-  alphanumeric ids for some time. The client could fetch one and then fail to
-  store it.
+- `score` was `integer` while EasyAim scores are fractional — Postgres rounded
+  on insert, so 1,012.667 became 1013 and a benchmark's total drifted on every
+  re-sync. Nothing noticed because the tests exercise the pure function, not
+  the column. Now `double precision`: `numeric` is avoided deliberately, because
+  PostgREST can return it as a JSON *string*, which would silently turn every
+  `score >= cutoff` comparison into a string comparison.
+- `easyaim_scenario_id`, `easyaim_pbs.scenario_id`, `easyaim_player_id` were
+  `bigint` while EasyAim ids are alphanumeric. Now `text`.
 
 ### RLS is the security model
 
-Every table has RLS enabled with **no policies**. That is deliberate: the
-anon key cannot read or write anything, and the service-role client bypasses
-RLS. A policy added by accident exposes that table to anyone holding the
-anon key.
+Every table has RLS on and **no policies**: the anon key is useless, the
+service-role client bypasses it. A policy added by accident exposes that table.
 
 `benchmark_pin_totals` is `security_invoker = on`. Without it the view is
-`SECURITY DEFINER` and ignores the table's RLS, so the anon key could read
-every pin row through the `public` schema.
+`SECURITY DEFINER` and exposes every pin row through the anon key.
 
-`benchmark_edits` has been dropped from the schema. Nothing ever wrote to it
-or read it; it looked like an audit trail and was not one.
+`benchmark_edits` is dropped from the schema. Nothing ever wrote to it; it
+looked like an audit trail and was not one.
 
 ### Local env is a placeholder
 
-`.env.local` contains template values, not real secrets, and is gitignored —
-`git log --all -- .env.local` is empty. Real values live in Vercel's env
-vars. **You cannot query the database or run DB-dependent code locally.**
-Verify by deploying or by asking the user to run SQL.
+`.env.local` holds template values, is gitignored, and
+`git log --all -- .env.local` is empty. **You cannot query the database
+locally.** Verify by deploying, or by asking the user to run SQL and paste the
+output.
 
 ---
 
-## Open items
+## 9. Open items
 
-1. **`supabase-pins.sql` — the user has never confirmed running it.** The
-   star fails without it. There is now a toast that names the fix, but they
-   may not have seen it. Ask.
-2. **The type + tier block in `supabase-final.sql` has not been run.** Until
-   it is, scores round, alphanumeric ids are rejected, and every benchmark
-   page says "Tiers are not set up". Section 7 of `supabase-verify.sql` reports
-   the column types.
-2b. **Tiers do not yet feed the rank walk.** `/benchmarks/<id>/<tier>` renders
-   the right cutoffs and the right columns, but `computeAggregates` is still
-   called with `benchmarks.rank_names` and `benchmark_scenarios.cutoffs` from
-   the list and leaderboard paths, and the sync engine writes one
-   `benchmark_scores` row per benchmark rather than per tier. So a card and a
-   leaderboard row still describe the benchmark's default ladder, not whichever
-   tier you are looking at. Threading a tier through means: a `tier_id` on
-   `benchmark_scores`, a tier argument on the read paths, and a decision about
-   whether a player's rank is per tier. That is the next piece of work, and it
-   is deliberately not guessed at — the schema supports it and nothing else
-   pretends to.
-3. **`vercel.json` says `bom1` (Mumbai)** — that was a *guess*. Confirm the
-   Supabase region (Project Settings → Database → connection string host
-   contains `ap-south-1` etc.) and change the one word if wrong. Wrong =
-   slow, not broken. The user said to leave this one alone.
-4. **Rate limiting is best-effort.** `src/lib/throttle.ts` is an in-memory
-   per-instance counter: it stops a script hammering one warm function and
-   nothing more. A real limit needs a shared store (Upstash) or a WAF rule.
-   Left honest rather than half-built, because a per-instance limiter that
-   looks like protection is worse than a documented gap.
-5. **`resetLinkedAccountsBackfill` still nulls `last_run_id` for everyone.**
-   Creating or editing a benchmark resets the whole community's sync cursor,
-   so the next run re-reads up to twelve pages per person. It works, but it
-   is O(community) per benchmark edit. Worth a "scenarios changed since"
-   marker if the alpha grows.
-6. **Brunson font licence** — the user downloaded a freeware display font
-   from Dafont, we wired it in, then they asked to revert it. Reverted. If it
-   comes back, the licence is likely personal-use-only, which doesn't cover a
-   public site.
+1. **Run the tier migration** (section 0). Blocks everything in section 4.
+2. **Per-tier ranks on cards, leaderboard and sync.** See the table in
+   section 0. The honest current state: tier *pages* are right, benchmark-level
+   numbers describe the first tier.
+3. **`vercel.json` says `bom1` (Mumbai)** — a guess. Confirm against the
+   Supabase region host and change the one word. Wrong = slow, not broken. The
+   user said to leave it.
+4. **Rate limiting is best-effort.** `src/lib/throttle.ts` is per-instance
+   in-memory: it stops a script hammering one warm function and nothing more.
+   A real limit needs a shared store or a WAF rule. Left honest rather than
+   half-built.
+5. **`resetLinkedAccountsBackfill` nulls `last_run_id` for everyone** on any
+   benchmark create or scenario-set change. O(community) per edit. Fine for an
+   alpha; worth a "changed since" marker later.
+6. **No monitoring.** `console.error` reaches Vercel's logs and nowhere else.
+   Error boundaries exist (`error.tsx`, `global-error.tsx`, `not-found.tsx`,
+   inline failure states), so a player has a digest to quote and a retry
+   button — but nobody is told. Sentry or similar is the next real step.
+7. **GitHub issue templates** still not built. No `.github`.
 
 ---
 
-## Alpha testing — what the user is doing next
+## 10. Alpha testing
 
-The user is creating a Discord server, adding players, and asking them to
-use the site and report bugs and feature requests.
-
-- **Error boundaries — built.** `error.tsx`, `global-error.tsx`,
-  `not-found.tsx`, plus inline failure states on every client page that
-  fetches. A server crash shows a retry button and a digest instead of a stack
-  trace, and every client page says "could not load" rather than hanging or
-  rendering nothing. Still **no monitoring** — `console.error` goes to
-  Vercel's logs and nowhere else, so a player reporting a problem needs to
-  quote the digest. Sentry or similar is the next real step.
-- **GitHub issue templates — still not built.** No `.github` directory.
+The user is inviting players onto a Discord server and asking them to report
+problems. Everything they can hit is now survivable: error boundaries with
+digests, inline failure states, no dead buttons, no silent score submission.
 
 ---
 
-## Things that are deliberate, not bugs
+## 11. Deliberate, not bugs
 
-- **Bar style is per-device `localStorage`**, not per-account. Cosmetic only,
-  never touches data. Read through `useSyncExternalStore`, not copied into
-  state on mount.
-- **Card reads `Platinum`, never `Platinum of Champion`.** The ceiling was
-  removed on purpose — it named a tier the player isn't near.
-- **`Complete` only at the top rank.** "Complete" is a claim about the whole
-  benchmark.
-- **Ranks with no cutoffs anywhere are skipped**, not auto-passed —
-  otherwise a decorative top rank is handed to everyone who opens the page.
-- **A cutoff of zero counts as no cutoff, everywhere.** This one is not a
-  detail. Cleared form fields used to be coerced with `Number()`, and
-  `Number("")` is `0`, so every untouched field was stored as 0. The rank
-  walk treated a 0 as a real requirement and `pb >= 0` passed on everything,
-  so an unfilled tier was handed out while the page said it was unreachable.
-- **No platform dropdown on `/benchmarks`** — it had one option. The
-  `?platform=` API filter is still there; the response default is `all`.
-- **No `/groups` page** and **no user theme picker** — both removed at the
-  user's request.
-- **No way to type a score in.** Removed deliberately: scores come from
-  EasyAim, and the endpoint that accepted typed numbers is deleted. If it
-  comes back it needs to be admin-only and rate-limited, not a public POST
-  that anyone can put arbitrary numbers into.
-- **Unlinking is destructive** — it deletes stored personal bests and the
-  history derived from them. Deliberate: leaving them behind merged the next
-  player's bests into this one's, permanently. The confirm dialog says so.
-- **EasyAim is auto-linked through Discord only.** The manual "paste a player
-  id" form is gone: it accepted any id with no proof of ownership and
-  fabricated a player object when the lookup failed.
+- **Bar style is per-device `localStorage`**, via `useSyncExternalStore` rather
+  than copied into state on mount.
+- **A cutoff of zero counts as no cutoff, everywhere.** Cleared fields used to
+  be coerced with `Number()`, and `Number("")` is `0`, so every untouched field
+  became a requirement of zero — which every scenario passes. Authors were
+  handed the top rung for leaving a field blank, while the page said it was
+  unreachable.
+- **Ranks with no cutoffs anywhere are skipped**, not auto-passed.
+- **`Complete` only at the top rank.** It is a claim about the whole benchmark.
+- **A card reads `Gold`, never `Gold of Platinum`.** The ceiling named a tier
+  the player is nowhere near.
+- **No way to type a score in.** Scores come from EasyAim.
+- **Unlinking is destructive** — it deletes stored bests and the history derived
+  from them. Deliberate: leaving them merged the next player's bests in.
+- **EasyAim links through Discord only.** The manual paste-an-ID form is gone;
+  it accepted any id with no proof of ownership and fabricated a player when the
+  lookup failed.
+- **A benchmark-level number describes the first tier.** Correct today, and it
+  is the first thing to change once ranks go per tier.
 
 ---
 
-## Conventions
+## 12. Conventions
 
 - Conventional-commit subject plus a body explaining **why**, not what.
   Trailer: `Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>`
-  (the user hasn't objected, but also hasn't confirmed it — drop it if
-  unwanted).
-- Verify with measurement, not eyeballing a screenshot. `getBoundingClientRect`,
-  `getComputedStyle`, and DOM assertions have caught things screenshots hid.
-  Throwaway `src/app/preview-temp/page.tsx` pages were the earlier approach
-  and were replaced by real tests for anything load-bearing.
-- **If a rule protects data, it lives in a pure function with a test.** Both
-  of the worst bugs in this codebase were a copy of a rule that had drifted
-  from its original: the edit form's rank rename, and the sync engine's rank
-  walk. The zero-cutoff rule drifted a third time, between the storage layer
-  and the rank walk.
-- Never commit secrets. `.env*` is gitignored.
-- The user prefers speed and dislikes being asked to choose between options
-  repeatedly. Make the call, state it, offer the alternative in one line.
+  (unconfirmed by the user — drop it if unwanted).
+- Verify with measurement, not screenshots. `getBoundingClientRect`,
+  `getComputedStyle`, DOM assertions.
+- Never commit secrets.
+- The user prefers speed and dislikes being asked to choose repeatedly. Make the
+  call, state it, offer the alternative in one line.
+
+### On editing files
+
+`PowerShell` line-based rewriting corrupted `src/lib/tiers.ts` and
+`src/app/api/benchmarks/[id]/route.ts` mid-session — both silently lost whole
+handlers, and both had to be rebuilt. The cause was mixed CRLF/LF from earlier
+writes, which makes `Get-Content`, `Select-String` and the Read tool disagree
+about line numbers.
+
+**Use the edit tool for edits.** If a shell rewrite is unavoidable, `git diff`
+afterwards, and re-run `tsc` — a truncated file often still typechecks if the
+missing export is nothing references.
 
 ---
 
-## Things I got wrong, worth not repeating
+## 13. Things I got wrong, worth not repeating
 
 - I diagnosed "Not played" from a screenshot as a card/leaderboard
-  disagreement. It wasn't — the PB simply hadn't synced yet. The fix was still
-  correct on its own merits, but I asserted a cause I hadn't checked.
-- I added a dark plate behind the bar numbers to make them legible. It looked
-  like a sticker. The user rejected it; a soft offset drop shadow is what they
-  wanted.
-- I hardcoded 150px rank columns and it collapsed the scenario name to 0px at
-  6+ rungs. **Measure column widths** — `table-fixed` with unwidthed columns
-  that split the remainder equally is the correct approach.
-- I wrote `FULL-INVENTORY.md` as a snapshot of the codebase and then kept
-  editing the codebase. It went stale within days and by then it was actively
-  harmful: it claimed live secrets were committed to the repository (they
-  never were — `.env*` is gitignored and `git log --all -- .env.local` is
-  empty), and it listed files and bugs that no longer existed. A future
-  session told to read it would have chased a breach that never happened. It
-  is deleted. **Do not write a document that describes the current state of
-  the code** — it will be a lie by next week and someone will believe it.
-  Document the rules and the reasoning; let the code be the inventory.
-- A path containing `[id]` is a wildcard to PowerShell's `Select-String
-  -Path`. It silently reported false negatives. Use grep for those.
+  disagreement. It was a PB that had not synced yet. The fix was right; the
+  cause I asserted was not.
+- I added a dark plate behind the bar numbers. It looked like a sticker.
+- I hardcoded 150px rank columns; the scenario name collapsed to 0px at 6+
+  rungs. `table-fixed` with unwidthed columns is the correct approach.
+- **I wrote `FULL-INVENTORY.md` as a snapshot of the codebase, then kept editing
+  the codebase.** It went stale within days and by then it claimed live secrets
+  were committed to the repository — they never were. A session told to read it
+  would have chased a breach that never happened. It is deleted. **Do not write
+  a document describing the current state of the code**; it will be a lie by
+  next week. Document rules and reasoning; let the code be the inventory.
+- I declared the tier cutoffs table's id column `bigint` in the same file that
+  migrated the column to `text`, and the migration failed on the seed insert.
+  The user ran it and pasted the error. **When a migration changes a type, grep
+  the whole file for the old type before committing it.**
+- I was interrupted mid-refactor and the user pushed a tree that did not
+  compile. Ten Vercel type errors. **Run `npm run build` before handing over a
+  refactor**, not just `tsc`.
+- A path containing `[id]` is a wildcard to PowerShell's `Select-String -Path`.
+  It silently reported false negatives. Use the Read tool or grep.
