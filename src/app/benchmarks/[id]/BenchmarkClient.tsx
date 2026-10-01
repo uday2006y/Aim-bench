@@ -143,7 +143,6 @@ export default function BenchmarkClient({
         ];
 
   const hasScenarios = (scenarios || []).length > 0;
-  const totalEnergy = scenarios.reduce((sum, s) => sum + (s.best_score ?? 0), 0);
 
   // A rank with no cutoff on any scenario can never be achieved, because
   // the aggregate walk treats a missing cutoff as "this scenario doesn't
@@ -207,7 +206,6 @@ export default function BenchmarkClient({
           return {
             sub: subName,
             rows,
-            energy: rows.reduce((sum, s) => sum + (s.best_score ?? 0), 0),
           };
         })
         .filter((group) => group.rows.length > 0);
@@ -216,7 +214,6 @@ export default function BenchmarkClient({
         category: categoryName,
         color: getCategoryColor(categoryName),
         rowCount: inCategory.length,
-        energy: inCategory.reduce((sum, s) => sum + (s.best_score ?? 0), 0),
         subGroups,
       };
     })
@@ -285,12 +282,6 @@ export default function BenchmarkClient({
                 {scenarios.length} scenario{scenarios.length === 1 ? "" : "s"}
               </span>
               <span>{groups.length} categor{groups.length === 1 ? "y" : "ies"}</span>
-              <span>
-                Total energy{" "}
-                <span className="font-mono text-zinc-300">
-                  {totalEnergy.toLocaleString()}
-                </span>
-              </span>
             </div>
           )}
 
@@ -346,7 +337,6 @@ export default function BenchmarkClient({
                         {r.name.toUpperCase()}
                       </th>
                     ))}
-                    <th className="w-[124px] text-left px-3 py-3 whitespace-nowrap">ENERGY</th>
                   </tr>
                 </thead>
 
@@ -521,20 +511,6 @@ export default function BenchmarkClient({
                                 </td>
                               );
                             })}
-
-                            {isSubStart && (
-                              <td
-                                rowSpan={groupRows}
-                                className={`px-3 py-2.5 whitespace-nowrap align-middle ${isGroupStart ? groupDivider : ""}`}
-                              >
-                                <span
-                                  className="font-mono text-sm font-bold"
-                                  style={{ color: withAlpha(group.color, 0.95) }}
-                                >
-                                  {subGroup.energy.toLocaleString()}
-                                </span>
-                              </td>
-                            )}
                           </tr>
                         );
                       });
