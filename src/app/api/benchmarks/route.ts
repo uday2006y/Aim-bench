@@ -437,21 +437,22 @@ export async function POST(request: Request) {
       // the scenario insert rather than after it.
 
 
-      const createdTiers = await createTiersForBenchmark(
-
-
+      // The author's ladder, not the 8-rank default.
+//
+// createTiersForBenchmark seeds every new tier from the fallback it is given.
+// That fallback was DEFAULT_RANK_NAMES, so deleting ranks in the create form
+// had no effect on the tier that was written: the form's ladder went to
+// benchmarks.rank_names and the tier got the full default ladder back. The
+// author saw Iron-Bronze-Silver-Gold in the editor and Diamond through
+// Immortal on the published page.
+//
+// Falling back to the defaults only when the form sent nothing keeps a
+// malformed request from producing a benchmark with no ladder at all.
+const createdTiers = await createTiersForBenchmark(
         benchmark.id,
-
-
         sanitizeTiers(tiers),
-
-
-        DEFAULT_RANK_NAMES,
-
-
-        DEFAULT_RANK_COLORS
-
-
+        Array.isArray(rank_names) && rank_names.length > 0 ? rank_names : DEFAULT_RANK_NAMES,
+        Array.isArray(rank_colors) && rank_colors.length > 0 ? rank_colors : DEFAULT_RANK_COLORS
       );
 
 

@@ -613,7 +613,7 @@ export default function EditBenchmarkPage({ params }: { params: Promise<{ id: st
     }
   }
 
-  async function handleSave(e: React.FormEvent) {
+  async function handleSave(e: React.FormEvent, stayOnPage = false) {
     e.preventDefault();
     setSaving(true);
     setError("");
@@ -706,7 +706,21 @@ export default function EditBenchmarkPage({ params }: { params: Promise<{ id: st
         }
       }
 
-      router.push(`/benchmarks/${id}/${activeTier?.slug ?? "primary"}`);
+      // A benchmark has several tiers, each its own page. Redirecting after every
+    // save threw the author out to the benchmark, and getting back to another
+    // tier meant going through that page and clicking Edit again -- three
+    // steps to change one cutoff. Staying put lets them move straight to the
+    // next tier tab.
+    if (stayOnPage) {
+      setNotice(
+        `Saved${activeTier ? ` the ${activeTier.name} tier` : ""}. ` +
+          (tiers.length > 1 ? "Switch tiers to keep editing." : "")
+      );
+      router.refresh();
+      return;
+    }
+
+    router.push(`/benchmarks/${id}/${activeTier?.slug ?? "primary"}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save");
     } finally {
@@ -1151,9 +1165,27 @@ export default function EditBenchmarkPage({ params }: { params: Promise<{ id: st
 
             {error && <div className="rounded-lg border border-red-900/50 bg-red-950/30 px-4 py-3 text-sm text-red-400">{error}</div>}
 
-          <button type="submit" disabled={saving} className="w-full rounded-lg bg-white px-4 py-3 font-semibold text-black hover:bg-zinc-200 disabled:opacity-50">
-            {saving ? "Saving..." : "Save Changes"}
-          </button>
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <button
+              type="submit"
+              disabled={saving}
+              className="flex-1 rounded-lg bg-white px-4 py-3 font-semibold text-black hover:bg-zinc-200 disabled:opacity-50"
+            >
+              {saving ? "Saving..." : "Save Changes"}
+            </button>
+            <button
+              // type="button", not "submit": a submit button here would also
+              // fire the form's own onSubmit, so one click would save twice
+              // and then redirect anyway -- the exact thing this button
+              // exists to avoid.
+              type="button"
+              disabled={saving || !activeTier}
+              onClick={(e) => handleSave(e, true)}
+              className="rounded-lg border border-white/20 px-4 py-3 font-medium text-white hover:bg-white/10 disabled:opacity-50"
+            >
+              {saving ? "Saving..." : "Save & keep editing"}
+            </button>
+          </div>
         </form>
       </div>
     </main>
