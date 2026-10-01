@@ -151,7 +151,7 @@ export default function BenchmarksPage() {
                   href={`/benchmarks/${benchmark.id}`}
                   className="block rounded-2xl p-6"
                 >
-                  <div className="mb-4 flex items-center justify-between gap-2">
+                  <div className="mb-4 flex items-center justify-between gap-2 pr-10">
                     <span className="rounded-full border border-white/10 px-3 py-1 text-xs text-zinc-400">
                       {benchmark.platform}
                     </span>
