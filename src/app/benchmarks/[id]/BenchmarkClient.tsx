@@ -29,7 +29,8 @@ interface Benchmark {
 
 interface BenchmarkScenario {
   id: string;
-  easyaim_scenario_id: number;
+  /** A string: EasyAim ids are alphanumeric and the column is `text`. */
+  easyaim_scenario_id: string;
   title: string;
   position: number;
   category: string;

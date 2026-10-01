@@ -96,11 +96,17 @@ export async function PUT(
         .select("easyaim_scenario_id")
         .eq("benchmark_id", id);
 
-      const previousIds = (existingRows || [])
-        .map((row) => Number((row as { easyaim_scenario_id: number }).easyaim_scenario_id))
-        .sort((a, b) => a - b);
+      // Both sides are strings, because the ids are alphanumeric half the time
+      // and Postgres stores them as text. Sorted lexicographically so the two
+      // lists can be compared element by element — the question is only
+      // "is the set the same", never "which is bigger".
+      const byId = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 
-      const nextIds = scenarios.map((s) => s.easyaimScenarioId).sort((a, b) => a - b);
+      const previousIds = (existingRows || [])
+        .map((row) => String((row as { easyaim_scenario_id: string }).easyaim_scenario_id))
+        .sort(byId);
+
+      const nextIds = scenarios.map((s) => s.easyaimScenarioId).sort(byId);
       const scenarioSetChanged =
         previousIds.length !== nextIds.length ||
         previousIds.some((value, index) => value !== nextIds[index]);
@@ -241,13 +247,13 @@ export async function GET(
     // database has no tier tables, which the page reports rather than
     // rendering an empty ladder.
     const tierSlug = new URL(request.url).searchParams.get("tier");
-    const tier = tierSlug ? tiers.find((t) => t.slug === tierSlug) ?? null : tiers[0] ?? null;
+    const tier = tiers.find((t) => t.slug === tierSlug) ?? tiers[0] ?? null;
     const tierCutoffs = tier ? await loadTierCutoffs(tier.id) : null;
 
     const scenariosWithTierCutoffs = tierCutoffs
       ? scenarios.map((scenario) => ({
           ...scenario,
-          cutoffs: tierCutoffs.get(Number(scenario.easyaim_scenario_id)) ?? {},
+          cutoffs: tierCutoffs.get(String(scenario.easyaim_scenario_id)) ?? {},
         }))
       : scenarios;
 

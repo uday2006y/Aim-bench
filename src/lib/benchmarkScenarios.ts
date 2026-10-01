@@ -90,7 +90,15 @@ export function sanitizeScenarios(input: unknown): ScenarioInput[] {
 
     // Bounded and a known shape, so this is not a hole for writing an
     // arbitrary string into a text column that is also used to look up runs.
-    if (!/^[A-Za-z0-9_-]{1,64}$/.test(id)) continue;
+    //
+    // The three rules below are not decoration. A bare `[A-Za-z0-9_-]+` also
+    // accepts "-3" and "not-a-number", because both are made of allowed
+    // characters — which is how a hand-typed value ends up as a scenario that
+    // quietly matches no EasyAim run, forever, with nothing reporting it.
+    if (id.length > 64) continue;
+    if (!/^[A-Za-z0-9][A-Za-z0-9_-]*$/.test(id)) continue; // no leading sign
+    if (!/\d/.test(id)) continue; // an id with no digit in it is not an id
+    if (/^0+$/.test(id)) continue; // as is zero
 
     // "1" and " 1" are the same scenario; without this they would both
     // survive and collide on the unique (benchmark_id, easyaim_scenario_id).

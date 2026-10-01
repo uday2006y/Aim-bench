@@ -91,6 +91,35 @@ test("renaming into a name that already exists overwrites it", () => {
 
 // ---------------------------------------------------------------- scenarios
 
+test("scenario ids are strings, matching the column", () => {
+  // The column is `text` and PostgREST will not cast a JSON number into it,
+  // so a number here is a 500 on every save rather than a quiet bug.
+  const [scenario] = sanitizeScenarios([{ id: 2683 }]);
+
+  assert.equal(typeof scenario.easyaimScenarioId, "string");
+  assert.equal(scenario.easyaimScenarioId, "2683");
+});
+
+test("an alphanumeric EasyAim id is kept, not dropped", () => {
+  // This used to fail the isFinite guard after Number() turned it into NaN,
+  // and the scenario was silently omitted from the benchmark with no error
+  // anywhere — the worst kind of bug this file has found.
+  const [scenario] = sanitizeScenarios([{ id: "692fc9afe296376b3bdceed2" }]);
+
+  assert.equal(scenario.easyaimScenarioId, "692fc9afe296376b3bdceed2");
+});
+
+test("numeric-looking ids are normalised so they cannot collide", () => {
+  // "1" and " 1" are the same scenario and must not both survive into the
+  // unique (benchmark_id, easyaim_scenario_id).
+  const result = sanitizeScenarios([{ id: 7 }, { id: " 7 " }, { id: "007" }]);
+
+  assert.deepEqual(
+    result.map((s) => s.easyaimScenarioId),
+    ["7"]
+  );
+});
+
 test("scenarios are capped at the documented maximum", () => {
   const many = Array.from({ length: MAX_SCENARIOS_PER_BENCHMARK + 20 }, (_, i) => ({
     id: i + 1,
@@ -112,12 +141,15 @@ test("duplicate scenario ids are dropped, not written twice", () => {
 
   assert.deepEqual(
     result.map((s) => s.easyaimScenarioId),
-    [7, 8]
+    ["7", "8"]
   );
   assert.equal(result[0].title, "First");
 });
 
-test("a non-numeric or negative scenario id is rejected", () => {
+test("an id that could not be an EasyAim scenario is rejected", () => {
+  // Not tidiness. A junk id produces a scenario row that matches no EasyAim
+  // run, so the benchmark shows a permanent row of em-dashes and nothing
+  // anywhere reports why.
   const result = sanitizeScenarios([
     { id: "not-a-number" },
     { id: -3 },
@@ -126,12 +158,12 @@ test("a non-numeric or negative scenario id is rejected", () => {
     {},
     null,
     "nonsense",
-    { id: 12 },
+    { id: "12" },
   ]);
 
   assert.deepEqual(
     result.map((s) => s.easyaimScenarioId),
-    [12]
+    ["12"]
   );
 });
 

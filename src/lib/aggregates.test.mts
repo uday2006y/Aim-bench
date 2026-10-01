@@ -21,13 +21,13 @@ const FULL = { Bronze: 600, Silver: 800, Gold: 1000, Platinum: 1200 };
 function ladder(
   rankNames: string[],
   scenarios: { id: number; cutoffs: Record<string, number> | null }[],
-  pbs: [number, number][]
+  pbs: [string, number][]
 ) {
   const result = computeAggregates(
     [{ id: "b1", rank_names: rankNames, rank_thresholds: {} }],
     scenarios.map((s) => ({
       benchmark_id: "b1",
-      easyaim_scenario_id: s.id,
+      easyaim_scenario_id: String(s.id),
       cutoffs: s.cutoffs,
     })),
     new Map(pbs)
@@ -38,7 +38,7 @@ function ladder(
 
 test("a score above every cutoff but below the top is not 'complete'", () => {
   // The reported case: 1,012.667 against 600/800/1000/1200.
-  const a = ladder(NAMES, [{ id: 2683, cutoffs: FULL }], [[2683, 1012.667]]);
+  const a = ladder(NAMES, [{ id: 2683, cutoffs: FULL }], [["2683", 1012.667]]);
 
   assert.equal(a.rank, "Gold");
   assert.equal(a.rankIndex, 2);
@@ -47,14 +47,14 @@ test("a score above every cutoff but below the top is not 'complete'", () => {
 });
 
 test("hitting the top cutoff exactly is complete", () => {
-  const a = ladder(NAMES, [{ id: 1, cutoffs: FULL }], [[1, 1200]]);
+  const a = ladder(NAMES, [{ id: 1, cutoffs: FULL }], [["1", 1200]]);
 
   assert.equal(a.rank, "Platinum");
   assert.equal(a.maxed, true);
 });
 
 test("just missing a cutoff falls to the tier below", () => {
-  const a = ladder(NAMES, [{ id: 1, cutoffs: FULL }], [[1, 999]]);
+  const a = ladder(NAMES, [{ id: 1, cutoffs: FULL }], [["1", 999]]);
 
   assert.equal(a.rank, "Silver");
   assert.equal(a.maxed, false);
@@ -78,7 +78,7 @@ test("a rank with no cutoff on any scenario is skipped, not auto-passed", () => 
       { id: 1, cutoffs: { Bronze: 600, Gold: 1000 } },
       { id: 2, cutoffs: { Bronze: 600, Gold: 1000 } },
     ],
-    [[1, 1200], [2, 1500]]
+    [["1", 1200], ["2", 1500]]
   );
 
   assert.equal(a.rank, "Gold", "Platinum is unreachable, so Gold is the ceiling");
@@ -92,7 +92,7 @@ test("a scenario with no cutoff for the tier in question does not count against 
       { id: 1, cutoffs: { Bronze: 600, Gold: 1000 } },
       { id: 2, cutoffs: { Bronze: 600 } },
     ],
-    [[1, 1500], [2, 0]]
+    [["1", 1500], ["2", 0]]
   );
 
   assert.equal(a.rank, "Gold", "scenario 2 has no Gold cutoff, so it cannot block Gold");
@@ -109,8 +109,8 @@ test("every scenario must clear a tier, not just one", () => {
       { id: 2, cutoffs: { Bronze: 600, Silver: 800, Gold: 1000 } },
     ],
     [
-      [1, 1200],
-      [2, 400],
+      ["1", 1200],
+      ["2", 400],
     ]
   );
 
@@ -125,12 +125,12 @@ test("scenarios belonging to other benchmarks are ignored", () => {
   const result = computeAggregates(
     [{ id: "b1", rank_names: NAMES, rank_thresholds: {} }],
     [
-      { benchmark_id: "b1", easyaim_scenario_id: 1, cutoffs: FULL },
-      { benchmark_id: "b2", easyaim_scenario_id: 9, cutoffs: { Bronze: 99999 } },
+      { benchmark_id: "b1", easyaim_scenario_id: "1", cutoffs: FULL },
+      { benchmark_id: "b2", easyaim_scenario_id: "9", cutoffs: { Bronze: 99999 } },
     ],
     new Map([
-      [1, 700],
-      [9, 5000],
+      ["1", 700],
+      ["9", 5000],
     ])
   );
 
@@ -153,11 +153,11 @@ test("rows with only rank_thresholds still produce a ladder", () => {
     [
       {
         benchmark_id: "b1",
-        easyaim_scenario_id: 1,
+        easyaim_scenario_id: "1",
         cutoffs: { Bronze: 0, Silver: 500, Gold: 1000 },
       },
     ],
-    new Map([[1, 1200]])
+    new Map([["1", 1200]])
   );
 
   assert.equal(result.get("b1")!.rank, "Gold");
@@ -170,7 +170,7 @@ test("the top rank name is whatever the benchmark calls it", () => {
   const a = ladder(
     ["plank", "askdhajsdhajsgd"],
     [{ id: 1, cutoffs: { plank: 600, askdhajsdhajsgd: 5000 } }],
-    [[1, 6000]]
+    [["1", 6000]]
   );
 
   assert.equal(a.rank, "askdhajsdhajsgd");
@@ -184,7 +184,7 @@ test("a missing scenario counts as zero rather than being skipped", () => {
       { id: 1, cutoffs: { Bronze: 600, Gold: 1000 } },
       { id: 2, cutoffs: { Bronze: 600, Gold: 1000 } },
     ],
-    [[1, 5000]]
+    [["1", 5000]]
   );
 
   assert.equal(a.rank, null, "scenario 2 has no PB, which is a zero against Gold");
@@ -194,7 +194,7 @@ test("a missing scenario counts as zero rather than being skipped", () => {
 test("a cutoff of zero is no cutoff, not a requirement of nothing", () => {
   // Regression, and it started in storage rather than here. Clearing a number
   // input sent "" (or null), sanitizeScenarios ran it through Number(), and
-  // Number("") is 0 — so every untouched cutoff field was written as 0. The
+  // Number("") is 0 ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â so every untouched cutoff field was written as 0. The
   // walk tested `typeof cutoff === "number"`, so those ranks counted as
   // scorable, and `pb >= 0` passed on every scenario. A benchmark author was
   // handed the top rank for leaving a field blank, while the detail page's
@@ -208,7 +208,7 @@ test("a cutoff of zero is no cutoff, not a requirement of nothing", () => {
       { id: 1, cutoffs: { Bronze: 600, Gold: 0 } },
       { id: 2, cutoffs: { Bronze: 600, Gold: 0 } },
     ],
-    [[1, 700], [2, 700]]
+    [["1", 700], ["2", 700]]
   );
 
   assert.equal(
@@ -235,7 +235,7 @@ test("a positive cutoff still counts after the zero rule", () => {
   const a = ladder(
     NAMES,
     [{ id: 1, cutoffs: { Bronze: 600, Silver: 0, Gold: 1000 } }],
-    [[1, 1500]]
+    [["1", 1500]]
   );
 
   assert.equal(a.rank, "Gold", "Silver being zero does not block Gold");
