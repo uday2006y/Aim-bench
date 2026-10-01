@@ -94,8 +94,8 @@ export default function BenchmarkClient({
    * The ladder for this tier.
    *
    * Read from the tier rather than the benchmark: that is the whole point of
-   * tiers. Novice can be Iron â†’ Bronze â†’ Silver â†’ Gold while Elite is Nova â†’
-   * Astra â†’ Celestial, off the same scenarios, and the columns below have to
+   * tiers. Novice can be Iron → Bronze → Silver → Gold while Elite is Nova →
+   * Astra → Celestial, off the same scenarios, and the columns below have to
    * change with it.
    */
   const rankOrder = tier.rank_names.map((name, i) => ({
@@ -205,7 +205,7 @@ export default function BenchmarkClient({
             href="/benchmarks"
             className="group inline-flex items-center gap-1.5 text-sm text-zinc-400 transition-colors hover:text-white"
           >
-            <span className="transition-transform duration-200 group-hover:-translate-x-0.5">â†</span>
+            <span className="transition-transform duration-200 group-hover:-translate-x-0.5">←</span>
             Back
           </Link>
         </div>
@@ -313,8 +313,8 @@ export default function BenchmarkClient({
                   eight, squeezing the scenario name to zero width. The
                   columns that do have a fixed width are the ones whose
                   content is a known length. */}
-              {/* min-width sized so the widest default ladder â€” eight
-                  rungs â€” still gets a column wide enough for its cutoff
+              {/* min-width sized so the widest default ladder — eight
+                  rungs — still gets a column wide enough for its cutoff
                   number. Below this the table scrolls sideways, which it
                   already did. */}
               <table className="w-full table-fixed border-collapse text-xs min-w-[1440px]">
@@ -371,7 +371,7 @@ export default function BenchmarkClient({
                         ).map((fill) => fill.percent);
                         const pctStr = score
                           ? `${Math.min(100, Math.round((score / topCutoff) * 100))}%`
-                          : "â€”";
+                          : "—";
 
                         // Colour the score with the highest rank it actually
                         // clears, so a 2,394 that beats the Platinum cutoff
@@ -461,7 +461,7 @@ export default function BenchmarkClient({
                                   <span className="font-mono text-[10px] text-zinc-500">
                                     {scenario.easyaim_scenario_id}
                                   </span>
-                                  <span className="text-[9px] text-zinc-600">â–¶</span>
+                                  <span className="text-[9px] text-zinc-600">▶</span>
                                 </div>
                               </div>
                             </td>
@@ -472,7 +472,7 @@ export default function BenchmarkClient({
                                   className="font-mono text-base font-bold tracking-tight"
                                   style={{ color: scoreColor || "#ffffff" }}
                                 >
-                                  {score ? score.toLocaleString() : "â€”"}
+                                  {score ? score.toLocaleString() : "—"}
                                 </span>
                                 <span className="text-[10px] font-medium text-zinc-500">
                                   {pctStr}
@@ -502,7 +502,7 @@ export default function BenchmarkClient({
                                       />
                                     )}
                                     <span className="bar-label">
-                                      {hasCutoff ? cutoff.toLocaleString() : "â€”"}
+                                      {hasCutoff ? cutoff.toLocaleString() : "—"}
                                     </span>
                                   </div>
                                 </td>

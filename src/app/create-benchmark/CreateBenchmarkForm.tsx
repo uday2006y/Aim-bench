@@ -70,7 +70,7 @@ interface TierDraftRow extends TierDraft {
   id: string;
   /**
    * Set once the slug stops tracking the name. Editing the create form does not
-   * need it Ã¢â‚¬â€ there are no addresses yet Ã¢â‚¬â€ but it keeps the "slug follows the
+   * need it — there are no addresses yet — but it keeps the "slug follows the
    * name" rule in one place for the edit form, which does.
    */
   slugLocked?: boolean;
@@ -98,7 +98,7 @@ export default function CreateBenchmarkForm() {
   const [ranks, setRanks] = useState<RankDef[]>(DEFAULT_RANKS);
   const [categories, setCategories] = useState<CategoryDef[]>(DEFAULT_CATEGORIES);
   // How many tiers this benchmark has, and what they are called. The count is
-  // the author's choice up to six Ã¢â‚¬â€ the switcher in the header is a menu, and
+  // the author's choice up to six — the switcher in the header is a menu, and
   // past six it stops being one.
   const [tiers, setTiers] = useState<TierDraftRow[]>([
     { id: "tier-0", slug: "standard", name: "Standard", isOfficial: true },
@@ -118,7 +118,7 @@ export default function CreateBenchmarkForm() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // Search responses can arrive out of order Ã¢â‚¬â€ a slow request for "eas"
+  // Search responses can arrive out of order — a slow request for "eas"
   // landing after a fast one for "easyaim" would replace the newer results
   // with the older ones. Only the most recent request is allowed to write.
   const searchRequest = useRef(0);
@@ -479,7 +479,7 @@ export default function CreateBenchmarkForm() {
     }
 
     if (tierSlugClash.size > 0) {
-      setError("Two tiers end up with the same address Ã¢â‚¬â€ give them different names");
+      setError("Two tiers end up with the same address — give them different names");
       return;
     }
 
@@ -490,7 +490,7 @@ export default function CreateBenchmarkForm() {
 
     // A rank with no cutoff anywhere can never be reached, which is a
     // legitimate thing to leave half-configured while you build a benchmark
-    // out Ã¢â‚¬â€ but only a benchmark with scenarios actually uses the ladder.
+    // out — but only a benchmark with scenarios actually uses the ladder.
     if (scenarios.length > 0) {
       const unreachable = ranks.filter((rank) =>
         scenarios.every((s) => !String(s.cutoffs[rank.name] ?? "").trim())
@@ -578,7 +578,7 @@ export default function CreateBenchmarkForm() {
             href="/"
             className="text-sm text-zinc-500 hover:text-white transition"
           >
-            Ã¢â€ Â Back to AIMBENCH
+            ← Back to AIMBENCH
           </Link>
         </div>
 
@@ -682,7 +682,7 @@ export default function CreateBenchmarkForm() {
                     list="add-sub-options"
                     value={addTargetSubCategory}
                     onChange={(e) => setAddTargetSubCategory(e.target.value)}
-                    placeholder="Ã¢â‚¬â€"
+                    placeholder="—"
                     className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-2 py-1.5 text-xs text-white outline-none placeholder:text-zinc-600 focus:border-zinc-500"
                   />
                   <datalist id="add-sub-options">
@@ -697,7 +697,7 @@ export default function CreateBenchmarkForm() {
                   {addTargetSubCategory.trim()
                     ? ` / ${addTargetSubCategory.trim()}`
                     : ""}
-                  {" Ã‚Â· new scenarios go here. You can change it per scenario below."}
+                  {" · new scenarios go here. You can change it per scenario below."}
                 </p>
               </div>
 
@@ -736,7 +736,7 @@ export default function CreateBenchmarkForm() {
                         {addTargetSubCategory.trim()
                           ? ` / ${addTargetSubCategory.trim()}`
                           : ""}
-                        {result.author ? ` Ã‚Â· by ${result.author}` : ""}
+                        {result.author ? ` · by ${result.author}` : ""}
                       </span>
                     </button>
                   ))}
@@ -795,7 +795,7 @@ export default function CreateBenchmarkForm() {
                         list={`sub-options-${scenario.id}`}
                         value={scenario.subCategory}
                         onChange={(e) => updateScenarioSubCategory(scenario.id, e.target.value)}
-                        placeholder="Ã¢â‚¬â€"
+                        placeholder="—"
                         className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-2 py-1.5 text-xs text-white outline-none placeholder:text-zinc-600 focus:border-zinc-500"
                       />
                       <datalist id={`sub-options-${scenario.id}`}>
@@ -810,7 +810,7 @@ export default function CreateBenchmarkForm() {
                     {ranks.map((rank, idx) => (
                       /* Keyed by index, deliberately. This used to key on
                          the rank's own name, and the input below writes to
-                         that name Ã¢â‚¬â€ so every keystroke changed the key,
+                         that name — so every keystroke changed the key,
                          React remounted the input, and the field lost focus
                          after one character. The row's position is what
                          identifies it; the name is data. */
@@ -838,7 +838,7 @@ export default function CreateBenchmarkForm() {
                           step="any"
                           value={scenario.cutoffs[rank.name] ?? ""}
                           onChange={(e) => updateCutoff(scenario.id, rank.name, e.target.value)}
-                          placeholder="Ã¢â‚¬â€"
+                          placeholder="—"
                           className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-2 py-1 text-xs text-white outline-none placeholder:text-zinc-600 focus:border-zinc-500"
                         />
                       </div>
@@ -971,7 +971,7 @@ export default function CreateBenchmarkForm() {
                     gets its own rank ladder and its own cutoffs, and each is a
                     page of its own at{" "}
                     <code className="font-mono">/benchmarks/&lt;id&gt;/&lt;tier&gt;</code>{" "}
-                    with a switcher in the header. One tier is fine Ã¢â‚¬â€ the
+                    with a switcher in the header. One tier is fine — the
                     switcher only appears once there is a choice to make.
                   </p>
                 </div>

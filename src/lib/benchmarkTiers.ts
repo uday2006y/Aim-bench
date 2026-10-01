@@ -2,14 +2,14 @@
  * Tiers: a benchmark's named difficulty variants.
  *
  * A benchmark has up to six. Each one carries its own rank ladder and its own
- * per-scenario cutoffs, so "Novice" can ladder Iron â†’ Bronze â†’ Silver â†’ Gold
- * while "Elite" ladders Nova â†’ Astra â†’ Celestial â†’ Stellaris, off the same
+ * per-scenario cutoffs, so "Novice" can ladder Iron → Bronze → Silver → Gold
+ * while "Elite" ladders Nova → Astra → Celestial → Stellaris, off the same
  * scenarios. `/benchmarks/[id]/[tier]` renders one; the switcher in the header
  * moves between them.
  *
  * Pure and tested, like aggregates and benchmarkScenarios. Everything that
- * decides what a tier *is* â€” how many there can be, what a slug may be, what
- * a valid ladder is â€” lives here rather than in a route or a form, because
+ * decides what a tier *is* — how many there can be, what a slug may be, what
+ * a valid ladder is — lives here rather than in a route or a form, because
  * the create form, the edit form, the API routes and the switcher all have to
  * agree on it and four copies of a rule is how the rank ladder drifted twice
  * already.
@@ -74,7 +74,7 @@ export const DEFAULT_LADDER = {
  *
  * This is what makes `/benchmarks/<id>/<slug>` unambiguous: two tiers cannot
  * normalise to the same slug, because sanitizeTiers drops the second one. The
- * display name keeps its punctuation â€” only the address is slugified.
+ * display name keeps its punctuation — only the address is slugified.
  */
 export function slugifyTierName(name: string): string {
   const slug = name
@@ -144,7 +144,7 @@ export function sanitizeTiers(input: unknown): TierDraft[] {
  * A validated, index-aligned rank ladder for one tier.
  *
  * Names must be non-empty and distinct, colours must be hex, and the two
- * arrays are the same length â€” a colour ladder shorter than the name ladder
+ * arrays are the same length — a colour ladder shorter than the name ladder
  * leaves trailing ranks with no colour of their own, which the table renders
  * as whatever the fallback happens to be.
  */
@@ -165,7 +165,7 @@ export function sanitizeLadder(
 
     if (!name) continue;
 
-    // Cutoffs are keyed by rank name, so two ranks cannot share one â€” the
+    // Cutoffs are keyed by rank name, so two ranks cannot share one — the
     // second would write its cutoffs over the first's.
     const key = name.toLowerCase();
     if (seen.has(key)) continue;
@@ -209,7 +209,7 @@ export interface TierScopedScenario {
  *
  * Scenarios belong to a tier, so a benchmark with three tiers has three times
  * the rows. Summing them all into one aggregate would add a player's Novice
- * score to their Elite score and call the total neither â€” the card, the
+ * score to their Elite score and call the total neither — the card, the
  * leaderboard and the benchmark's own rank all describe the first tier until
  * one of them grows a tier picker of its own.
  *

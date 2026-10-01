@@ -48,7 +48,7 @@ export async function GET(request: Request) {
 
     // Defaults to no filter. This used to default to "easyaim", which was
 
-    // invisible while the list page always sent an explicit "all" ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â and
+    // invisible while the list page always sent an explicit "all" — and
 
     // would have silently hidden every benchmark on a second platform once
 
@@ -68,7 +68,7 @@ export async function GET(request: Request) {
 
     // sequence, and each await is a full HTTPS round trip to Postgres from
 
-    // a serverless function ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â roughly a third of a second each regardless
+    // a serverless function — roughly a third of a second each regardless
 
     // of how little data comes back. Five in a row was most of the two and
 
@@ -184,7 +184,7 @@ export async function GET(request: Request) {
 
       console.error(
 
-        `BENCHMARKS: hit the ${SCENARIO_SCAN_LIMIT}-row scenario cap ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â ranks may be wrong. ` +
+        `BENCHMARKS: hit the ${SCENARIO_SCAN_LIMIT}-row scenario cap — ranks may be wrong. ` +
 
           "Raise SCENARIO_SCAN_LIMIT, or scope the query to the visible benchmarks."
 
@@ -431,7 +431,7 @@ export async function POST(request: Request) {
       // The tiers first. Scenarios hang off a tier, so tier ids have to exist
 
 
-      // before a scenario row can point at one ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â which is why this runs before
+      // before a scenario row can point at one — which is why this runs before
 
 
       // the scenario insert rather than after it.

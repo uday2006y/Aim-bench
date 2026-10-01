@@ -42,7 +42,7 @@ interface TierRow {
 
 function toTier(row: TierRow): Tier {
   // The ladder goes through the same validator the forms do, so a row written
-  // by an older build â€” or by hand â€” cannot reach a table with a colour ladder
+  // by an older build — or by hand — cannot reach a table with a colour ladder
   // shorter than its name ladder.
   const ladder = sanitizeLadder(row.rank_names ?? [], row.rank_colors ?? []);
 
@@ -108,13 +108,13 @@ export async function loadTierScenarios(tierId: string): Promise<ScenarioRow[]> 
  * Creates a benchmark's tiers and returns them.
  *
  * Returns the created rows, id and slug, because the caller needs the ids to
- * point scenarios at them â€” scenarios belong to a tier, so this has to run
+ * point scenarios at them — scenarios belong to a tier, so this has to run
  * before the scenario rows are written.
  *
  * Every tier starts on the benchmark's ladder. Cutoffs are not copied: there is
  * nothing to copy them from now that a scenario belongs to one tier. A tier with
- * no scenarios yet is correct and expected â€” the author adds them on the edit
- * page â€” and the page says so rather than showing a table of em-dashes.
+ * no scenarios yet is correct and expected — the author adds them on the edit
+ * page — and the page says so rather than showing a table of em-dashes.
  *
  * Best-effort: a database without the tier tables still gets its benchmark.
  * Failing the whole create over a missing table would be worse than a benchmark

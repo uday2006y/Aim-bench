@@ -42,7 +42,7 @@ export async function PUT(
     }
 
     // Scenarios are NOT handled here. They belong to a tier, so this route has
-    // no idea which tier the caller means and must not guess Ã¢â‚¬â€ a benchmark-wide
+    // no idea which tier the caller means and must not guess — a benchmark-wide
     // rewrite would delete every tier's scenarios. The tier endpoint owns them
     // and takes a tierId.
     //
