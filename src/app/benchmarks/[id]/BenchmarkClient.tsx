@@ -453,7 +453,21 @@ export default function BenchmarkClient({
                         // including the row-spanning category rail.
                         const groupDivider =
                           groupIdx > 0
-                            ? "border-t-2 border-t-white/70"
+                            ? "border-t-2 border-t-white"
+                            : "";
+
+                        // A quieter rule where one sub-category ends and the
+                        // next begins, so FLICK and CLICKING read as two groups
+                        // rather than one long list. 20% white: visible without
+                        // competing with the category rule above it, which is a
+                        // heavier 70% because categories are the coarser split.
+                        //
+                        // Not on the first sub-group of a category -- that
+                        // boundary is already drawn by groupDivider, and two
+                        // stacked borders would read as one thick line.
+                        const subDivider =
+                          rowIdx === 0 && subIdx > 0
+                            ? "border-t border-t-white/20"
                             : "";
 
                         return (
@@ -485,7 +499,7 @@ export default function BenchmarkClient({
                             {isSubStart && (
                               <td
                                 rowSpan={groupRows}
-                                className={`border-r border-zinc-800/40 px-1 py-2 align-middle ${isGroupStart ? groupDivider : ""}`}
+                                className={`border-r border-zinc-800/40 px-1 py-2 align-middle ${isGroupStart ? groupDivider : ""} ${isSubStart ? subDivider : ""}`}
                               >
                                 {subGroup.sub ? (
                                   <span
@@ -504,7 +518,7 @@ export default function BenchmarkClient({
                               </td>
                             )}
 
-                            <td className={`px-4 py-2.5 align-middle ${rowIdx === 0 ? groupDivider : ""}`}>
+                            <td className={`px-4 py-2.5 align-middle ${rowIdx === 0 ? groupDivider : ""} ${subDivider}`}>
                               <div className="flex min-w-[160px] flex-col gap-0.5">
                                 <span className="truncate text-sm font-semibold leading-tight text-white">
                                   {scenario.title}
@@ -518,7 +532,7 @@ export default function BenchmarkClient({
                               </div>
                             </td>
 
-                            <td className={`px-3 py-2.5 align-middle whitespace-nowrap ${rowIdx === 0 ? groupDivider : ""}`}>
+                            <td className={`px-3 py-2.5 align-middle whitespace-nowrap ${rowIdx === 0 ? groupDivider : ""} ${subDivider}`}>
                               <div className="flex items-baseline gap-2">
                                 <span
                                   className="font-mono text-base font-bold tracking-tight"
@@ -550,7 +564,7 @@ export default function BenchmarkClient({
                               return (
                                 <td
                                   key={rank.name}
-                                  className={`px-1.5 py-2 align-middle ${rowIdx === 0 ? groupDivider : ""}`}
+                                  className={`px-1.5 py-2 align-middle ${rowIdx === 0 ? groupDivider : ""} ${subDivider}`}
                                 >
                                   <div className={`bar-track bar-${barStyle}`}>
                                     {hasCutoff && score > 0 && (
