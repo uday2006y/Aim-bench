@@ -24,7 +24,6 @@ with expected(table_name) as (
     ('benchmarks'),
     ('benchmark_scenarios'),
     ('benchmark_scores'),
-    ('benchmark_edits'),
     ('easyaim_links'),
     ('easyaim_pbs'),
     ('benchmark_pins')
@@ -154,21 +153,84 @@ order by object;
 
 
 -- ------------------------------------------------------------
--- 6. THE THING MOST LIKELY TO DISAGREE WITH ITSELF
--- benchmark_scores is history; easyaim_pbs is the live source both
--- the cards and the leaderboard now read. A score row with no
--- matching PB means the sync recorded something the live path
--- cannot reproduce, so a card and a history entry can diverge.
+-- 6. ACCOUNTS WITH NO LIVE SOURCE BEHIND THEIR HISTORY
+-- benchmark_scores is history; easyaim_pbs is the live source the
+-- cards and the leaderboard actually read. An account with score
+-- rows but no personal bests is one the live path cannot reproduce,
+-- so its history will disagree with its cards.
+--
+-- The previous version of this check joined benchmark_scores to
+-- easyaim_pbs on account_id alone. With S score rows and P bests that
+-- produces S x P rows, so count(*) counted joined rows rather than
+-- score rows, `score_rows` was inflated by a factor of P, and
+-- `rows_with_no_pb` collapsed to the only question the join could
+-- answer: does this account have any bests at all. It reported a
+-- confident number that was not the number in the column heading.
+--
+-- Aggregate each side separately. (Note this checks the *account*,
+-- not individual scores: benchmark_scores has no scenario column,
+-- so "is this particular score still backed by a PB" is not
+-- expressible in SQL. What is checkable is whether the account has
+-- any live data left, which is what usually goes wrong.)
+-- ------------------------------------------------------------
+with scores as (
+  select user_id, count(*)::int as score_rows
+  from public.benchmark_scores
+  group by user_id
+),
+bests as (
+  select account_id, count(*)::int as pb_rows
+  from public.easyaim_pbs
+  group by account_id
+)
+select
+  s.user_id,
+  s.score_rows,
+  coalesce(b.pb_rows, 0) as pb_rows,
+  case
+    when coalesce(b.pb_rows, 0) = 0 then 'history with no live source'
+    else 'ok'
+  end as verdict
+from scores s
+left join bests b on b.account_id = s.user_id
+where coalesce(b.pb_rows, 0) = 0
+order by s.score_rows desc
+limit 20;
+
+-- ------------------------------------------------------------
+-- 7. COLUMN TYPES THE APP NOW DEPENDS ON
+-- Scores are fractional and ids may be alphanumeric; see the type
+-- block at the bottom of supabase-final.sql. A database that has not
+-- had it run will round scores and refuse alphanumeric ids, both
+-- silently.
 -- ------------------------------------------------------------
 select
-  bs.user_id,
-  count(*) as score_rows,
-  count(ep.account_id) as rows_backed_by_a_pb,
-  count(*) - count(ep.account_id) as rows_with_no_pb
-from public.benchmark_scores bs
-left join public.easyaim_pbs ep
-  on ep.account_id = bs.user_id
-group by bs.user_id
-having count(*) - count(ep.account_id) > 0
-order by rows_with_no_pb desc
-limit 20;
+  case
+    when data_type = 'integer' then 'integer — scores are being rounded, run the type block'
+    when data_type = 'double precision' then 'ok'
+    when data_type = 'numeric'
+      then 'numeric — PostgREST may return this as a JSON string, which breaks score comparisons; use double precision'
+    else data_type
+  end as score_type,
+  table_name
+from information_schema.columns
+where table_schema = 'public'
+  and table_name in ('easyaim_pbs', 'benchmark_scores')
+  and column_name = 'score'
+order by table_name;
+
+select
+  case
+    when data_type = 'bigint' then 'bigint — alphanumeric ids cannot be stored, run the type block'
+    when data_type = 'text' then 'ok'
+    else data_type
+  end as id_type,
+  table_name || '.' || column_name as column
+from information_schema.columns
+where table_schema = 'public'
+  and (
+    (table_name = 'benchmark_scenarios' and column_name = 'easyaim_scenario_id')
+    or (table_name = 'easyaim_pbs' and column_name = 'scenario_id')
+    or (table_name = 'easyaim_links' and column_name = 'easyaim_player_id')
+  )
+order by column;

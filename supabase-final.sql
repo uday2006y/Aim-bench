@@ -57,15 +57,12 @@ create table if not exists public.benchmark_scores (
 create index if not exists benchmark_scores_benchmark_idx on public.benchmark_scores (benchmark_id);
 create index if not exists benchmark_scores_user_idx on public.benchmark_scores (user_id);
 
-create table if not exists public.benchmark_edits (
-  id uuid default gen_random_uuid() primary key,
-  benchmark_id uuid references public.benchmarks(id) on delete cascade not null,
-  user_id uuid references public.accounts(id) on delete cascade not null,
-  changed_field text not null,
-  old_value text,
-  new_value text not null,
-  changed_at timestamp with time zone default timezone('utc'::text, now()) not null
-);
+-- benchmark_edits used to live here to record who changed what on a
+-- benchmark. Nothing ever wrote to it and nothing ever read it, so it was a
+-- table that looked like an audit trail and was not one. Dropped rather than
+-- left in place: an empty table named "edits" invites someone to believe the
+-- app has an edit history. If a database already has it, `drop table if exists
+-- public.benchmark_edits;` in the block at the bottom clears it.
 
 -- ============================================================
 -- RLS policies
@@ -75,7 +72,6 @@ alter table public.accounts enable row level security;
 alter table public.profiles enable row level security;
 alter table public.benchmarks enable row level security;
 alter table public.benchmark_scores enable row level security;
-alter table public.benchmark_edits enable row level security;
 
 drop policy if exists "Profiles are viewable by everyone" on public.profiles;
 create policy "Profiles are viewable by everyone"
@@ -197,3 +193,58 @@ create or replace view public.benchmark_pin_totals
     count(*)::int as pin_count
   from public.benchmark_pins
   group by benchmark_id;
+
+-- ============================================================
+-- Column types
+-- Three mismatches between the schema and what the app actually stores.
+-- The ALTERs are idempotent and rewrite no data, so this block is safe to
+-- run against an existing database as many times as you like.
+-- ============================================================
+
+-- 1. Scores are not integers.
+--
+-- EasyAim scores are fractional (a real one from the test suite is
+-- 1,012.667) and the app stores them faithfully: computeAggregates sums them
+-- as JS numbers and the leaderboard prints them with toLocaleString. Storing
+-- them in an `integer` column made Postgres round on insert, so 1,012.667
+-- became 1013 and a benchmark's total drifted by a little on every re-sync.
+-- Nothing noticed, because the tests exercise the pure function and never
+-- touch the column.
+--
+-- double precision rather than numeric. These are game scores, not money, so
+-- exact decimal arithmetic buys nothing — and PostgREST does not agree on how
+-- to serialise `numeric`: some versions hand it back as a JSON *string* to
+-- preserve precision, which would arrive in JavaScript as "1012.667" and turn
+-- every `score >= cutoff` comparison into a string comparison. `float8`
+-- always serialises as a JSON number. Verified with:
+--   select pg_typeof(score) from easyaim_pbs limit 1;   -- double precision
+alter table public.easyaim_pbs
+  alter column score type double precision using score::double precision;
+
+alter table public.benchmark_scores
+  alter column score type double precision using score::double precision;
+
+-- 2. Scenario ids are not always numeric.
+--
+-- EasyAim has moved ids to alphanumeric strings (692fc9afe296376b3bdceed2
+-- and so on). The code has handled that for a while — the API client tries
+-- both the numeric and the by-id endpoints, and sanitizeScenarios accepts
+-- either shape — but the columns were still bigint, so an alphanumeric id
+-- could not be stored even when the client fetched it successfully.
+alter table public.benchmark_scenarios
+  alter column easyaim_scenario_id type text using easyaim_scenario_id::text;
+
+alter table public.easyaim_pbs
+  alter column scenario_id type text using scenario_id::text;
+
+-- 3. Neither is a player id.
+--
+-- Same story, and this one also carries a unique constraint: two accounts
+-- cannot claim the same EasyAim player, which is what stops somebody squatting
+-- on an identity that is already linked. That still holds in text.
+alter table public.easyaim_links
+  alter column easyaim_player_id type text using easyaim_player_id::text;
+
+-- The dead table, if a previous version of this schema created it. Harmless
+-- if it was never there.
+drop table if exists public.benchmark_edits;
