@@ -153,3 +153,41 @@ export function getRunPage(
     next: string | null;
   }>(`/api/v1/players/${playerId}/runs?${params.toString()}`);
 }
+
+/**
+ * A player's record progression for every scenario: only the runs that beat
+ * their own record at the time.
+ *
+ * This is the only authoritative source of a personal best. Inferring one from
+ * the ordinary runs feed cannot work, because that feed is newest-first and
+ * paged: once a sync is caught up it reads only recent runs, so a best set
+ * months ago may never appear in any page this process fetches. Taking the
+ * maximum over whatever happened to be in range yields the best of the RECENT
+ * runs, which for a player whose latest run was their worst is their last score.
+ *
+ * EasyAim documents that the FIRST entry in this list is the player's current
+ * best. The list is newest-first, so the first entry seen for any scenario is
+ * that scenario's personal best, and the rest are history.
+ *
+ * `limit` may go to 100; the default 25 would need four times the round trips
+ * for the same data.
+ */
+export function getBestRunPage(
+  playerId: number | string,
+  cursor?: string,
+  limit = 100
+) {
+  const params = new URLSearchParams({
+    filter: "best",
+    limit: String(limit),
+  });
+
+  if (cursor) {
+    params.set("cursor", cursor);
+  }
+
+  return easyaimGet<{
+    data: EasyAimRun[];
+    next: string | null;
+  }>(`/api/v1/players/${playerId}/runs?${params.toString()}`);
+}

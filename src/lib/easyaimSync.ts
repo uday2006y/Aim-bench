@@ -1,7 +1,7 @@
 import "server-only";
 
 import { supabaseAdmin } from "./supabaseAdmin";
-import { getRunPage, type EasyAimRun } from "./easyaim";
+import { getBestRunPage, getRunPage, type EasyAimRun } from "./easyaim";
 import { computeAggregates, type RankSource, type ScenarioCutoffs } from "./aggregates";
 import { primaryTierIds, scenariosInPrimaryTiers } from "./benchmarkTiers";
 import { loadAllTierRefs } from "./tiers";
@@ -154,42 +154,55 @@ export async function syncEasyAimAccount(accountId: string): Promise<SyncResult>
 
   if (updateError) throw updateError;
 
-  // 3. Best run per attached scenario across everything we just read.
+  // 3. Personal bests, read from EasyAim's own record feed.
   //
-  // EasyAim exposes a `best` flag on each run. It is treated as a HINT that can
-  // only ever raise the pick, never lower it -- see the note at the write step
-  // below for why trusting it as authority cost real scores.
+  // The ordinary runs feed is newest-first and paged, so once a sync is caught
+  // up it reads only recent runs. Taking the maximum over that window yields the
+  // best of the RECENT runs, not the player's best: for someone whose latest run
+  // was their worst, that stored their last score. That is the bug this fixes, and
+  // no amount of window tuning removes it.
   //
-  // Taking the maximum over the fetched window remains the primary rule: a
-  // genuine improvement inside the window is always picked. The flag is merged
-  // in second, and only where it is higher, so it can surface a better run the
-  // window happened not to contain without ever displacing a better one it did.
-  const flaggedBestByScenario = new Map<string, EasyAimRun>();
+  // EasyAim documents `filter=best` as returning every run that beat the
+  // player's own record at the time -- their progression -- and states that the
+  // FIRST entry is their current best. So the first run seen for a scenario in
+  // that feed IS that scenario's personal best. No inference, no window, and no
+  // flag to trust.
+  //
+  // Paged rather than a single request: a player with many scenarios has one record
+  // per scenario at minimum, and stopping at the first page would silently miss the
+  // rest. Bounded so one pathological account cannot turn a sync into an unbounded
+  // fetch loop.
   const bestRunByScenario = new Map<string, EasyAimRun>();
 
-  for (const run of collected) {
-    if (!attachedScenarios.has(String(run.scenarioId))) continue;
+  const MAX_BEST_PAGES = 10;
+  let bestCursor: string | undefined;
 
-    const key = String(run.scenarioId);
-    const current = bestRunByScenario.get(key);
+  for (let page = 0; page < MAX_BEST_PAGES; page++) {
+    const result = await getBestRunPage(link.easyaim_player_id, bestCursor, 100);
 
-    if (!current || run.score > current.score) {
-      bestRunByScenario.set(key, run);
-    }
-
-    if (run.best) {
-      const flagged = flaggedBestByScenario.get(key);
-      if (!flagged || run.score > flagged.score) {
-        flaggedBestByScenario.set(key, run);
+    for (const run of result.data) {
+      const key = String(run.scenarioId);
+      if (!attachedScenarios.has(key)) continue;
+      // Newest-first, so the first entry for a scenario is its current best.
+      // Later entries are earlier records and are kept only as a floor in case
+      // EasyAim ever reorders.
+      const seen = bestRunByScenario.get(key);
+      if (!seen || run.score > seen.score) {
+        bestRunByScenario.set(key, run);
       }
     }
+
+    if (!result.next) break;
+    bestCursor = result.next;
   }
 
-  // A flagged run is only ever allowed to RAISE the pick, never to lower it.
-  // Merging it in unconditionally would let a flagged 95 replace a real 120
-  // picked from the window, which is the same corruption as above one step
-  // earlier in the pipeline.
-  for (const [key, run] of flaggedBestByScenario) {
+  // The window scan still has value for one thing: it is the only way to notice a
+  // brand new personal best the moment it is set, without waiting for the next
+  // full record-feed pass. Merged in only where it is HIGHER, so it can add an
+  // improvement but can never displace the authoritative best.
+  for (const run of collected) {
+    const key = String(run.scenarioId);
+    if (!attachedScenarios.has(key)) continue;
     const current = bestRunByScenario.get(key);
     if (!current || run.score > current.score) {
       bestRunByScenario.set(key, run);
