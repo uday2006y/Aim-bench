@@ -12,7 +12,9 @@
 - [x] Rank history (/rank-history) — previous vs new score/rank per benchmark
 - [x] Profile page (/profile) with account info, EasyAim link, PB list
 - [x] EasyAim integration (link account, sync PBs, scenario search, backfill)
-- [x] Theme settings (/theme-settings) with color picker (bg/text/accent), localStorage persistence
+- [x] Settings (/settings) — progress-bar style, localStorage. The old
+      /theme-settings colour picker was removed at the user's request; the app
+      is fixed-theme on purpose so every leaderboard row reads the same.
 - [x] Edit benchmark (/benchmarks/[id]/edit) — future-proof with scenario add/remove/update, platform, difficulty
 - [x] SQLite / Supabase schema supports text IDs (new alphanumeric EasyAim format like 692fc9afe296376b3bdceed2)
 - [x] Deployment on Vercel with vercel.json cron (sync-all at 4am)
@@ -30,9 +32,13 @@
 - [ ] Example input format shown: Steam ID (17-digit), Vanity ID, Profile URL
 
 ### 3. User Identity / Stats Display (like evxl.app profile cards)
-- [ ] On benchmark detail: show user avatar, username, current rank, energy/score
+- [ ] On benchmark detail: show user avatar, username, current rank
 - [ ] Add "Compare scores with friends" section
-- [ ] Show aggregate stats per user (total benchmarks, best rank, energy)
+- [ ] Show aggregate stats per user (total benchmarks, best rank)
+- [x] ~~Energy~~ — removed on purpose. It was a restatement of the viewer's own
+      score in three places, so it read 113 next to a score of 113 with no
+      visible relationship to anything. See the handoff, "Things that are
+      deliberate, not bugs".
 
 ### 4. Benchmark Cards on Home (enhanced like evxl.app)
 - [ ] Each benchmark card shows scenario count with better styling
@@ -41,7 +47,7 @@
 
 ### 5. Charts & Comparisons
 - [ ] Visual comparison charts between users for same benchmark (bar charts, radar charts)
-- [ ] Energy metric calculation (like evxl.app energy column)
+- [x] ~~Energy metric calculation~~ — dropped, see item 3 above.
 
 ### 6. Scenarios Page (/scenarios)
 - [ ] Dedicated page listing all EasyAim scenarios with descriptions, difficulty, plays
@@ -66,29 +72,35 @@
 - [ ] Benchmark detail table: angled progress bars per scenario with exact colors (cyan gradient, dark gray empty)
 - [ ] Scenario tags with "SCENARIO" label (vertical rotated text on left, like evxl.app)
 - [ ] Score percentage display next to score
-- [ ] Energy column showing aggregate energy
 - [ ] Rank columns: Platinum, Diamond, Jade, Master, etc. with colored headers and progress bars
-- [ ] Full-width table layout on 1920x1080 (no empty right space)
+- [x] ~~Energy column showing aggregate energy~~ — removed, see item 3.
 - [ ] Clean dark card borders, consistent rounded corners (rounded-3xl), shadow-2xl
 - [ ] Navigation bar styling exactly like evxl.app (back arrow, tabs, buttons on right)
 - [ ] Footer: copyright, Discord server link, support/donate button
 
 ### 11. Functionality / UX
 - [ ] Profile link works with both old numeric and new alphanumeric EasyAim IDs
-- [ ] Unlink account + confirm dialog
-- [ ] Auto-refresh after sync/link/unlink
-- [ ] Error messages exactly like evxl.app ("Invalid OAuth2 redirect_uri", clean error states)
+      — linking is automatic via Discord (the verified path). The manual
+        paste-an-ID form is gone: it accepted any id with no proof of
+        ownership and invented a player when the lookup failed.
+- [x] Unlink account + confirm dialog
+- [x] Auto-refresh after sync/link/unlink
+- [x] Error boundaries — `error.tsx`, `global-error.tsx`, `not-found.tsx`, and
+      inline failure states on every client page that fetches
 - [ ] Responsive layout for mobile (table scroll, grid adjustments)
-- [ ] Performance: lazy loading for benchmark images/cards, pagination for large scenario lists
+- [ ] Performance: pagination for large scenario lists
 
 ### 12. Data Integrity / Sync
-- [ ] Ensure edit benchmark updates `scenario_count`, `benchmark_scenarios`, and `benchmark_scores` when scenarios change
-- [ ] Recompute aggregates after edit
+- [x] Ensure edit benchmark updates `scenario_count`, `benchmark_scenarios`, and `benchmark_scores` when scenarios change
+- [x] Recompute aggregates after edit
 - [ ] Backfill completes correctly for new alphanumeric player IDs
-- [ ] Sync handles both old `/api/v1/players/{id}` and new `/api/v1/players/by-id/{id}` endpoints
+- [x] Sync handles both old `/api/v1/players/{id}` and new `/api/v1/players/by-id/{id}` endpoints
 
 ### 13. Security / Environment
-- [ ] Confirm `.env.local` secrets are secure (not committed)
+- [x] Confirm `.env.local` secrets are secure — never committed, template
+      values only, `.env*` gitignored. Verified with `git log --all -- .env.local`
+- [ ] Real rate limiting on the credential endpoints — `src/lib/throttle.ts`
+      is per-instance in-memory and best-effort. Needs a shared store or a WAF rule.
 - [ ] Buy `aimbench.app` and attach it in Vercel → Settings → Domains
       - Apex A record `@` → `76.76.21.21` (or CNAME to `cname.vercel-dns.com`)
       - If using Cloudflare DNS, set the record to DNS-only, not Proxied

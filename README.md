@@ -1,36 +1,45 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# AIMBENCH
 
-## Getting Started
+A community aim-benchmark leaderboard. Benchmarks are built from EasyAim
+scenarios with a score cutoff per rank tier; scores come from the EasyAim API,
+never from anyone typing a number in. Live at `aim-bench.vercel.app`.
 
-First, run the development server:
+## Running it
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+```
+npm install
+npm run dev        # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+**The database is not reachable from a local checkout.** `.env.local` holds
+template values; the real secrets live in Vercel's environment. Any code path
+that touches Supabase will fail locally by design. Verify database-dependent
+work by deploying, or by asking the user to run SQL and paste the output.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Checks
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```
+npm test           # Node's built-in runner, no test framework installed
+npx tsc --noEmit
+npm run lint
+npm run build
+```
 
-## Learn More
+All four are expected to be clean. See `SESSION-HANDOFF.md` for what the
+architecture is and why, and `DEPLOY.md` for shipping it.
 
-To learn more about Next.js, take a look at the following resources:
+## Reading the code
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Start with `SESSION-HANDOFF.md`. It explains the one rule that matters most —
+there is a single rank calculation, in `src/lib/aggregates.ts`, and everything
+else calls it.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+| Path | What |
+|---|---|
+| `src/lib/aggregates.ts` | The rank walk. Pure, tested, the only one |
+| `src/lib/tierBars.ts` | How full each rank's bar draws. Pure, tested |
+| `src/lib/benchmarkScenarios.ts` | Input normalisation for the create/edit forms. Pure, tested |
+| `src/lib/leaderboard.ts` | Standings, computed from personal bests |
+| `src/lib/easyaimSync.ts` | Pulls runs from EasyAim, records bests, writes history |
+| `src/app/` | Pages and route handlers |
+| `supabase-*.sql` | Schema, migrations, and a read-only verification script |
