@@ -29,11 +29,26 @@ export default async function BenchmarkTierPage({
     getSessionAccountId(),
   ]);
 
-  // No tiers at all means a database that has not had the tier block run.
-  // Say so plainly: the alternative is a table with no columns and no
-  // explanation, which is the failure mode this project keeps hitting.
+  // Zero tiers has two very different causes, and they used to be reported the
+  // same way -- as "your database is missing the tier tables". The common one is
+  // simply a benchmark that never got a tier, which is an app bug, not a schema
+  // one. Sending the author to paste SQL for it sent them there for no reason,
+  // repeatedly, and never fixed anything.
+  //
+  // So: probe the table. If it exists, this benchmark has no tiers, which only
+  // the author can fix from the edit page. If it does not exist, that IS a
+  // migration and we say so.
   if (tiers.length === 0) {
-    return <TiersNotInstalled />;
+    const { error: probeError } = await supabaseAdmin
+      .from("benchmark_tiers")
+      .select("id")
+      .limit(1);
+
+    return probeError ? (
+      <TiersNotInstalled />
+    ) : (
+      <NoTiersYet benchmarkId={id} authorized={Boolean(accountId)} />
+    );
   }
 
   const tier = tiers.find((candidate) => candidate.slug === tierSlug);
@@ -175,6 +190,43 @@ export default async function BenchmarkTierPage({
         tiers.filter((candidate) => candidate.position < tier.position).pop()?.name ?? null
       }
     />
+  );
+}
+
+function NoTiersYet({
+  benchmarkId,
+  authorized,
+}: {
+  benchmarkId: string;
+  authorized: boolean;
+}) {
+  return (
+    <main className="min-h-screen bg-app text-white">
+      <div className="mx-auto flex max-w-xl flex-col items-center px-6 py-24 text-center">
+        <h1 className="text-2xl font-bold tracking-tight">This benchmark has no tiers yet</h1>
+        <p className="mt-4 text-sm leading-6 text-zinc-400">
+          The tier tables exist — this benchmark just has no tier attached to it.
+          {authorized
+            ? " Open it in the editor and save; a tier is created for you."
+            : " The author needs to open it in the editor and save."}
+        </p>
+        {authorized ? (
+          <Link
+            href={`/benchmarks/${benchmarkId}/edit`}
+            className="mt-8 rounded-lg bg-white px-4 py-2 text-sm font-medium text-black transition hover:bg-zinc-200"
+          >
+            Edit this benchmark
+          </Link>
+        ) : (
+          <Link
+            href="/benchmarks"
+            className="mt-8 rounded-lg bg-white px-4 py-2 text-sm font-medium text-black transition hover:bg-zinc-200"
+          >
+            Back to benchmarks
+          </Link>
+        )}
+      </div>
+    </main>
   );
 }
 

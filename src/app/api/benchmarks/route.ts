@@ -425,7 +425,6 @@ export async function POST(request: Request) {
 
 
 
-    if (scenarioList.length > 0) {
 
 
       // The tiers first. Scenarios hang off a tier, so tier ids have to exist
@@ -454,6 +453,13 @@ const createdTiers = await createTiersForBenchmark(
         Array.isArray(rank_names) && rank_names.length > 0 ? rank_names : DEFAULT_RANK_NAMES,
         Array.isArray(rank_colors) && rank_colors.length > 0 ? rank_colors : DEFAULT_RANK_COLORS
       );
+
+      if (createdTiers.length === 0) {
+        // Loud, not silent. A benchmark with no tier renders no tier page, and
+        // swallowing this is what made it look like a missing database table
+        // rather than a failed insert.
+        throw new Error("Could not create the benchmark tier");
+      }
 
 
 
@@ -567,7 +573,6 @@ const createdTiers = await createTiersForBenchmark(
       await recordAggregateFor(accountId, benchmark.id);
 
 
-    }
 
 
 
