@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { syncEasyAimAccount } from "@/lib/easyaimSync";
+import { syncEasyAimAccount, syncLatestRun } from "@/lib/easyaimSync";
 import { getSessionAccountId } from "@/lib/session";
 
 export async function POST(request: Request) {
@@ -13,7 +13,11 @@ export async function POST(request: Request) {
       );
     }
 
-    const result = await syncEasyAimAccount(accountId);
+    const mode = new URL(request.url).searchParams.get("mode");
+    const result =
+      mode === "latest"
+        ? await syncLatestRun(accountId)
+        : await syncEasyAimAccount(accountId);
 
     return NextResponse.json(result);
   } catch (error) {

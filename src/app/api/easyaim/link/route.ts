@@ -57,6 +57,14 @@ export async function DELETE() {
   // Ordered so a failure part-way leaves the least behind: bests and history
   // first, then the link. Unlinking again after a partial failure is
   // harmless, because the second run finds no link and simply clears
+    const { error: runsError } = await supabaseAdmin
+    .from("easyaim_runs")
+    .delete()
+    .eq("account_id", accountId);
+
+  if (runsError) {
+    console.error("EASYAIM UNLINK: failed to clear stored runs:", runsError);
+  }
   // whatever is still there.
   const { error: pbError } = await supabaseAdmin
     .from("easyaim_pbs")

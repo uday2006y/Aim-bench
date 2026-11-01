@@ -5,6 +5,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { EasyAimLinkCard, type EasyAimLinkInfo } from "./easyaim-link";
 import BenchmarkDeleteButton from "./benchmark-delete";
 import SiteHeader from "@/components/SiteHeader";
+import RecentRuns from "./recent-runs";
 
 interface AccountRow {
   username: string;
@@ -138,6 +139,9 @@ export default async function ProfilePage() {
 
         {/* EASYAIM LINK */}
         <EasyAimLinkCard link={link} />
+
+                {/* RECENT RUNS (every run, not only PBs) */}
+        {link && <RecentRuns accountId={accountId} />}
 
         {/* PBs */}
         <div className="mt-6 rounded-2xl border border-zinc-800 bg-zinc-950 p-6">

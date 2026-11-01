@@ -18,11 +18,26 @@ export interface NewPb {
   previous: number | null;
 }
 
+export interface LatestRun {
+  scenarioId: string;
+  title: string | null;
+  score: number;
+  playedAt: string;
+  /** True when this scenario is in at least one benchmark. */
+  tracked: boolean;
+  /** True when this run beat the stored personal best and was saved. */
+  isPb: boolean;
+  /** The stored personal best after this check, if there is one. */
+  best: number | null;
+}
+
 export interface SyncResult {
   scanned: number;
   newPbs: NewPb[];
   benchmarksUpdated: number;
   backfillDone: boolean;
+  /** Only set by syncLatestRun. */
+  latest?: LatestRun | null;
 }
 
 interface LinkRow {
@@ -36,6 +51,38 @@ interface LinkRow {
 interface BenchmarkScenarioRow {
   easyaim_scenario_id: string;
   title: string;
+}
+
+
+/**
+ * Keeps every run on a benchmark scenario, not only personal bests, so the
+ * profile can show runs that were not a PB. Ranks still come from easyaim_pbs;
+ * this table never feeds a rank, so a bad run cannot lower anything.
+ *
+ * Best effort: a failure is logged and swallowed, so a missing table or a
+ * hiccup here can never break the personal-best sync.
+ */
+async function saveRuns(accountId: string, runs: EasyAimRun[]) {
+  if (runs.length === 0) return;
+
+  const rows = runs.map((run) => ({
+    account_id: accountId,
+    run_id: run.id,
+    scenario_id: String(run.scenarioId),
+    score: run.score,
+    played_at: new Date(run.playedAt * 1000).toISOString(),
+  }));
+
+  for (let i = 0; i < rows.length; i += 500) {
+    const { error } = await supabaseAdmin
+      .from("easyaim_runs")
+      .upsert(rows.slice(i, i + 500), { onConflict: "account_id,run_id" });
+
+    if (error) {
+      console.error("EASYAIM SYNC: failed to store runs:", error);
+      return;
+    }
+  }
 }
 
 /**
@@ -208,6 +255,15 @@ export async function syncEasyAimAccount(accountId: string): Promise<SyncResult>
       bestRunByScenario.set(key, run);
     }
   }
+
+  // Store every scanned run on a benchmark scenario, personal best or not.
+  const runsToStore = new Map<number, EasyAimRun>();
+  for (const run of [...collected, ...bestRunByScenario.values()]) {
+    if (attachedScenarios.has(String(run.scenarioId))) {
+      runsToStore.set(run.id, run);
+    }
+  }
+  await saveRuns(accountId, [...runsToStore.values()]);
 
   const newPbs: NewPb[] = [];
 
@@ -500,4 +556,111 @@ export async function recordAggregateFor(
   benchmarkId: string
 ): Promise<boolean> {
   return (await recordAggregatesFor(accountId, [benchmarkId])) > 0;
+}
+
+/**
+ * Quick sync for the "Sync now" button: looks at ONLY the newest run on the
+ * player's EasyAim account, and records it if it is a new personal best on a
+ * scenario that is in a benchmark.
+ *
+ * It is one EasyAim request plus a couple of database reads, instead of the
+ * dozens the full sync makes. It does not touch last_run_id or the backfill
+ * cursor, so it cannot make the full sync skip runs.
+ *
+ * A personal best never goes down, so a latest run that scores lower than the
+ * stored best is reported but not saved.
+ */
+export async function syncLatestRun(accountId: string): Promise<SyncResult> {
+  const { data: linkData, error: linkError } = await supabaseAdmin
+    .from("easyaim_links")
+    .select("easyaim_player_id, backfill_done")
+    .eq("account_id", accountId)
+    .maybeSingle();
+
+  if (linkError) throw linkError;
+  if (!linkData) throw new Error("No EasyAim account linked");
+
+  const link = linkData as { easyaim_player_id: number; backfill_done: boolean };
+
+  const page = await getRunPage(link.easyaim_player_id, undefined, 1);
+  const run = page.data[0];
+
+  if (!run) {
+    return { scanned: 0, newPbs: [], benchmarksUpdated: 0, backfillDone: link.backfill_done, latest: null };
+  }
+
+  const scenarioId = String(run.scenarioId);
+  const playedAt = new Date(run.playedAt * 1000).toISOString();
+
+  const [scenarioResult, pbResult] = await Promise.all([
+    supabaseAdmin
+      .from("benchmark_scenarios")
+      .select("benchmark_id, title")
+      .eq("easyaim_scenario_id", scenarioId),
+    supabaseAdmin
+      .from("easyaim_pbs")
+      .select("score")
+      .eq("account_id", accountId)
+      .eq("scenario_id", scenarioId)
+      .maybeSingle(),
+  ]);
+
+  if (scenarioResult.error) throw scenarioResult.error;
+  if (pbResult.error) throw pbResult.error;
+
+  const scenarioRows = (scenarioResult.data ?? []) as { benchmark_id: string; title: string }[];
+  const previous = (pbResult.data as { score: number } | null)?.score ?? null;
+  const tracked = scenarioRows.length > 0;
+  const title = scenarioRows[0]?.title ?? null;
+
+  const base = { scenarioId, title, score: run.score, playedAt };
+
+  // Not in any benchmark: nothing to record.
+  if (!tracked) {
+    return {
+      scanned: 1,
+      newPbs: [],
+      benchmarksUpdated: 0,
+      backfillDone: link.backfill_done,
+      latest: { ...base, tracked: false, isPb: false, best: previous },
+    };
+  }
+
+  // Keep the run itself even when it is not a personal best.
+  await saveRuns(accountId, [run]);
+
+  // Not better than what we hold: report it, do not store it as the PB.
+  if (previous !== null && run.score <= previous) {
+    return {
+      scanned: 1,
+      newPbs: [],
+      benchmarksUpdated: 0,
+      backfillDone: link.backfill_done,
+      latest: { ...base, tracked: true, isPb: false, best: previous },
+    };
+  }
+
+  const { error: upsertError } = await supabaseAdmin.from("easyaim_pbs").upsert(
+    {
+      account_id: accountId,
+      scenario_id: scenarioId,
+      score: run.score,
+      run_id: run.id,
+      achieved_at: playedAt,
+    },
+    { onConflict: "account_id,scenario_id" }
+  );
+
+  if (upsertError) throw upsertError;
+
+  const benchmarkIds = [...new Set(scenarioRows.map((row) => row.benchmark_id))];
+  const benchmarksUpdated = await recordAggregatesFor(accountId, benchmarkIds);
+
+  return {
+    scanned: 1,
+    newPbs: [{ scenarioId, title: title || `Scenario ${scenarioId}`, score: run.score, previous }],
+    benchmarksUpdated,
+    backfillDone: link.backfill_done,
+    latest: { ...base, tracked: true, isPb: true, best: run.score },
+  };
 }
