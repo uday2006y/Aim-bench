@@ -35,12 +35,10 @@ export function EasyAimLinkCard({ link }: { link: EasyAimLinkInfo | null }) {
       }
 
       try {
-        // The button checks only the newest run (fast). The background timer
-        // keeps doing the full personal-best pass.
-        const response = await fetch(
-          manual ? "/api/easyaim/sync?mode=latest" : "/api/easyaim/sync",
-          { method: "POST" }
-        );
+        // Both the button and the background timer run the full sync: it
+        // reads your newest runs AND keeps importing older history, storing
+        // every run on a benchmark scenario, personal best or not.
+        const response = await fetch("/api/easyaim/sync", { method: "POST" });
         const data = await response.json();
 
         if (!response.ok) {
@@ -49,23 +47,27 @@ export function EasyAimLinkCard({ link }: { link: EasyAimLinkInfo | null }) {
         }
 
         if (manual) {
-          const latest = data.latest;
-          const fmt = (n: number) => n.toLocaleString(undefined, { maximumFractionDigits: 3 });
+          const fmt = (n: number) =>
+            n.toLocaleString(undefined, { maximumFractionDigits: 3 });
+          const pbs: { title: string; score: number }[] = data.newPbs ?? [];
 
-          if (!latest) {
-            setNotice("No runs found on your EasyAim account yet");
-          } else if (!latest.tracked) {
-            setNotice("Latest run isn't on any benchmark, so nothing was saved");
-          } else if (latest.isPb) {
-            setNotice(`New PB: ${latest.title ?? "scenario"} ${fmt(latest.score)}`);
+          if (pbs.length > 0) {
+            const more = pbs.length > 1 ? ` (+${pbs.length - 1} more)` : "";
+            setNotice(`New PB: ${pbs[0].title} ${fmt(pbs[0].score)}${more}`);
           } else {
-            setNotice(
-              `Latest run ${fmt(latest.score)} on ${latest.title ?? "scenario"} isn't a PB (best ${fmt(latest.best ?? 0)})`
-            );
+            const importing =
+              data.backfillDone === false ? " Older history is still importing." : "";
+            setNotice(`Synced ${data.scanned ?? 0} runs, no new PBs.${importing}`);
           }
         }
 
-        if ((data.newPbs?.length ?? 0) > 0 || (data.benchmarksUpdated ?? 0) > 0) {
+        // Always refresh after a manual click so newly stored non-PB runs show
+        // up in Recent runs; the background timer refreshes only on a change.
+        if (
+          manual ||
+          (data.newPbs?.length ?? 0) > 0 ||
+          (data.benchmarksUpdated ?? 0) > 0
+        ) {
           router.refresh();
         }
       } catch {
