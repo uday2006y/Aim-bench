@@ -65,7 +65,11 @@ create index if not exists benchmark_scores_user_idx on public.benchmark_scores 
 -- public.benchmark_edits;` in the block at the bottom clears it.
 
 -- ============================================================
--- RLS policies
+-- RLS: enabled everywhere, NO policies.
+-- The app only talks to Supabase server-side with the service-role key, which
+-- bypasses RLS. The anon key ships in the browser bundle, so any
+-- "viewable by everyone" policy would let anyone read these tables directly.
+-- The drops below remove the ones earlier versions of this file created.
 -- ============================================================
 
 alter table public.accounts enable row level security;
@@ -74,16 +78,10 @@ alter table public.benchmarks enable row level security;
 alter table public.benchmark_scores enable row level security;
 
 drop policy if exists "Profiles are viewable by everyone" on public.profiles;
-create policy "Profiles are viewable by everyone"
-  on public.profiles for select using (true);
 
 drop policy if exists "Benchmarks are viewable by everyone" on public.benchmarks;
-create policy "Benchmarks are viewable by everyone"
-  on public.benchmarks for select using (true);
 
 drop policy if exists "Scores are viewable by everyone" on public.benchmark_scores;
-create policy "Scores are viewable by everyone"
-  on public.benchmark_scores for select using (true);
 
 -- ============================================================
 -- EasyAim integration
@@ -152,8 +150,6 @@ alter table public.easyaim_links enable row level security;
 alter table public.easyaim_pbs enable row level security;
 
 drop policy if exists "Benchmark scenarios are viewable by everyone" on public.benchmark_scenarios;
-create policy "Benchmark scenarios are viewable by everyone"
-  on public.benchmark_scenarios for select using (true);
 
 -- ------------------------------------------------------------
 -- Benchmark pins
@@ -358,9 +354,6 @@ where bs.tier_id is null
 alter table public.benchmark_scenarios
   drop constraint if exists benchmark_scenarios_benchmark_id_easyaim_scenario_id_key;
 
-alter table public.benchmark_scenarios
-  drop constraint if exists benchmark_scenarios_pkey;
-
 do $$
 begin
   if not exists (
@@ -371,5 +364,18 @@ begin
     alter table public.benchmark_scenarios
       add constraint benchmark_scenarios_tier_scenario_key
       unique (tier_id, easyaim_scenario_id);
+  end if;
+end $$;
+
+-- A previous version of this block dropped benchmark_scenarios' primary key and
+-- never put it back. Restore it if it is missing; no-op otherwise.
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conrelid = 'public.benchmark_scenarios'::regclass
+      and contype = 'p'
+  ) then
+    alter table public.benchmark_scenarios add primary key (id);
   end if;
 end $$;

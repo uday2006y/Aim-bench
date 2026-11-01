@@ -1,4 +1,4 @@
-$authHeader = @{ Authorization = "Bearer ea_k6usdfErPhlq_4MsBjLnv3xxOEb9vSkMtBC1O3uSAaaq6DgKPeOkRST1" }
+$authHeader = @{ Authorization = "Bearer $env:EASYAIM_API_KEY" }
 $total = 0
 for ($p=0; $p -lt 30; $p++) {
   $url = "https://easyaim.com/api/v1/scenarios?limit=100&page=$p"

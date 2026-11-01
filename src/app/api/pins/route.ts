@@ -144,7 +144,7 @@ export async function PATCH(request: Request) {
  */
 function pinSchemaHint(message: string): string | null {
   if (/benchmark_pins/i.test(message)) {
-    return "Run supabase-pins.sql against your database — the benchmark_pins table is missing.";
+    return "Run supabase-final.sql in the Supabase SQL editor — the benchmark_pins table is missing.";
   }
   if (/violates foreign key constraint/i.test(message)) {
     return "Your account row is missing; try logging out and back in.";

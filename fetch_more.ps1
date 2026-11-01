@@ -1,4 +1,4 @@
-$auth = "Bearer ea_k6usdfErPhlq_4MsBjLnv3xxOEb9vSkMtBC1O3uSAaaq6DgKPeOkRST1"
+$auth = "Bearer $env:EASYAIM_API_KEY"
 for ($p=6; $p -le 20; $p++) {
   $url = "https://easyaim.com/api/v1/scenarios?limit=100&page=$p"
   $r = curl.exe -s -H $auth $url

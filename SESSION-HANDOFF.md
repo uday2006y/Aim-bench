@@ -208,8 +208,7 @@ query go out *in parallel with* the scenarios. Bounded by one person's play.
 
 | File | What |
 |---|---|
-| `supabase-final.sql` | Schema, **plus the type + tier migration block at the bottom** |
-| `supabase-pins.sql` | `benchmark_pins` + `benchmark_pin_totals` view |
+| `supabase-final.sql` | Schema (pins included), **plus the type + tier migration block at the bottom**. Idempotent; tested on a fresh DB and a damaged one |
 | `supabase-verify.sql` | **Read-only.** Checks the whole schema is current |
 
 **Run `supabase-verify.sql` first** in any new session. Schema drift has bitten
@@ -238,12 +237,9 @@ service-role client bypasses it. A policy added by accident exposes that table.
 `benchmark_edits` is dropped from the schema. Nothing ever wrote to it; it
 looked like an audit trail and was not one.
 
-### Local env is a placeholder
+### Local env
 
-`.env.local` holds template values, is gitignored, and
-`git log --all -- .env.local` is empty. **You cannot query the database
-locally.** Verify by deploying, or by asking the user to run SQL and paste the
-output.
+`.env.local` is gitignored and holds the real values; `.env.example` shows the shape. Never commit either real values or a screenshot of them.
 
 ---
 

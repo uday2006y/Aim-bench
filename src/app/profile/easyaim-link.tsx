@@ -35,7 +35,12 @@ export function EasyAimLinkCard({ link }: { link: EasyAimLinkInfo | null }) {
       }
 
       try {
-        const response = await fetch("/api/easyaim/sync", { method: "POST" });
+        // The button checks only the newest run (fast). The background timer
+        // keeps doing the full personal-best pass.
+        const response = await fetch(
+          manual ? "/api/easyaim/sync?mode=latest" : "/api/easyaim/sync",
+          { method: "POST" }
+        );
         const data = await response.json();
 
         if (!response.ok) {
@@ -44,14 +49,20 @@ export function EasyAimLinkCard({ link }: { link: EasyAimLinkInfo | null }) {
         }
 
         if (manual) {
-          const newPbs = data.newPbs?.length ?? 0;
-          const updated = data.benchmarksUpdated ?? 0;
+          const latest = data.latest;
+          const fmt = (n: number) => n.toLocaleString(undefined, { maximumFractionDigits: 3 });
 
-          setNotice(
-            newPbs > 0
-              ? `Found ${newPbs} new PB${newPbs === 1 ? "" : "s"} — updated ${updated} benchmark${updated === 1 ? "" : "s"}`
-              : `Checked ${data.scanned ?? 0} runs — no new PBs`
-          );
+          if (!latest) {
+            setNotice("No runs found on your EasyAim account yet");
+          } else if (!latest.tracked) {
+            setNotice("Latest run isn't on any benchmark, so nothing was saved");
+          } else if (latest.isPb) {
+            setNotice(`New PB: ${latest.title ?? "scenario"} ${fmt(latest.score)}`);
+          } else {
+            setNotice(
+              `Latest run ${fmt(latest.score)} on ${latest.title ?? "scenario"} isn't a PB (best ${fmt(latest.best ?? 0)})`
+            );
+          }
         }
 
         if ((data.newPbs?.length ?? 0) > 0 || (data.benchmarksUpdated ?? 0) > 0) {

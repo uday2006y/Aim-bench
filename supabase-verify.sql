@@ -81,7 +81,7 @@ left join information_schema.columns c
   on c.table_schema = 'public'
   and c.table_name = e.table_name
   and c.column_name = e.column_name
-order by status desc, column;
+order by status desc, "column";
 
 
 -- ------------------------------------------------------------
@@ -90,11 +90,15 @@ order by status desc, column;
 -- so the check above cannot see it.
 -- ------------------------------------------------------------
 select
-  case when v.view_name is null then 'MISSING' else 'ok' end as status,
+  case
+    when v.view_name is null then 'MISSING'
+    when v.security_invoker is not true then 'EXPOSED'
+    else 'ok'
+  end as status,
   'benchmark_pin_totals' as object,
   case
     when v.view_name is null
-      then 'not created — run supabase-pins.sql'
+      then 'not created — run supabase-final.sql'
     else 'security_invoker: ' || coalesce(v.security_invoker::text, 'unknown')
   end as detail
 from (select 1) as _
@@ -102,7 +106,7 @@ left join (
   select
     c.relname as view_name,
     (select option_value from pg_options_to_table(c.reloptions)
-      where option_name = 'security_invoker') = 'true' as security_invoker
+      where option_name = 'security_invoker') in ('true', 'on') as security_invoker
   from pg_class c
   join pg_namespace n on n.oid = c.relnamespace
   where n.nspname = 'public' and c.relkind = 'v'
@@ -233,4 +237,4 @@ where table_schema = 'public'
     or (table_name = 'easyaim_pbs' and column_name = 'scenario_id')
     or (table_name = 'easyaim_links' and column_name = 'easyaim_player_id')
   )
-order by column;
+order by "column";

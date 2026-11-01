@@ -11,10 +11,8 @@ npm install
 npm run dev        # http://localhost:3000
 ```
 
-**The database is not reachable from a local checkout.** `.env.local` holds
-template values; the real secrets live in Vercel's environment. Any code path
-that touches Supabase will fail locally by design. Verify database-dependent
-work by deploying, or by asking the user to run SQL and paste the output.
+Copy `.env.example` to `.env.local` and fill it in (see `DEPLOY.md`). With real
+Supabase values the app runs locally against your database.
 
 ## Checks
 

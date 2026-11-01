@@ -17,7 +17,7 @@ them is not, the build is not ready to ship — the lint baseline used to be
 
 1. **Schema first.** Run `supabase-verify.sql` (read-only) against the target
    database and read the output. If sections 1–3 report MISSING, run the
-   matching `.sql` file. If section 7 reports `bigint` or `integer`, run the
+   `supabase-final.sql`. If section 7 reports `bigint` or `integer`, run the
    type block at the bottom of `supabase-final.sql` — scores are being
    rounded and alphanumeric ids will be rejected until you do.
 
@@ -37,15 +37,14 @@ them is not, the build is not ready to ship — the lint baseline used to be
    file that had just moved the equivalent column to `text`, and the migration
    failed on the seed insert that followed.
 
-2. Push. `.env*` is gitignored and `.env.local` holds template values only.
+2. Push. `.env*` is gitignored (except `.env.example`). `.env.local` holds the real local values and must never be committed.
 
 3. In Vercel → Project → Settings → Environment Variables:
 
    | Variable | Notes |
    |---|---|
    | `NEXT_PUBLIC_SUPABASE_URL` | |
-   | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Not used by any code path — see below |
-   | `SESSION_SECRET` | Rotating this signs everyone out |
+      | `SESSION_SECRET` | Rotating this signs everyone out |
    | `SUPABASE_SECRET_KEY` | Service role. Full database access |
    | `EASYAIM_API_URL` | Defaults to staging if unset |
    | `EASYAIM_API_KEY` | |
@@ -61,14 +60,9 @@ them is not, the build is not ready to ship — the lint baseline used to be
    false, the community has outgrown one run and it will keep working through
    the backlog, just not all in one night.
 
-### `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` is not needed
+### No publishable/anon key needed
 
-Nothing imports the anon client any more. There used to be a
-`src/lib/supabase.ts` building one, which is deleted. The app talks to
-Supabase only through the service-role client on the server, so this variable
-can go. Kept in the table above because removing an env var from a running
-project is a change with its own blast radius — do it when convenient, not as
-part of a deploy.
+Nothing in the app uses the anon client; it talks to Supabase only through the service-role key on the server. If the variable still exists in Vercel it is harmless and can be deleted whenever convenient.
 
 ## Discord OAuth redirect URIs
 
@@ -90,10 +84,7 @@ cron entry.
 
 ## Security notes
 
-- **`.env.local` is a template.** It has never been committed; `.gitignore`
-  covers `.env*`. Earlier versions of this project's docs claimed live
-  secrets were in the repository — that was wrong, and the claim has been
-  removed rather than left for someone to act on.
+- **`.env.local` holds real secrets.** It is gitignored and was never committed. Keep it that way; use `.env.example` for the shape.
 - **Historical note:** live secrets *were* once committed, before the git
   history was cleaned. The keys from that era were rotated at the time. If you
   are deploying from a fork or a restored backup, rotate `SUPABASE_SECRET_KEY`,
@@ -103,7 +94,7 @@ cron entry.
   so the anon key is useless against the database while the service-role client
   bypasses it. `benchmark_pin_totals` is `security_invoker = on` — without
   that the view is `SECURITY DEFINER` and exposes every pin row through the
-  anon key. Section 4 of `supabase-verify.sql` checks both.
+  anon key. Section 3 and 4 of `supabase-verify.sql` check both.
 - **Rate limiting is best-effort.** `src/lib/throttle.ts` is a per-instance
   in-memory counter. It stops a script hammering one warm function and nothing
   more. A real limit needs a shared store or a WAF rule; see the handoff.

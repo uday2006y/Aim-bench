@@ -3,19 +3,29 @@ import "server-only";
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 
-const secret = new TextEncoder().encode(process.env.SESSION_SECRET);
+/**
+ * Resolved lazily so `next build` does not need the secret, but the first real
+ * request fails loudly instead of signing sessions with an empty or guessable key.
+ */
+function getSecret() {
+  const value = process.env.SESSION_SECRET;
+  if (!value || value.length < 32) {
+    throw new Error("SESSION_SECRET is missing or shorter than 32 characters");
+  }
+  return new TextEncoder().encode(value);
+}
 
 export async function createSession(accountId: string) {
   return new SignJWT({ accountId })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime("7d")
-    .sign(secret);
+    .sign(getSecret());
 }
 
 export async function verifySession(token: string) {
   try {
-    const { payload } = await jwtVerify(token, secret);
+    const { payload } = await jwtVerify(token, getSecret());
 
     if (typeof payload.accountId !== "string") {
       return null;
