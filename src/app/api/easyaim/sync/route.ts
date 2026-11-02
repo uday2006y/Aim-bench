@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
-import { syncEasyAimAccount, syncLatestRun } from "@/lib/easyaimSync";
+import { syncSiteScenarios } from "@/lib/easyaimSiteSync";
 import { getSessionAccountId } from "@/lib/session";
 
-export async function POST(request: Request) {
+export async function POST() {
   try {
     const accountId = await getSessionAccountId();
 
@@ -13,18 +13,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const params = new URL(request.url).searchParams;
-    const mode = params.get("mode");
-    const manual = params.get("manual") === "1";
-    const result =
-      mode === "latest"
-        ? await syncLatestRun(accountId)
-        : await syncEasyAimAccount(accountId, {
-            reimportIfEmpty: manual,
-            lookupMissing: manual,
-          });
-
-    return NextResponse.json(result);
+    return NextResponse.json(await syncSiteScenarios(accountId));
   } catch (error) {
     const message = error instanceof Error ? error.message : "Sync failed";
 
