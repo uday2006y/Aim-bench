@@ -244,3 +244,21 @@ export function getScenarioBestRun(
 
   return getRuns(`/api/v1/players/${playerId}/runs?${params.toString()}`);
 }
+
+/**
+ * A page of one scenario's record entries, for the configured platform.
+ * The caller takes the highest score, which is the existing personal best.
+ */
+export function getScenarioBestRuns(
+  playerId: number | string,
+  scenarioId: number | string,
+  limit = 100
+) {
+  const params = new URLSearchParams({
+    scenario: String(scenarioId),
+    filter: "best",
+    limit: String(limit),
+  });
+
+  return getRuns(`/api/v1/players/${playerId}/runs?${params.toString()}`);
+}

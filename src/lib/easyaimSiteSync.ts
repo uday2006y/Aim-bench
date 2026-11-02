@@ -1,7 +1,7 @@
 import "server-only";
 
 import { supabaseAdmin } from "./supabaseAdmin";
-import { getScenarioBestRun, type EasyAimRun } from "./easyaim";
+import { getScenarioBestRuns, type EasyAimRun } from "./easyaim";
 import { recordAggregatesFor, type NewPb } from "./easyaimSync";
 
 const CONCURRENCY = 5;
@@ -71,13 +71,17 @@ export async function syncSiteScenarios(
   let failed = 0;
   let next = 0;
 
-  async function worker() {
+    async function worker() {
     while (next < scenarioIds.length) {
       const scenarioId = scenarioIds[next++];
       try {
-        const page = await getScenarioBestRun(playerId, scenarioId);
-        const run = page.data.find((r) => String(r.scenarioId) === scenarioId);
-        if (run) best.set(scenarioId, run);
+        const page = await getScenarioBestRuns(playerId, scenarioId, 100);
+        let top: EasyAimRun | null = null;
+        for (const r of page.data) {
+          if (String(r.scenarioId) !== scenarioId) continue;
+          if (!top || r.score > top.score) top = r;
+        }
+        if (top) best.set(scenarioId, top);
       } catch (error) {
         failed += 1;
         console.error("EASYAIM SITE SYNC: scenario failed:", scenarioId, error);
