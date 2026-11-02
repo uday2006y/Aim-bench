@@ -38,7 +38,10 @@ export function EasyAimLinkCard({ link }: { link: EasyAimLinkInfo | null }) {
         // Both the button and the background timer run the full sync: it
         // reads your newest runs AND keeps importing older history, storing
         // every run on a benchmark scenario, personal best or not.
-        const response = await fetch("/api/easyaim/sync", { method: "POST" });
+        const response = await fetch(
+          manual ? "/api/easyaim/sync?manual=1" : "/api/easyaim/sync",
+          { method: "POST" }
+        );
         const data = await response.json();
 
         if (!response.ok) {
@@ -51,13 +54,19 @@ export function EasyAimLinkCard({ link }: { link: EasyAimLinkInfo | null }) {
             n.toLocaleString(undefined, { maximumFractionDigits: 3 });
           const pbs: { title: string; score: number }[] = data.newPbs ?? [];
 
-          if (pbs.length > 0) {
+          if (data.runsError) {
+            setError(
+              "Your runs could not be saved. The easyaim_runs table is probably missing in Supabase. Run the create table SQL, then click Sync now again."
+            );
+          } else if (pbs.length > 0) {
             const more = pbs.length > 1 ? ` (+${pbs.length - 1} more)` : "";
             setNotice(`New PB: ${pbs[0].title} ${fmt(pbs[0].score)}${more}`);
           } else {
             const importing =
               data.backfillDone === false ? " Older history is still importing." : "";
-            setNotice(`Synced ${data.scanned ?? 0} runs, no new PBs.${importing}`);
+            setNotice(
+              `Synced ${data.scanned ?? 0} runs (${data.runsStored ?? 0} saved), no new PBs.${importing}`
+            );
           }
         }
 

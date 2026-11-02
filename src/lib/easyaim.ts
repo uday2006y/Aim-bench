@@ -1,10 +1,18 @@
 import "server-only";
 
 const API_URL = (
-  process.env.EASYAIM_API_URL || "https://staging.easyaim.com"
+  process.env.EASYAIM_API_URL || "https://easyaim.com"
 ).replace(/\/+$/, "");
 
 const API_KEY = process.env.EASYAIM_API_KEY;
+
+/**
+ * Which EasyAim platform's runs to read ("mobile", "pc", ...). EasyAim keeps a
+ * separate set of runs and records per platform and returns the default one
+ * (PC) when none is asked for, so a mobile player must set this. Unset means
+ * "do not filter", which keeps the old behaviour.
+ */
+const PLATFORM = (process.env.EASYAIM_PLATFORM || "").trim().toLowerCase();
 
 export interface EasyAimPlayer {
   id: number;
@@ -25,6 +33,8 @@ export interface EasyAimRun {
   misses: number;
   eliminations: number;
   best: boolean;
+  /** "pc", "mobile", ... EasyAim keeps a separate record per platform. */
+  platform?: string;
   hasReplay: boolean;
 }
 
@@ -84,6 +94,30 @@ async function easyaimGet<T>(path: string): Promise<T> {
 
     throw new Error("EasyAim API returned invalid JSON");
   }
+}
+
+/**
+ * Fetches a page of a player's runs for the configured platform. Asks EasyAim
+ * for that platform AND drops any run that is labelled with another one, so a
+ * PC run can never be stored as a mobile score even if the API ignored the
+ * parameter.
+ */
+async function getRuns(path: string) {
+  const url = PLATFORM
+    ? `${path}&platform=${encodeURIComponent(PLATFORM)}`
+    : path;
+
+  const page = await easyaimGet<{
+    data: EasyAimRun[];
+    next: string | null;
+  }>(url);
+
+  return {
+    ...page,
+    data: page.data.filter(
+      (run) => !PLATFORM || !run.platform || run.platform.toLowerCase() === PLATFORM
+    ),
+  };
 }
 
 export async function getPlayer(playerId: number | string) {
@@ -148,10 +182,7 @@ export function getRunPage(
     params.set("cursor", cursor);
   }
 
-  return easyaimGet<{
-    data: EasyAimRun[];
-    next: string | null;
-  }>(`/api/v1/players/${playerId}/runs?${params.toString()}`);
+  return getRuns(`/api/v1/players/${playerId}/runs?${params.toString()}`);
 }
 
 /**
@@ -186,8 +217,30 @@ export function getBestRunPage(
     params.set("cursor", cursor);
   }
 
-  return easyaimGet<{
-    data: EasyAimRun[];
-    next: string | null;
-  }>(`/api/v1/players/${playerId}/runs?${params.toString()}`);
+  return getRuns(`/api/v1/players/${playerId}/runs?${params.toString()}`);
+}
+
+/**
+ * One scenario's personal best, straight from EasyAim.
+ *
+ * Same record feed as getBestRunPage, narrowed to a single scenario with
+ * `scenario=`. EasyAim documents the FIRST entry of that feed as the player's
+ * current best, so asking for one entry is enough. Used to fetch the real best
+ * for a scenario that is missing from the bulk feed, for example one that was
+ * just added to a benchmark.
+ *
+ * The caller must check the returned run's scenarioId: if the API ever ignored
+ * the parameter it would return some other scenario's run.
+ */
+export function getScenarioBestRun(
+  playerId: number | string,
+  scenarioId: number | string
+) {
+  const params = new URLSearchParams({
+    scenario: String(scenarioId),
+    filter: "best",
+    limit: "1",
+  });
+
+  return getRuns(`/api/v1/players/${playerId}/runs?${params.toString()}`);
 }

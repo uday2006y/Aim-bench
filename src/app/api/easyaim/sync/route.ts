@@ -13,11 +13,16 @@ export async function POST(request: Request) {
       );
     }
 
-    const mode = new URL(request.url).searchParams.get("mode");
+    const params = new URL(request.url).searchParams;
+    const mode = params.get("mode");
+    const manual = params.get("manual") === "1";
     const result =
       mode === "latest"
         ? await syncLatestRun(accountId)
-        : await syncEasyAimAccount(accountId);
+        : await syncEasyAimAccount(accountId, {
+            reimportIfEmpty: manual,
+            lookupMissing: manual,
+          });
 
     return NextResponse.json(result);
   } catch (error) {

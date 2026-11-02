@@ -1,7 +1,12 @@
 import "server-only";
 
 import { supabaseAdmin } from "./supabaseAdmin";
-import { getBestRunPage, getRunPage, type EasyAimRun } from "./easyaim";
+import {
+  getBestRunPage,
+  getRunPage,
+  getScenarioBestRun,
+  type EasyAimRun,
+} from "./easyaim";
 import { computeAggregates, type RankSource, type ScenarioCutoffs } from "./aggregates";
 import { primaryTierIds, scenariosInPrimaryTiers } from "./benchmarkTiers";
 import { loadAllTierRefs } from "./tiers";
@@ -9,6 +14,8 @@ import { loadAllTierRefs } from "./tiers";
 const PAGE_SIZE = 25;
 const NEW_RUNS_MAX_PAGES = 4;
 const BACKFILL_MAX_PAGES = 8;
+/** Most single-scenario best lookups one manual sync will make. */
+const MAX_TARGETED_LOOKUPS = 40;
 
 export interface NewPb {
   /** Alphanumeric ids are a string in practice, so this is a string. */
@@ -38,6 +45,10 @@ export interface SyncResult {
   backfillDone: boolean;
   /** Only set by syncLatestRun. */
   latest?: LatestRun | null;
+  /** Runs written to easyaim_runs this pass (full sync only). */
+  runsStored?: number;
+  /** True when saving runs failed, usually because easyaim_runs is missing. */
+  runsError?: boolean;
 }
 
 interface LinkRow {
@@ -62,8 +73,11 @@ interface BenchmarkScenarioRow {
  * Best effort: a failure is logged and swallowed, so a missing table or a
  * hiccup here can never break the personal-best sync.
  */
-async function saveRuns(accountId: string, runs: EasyAimRun[]) {
-  if (runs.length === 0) return;
+async function saveRuns(
+  accountId: string,
+  runs: EasyAimRun[]
+): Promise<{ stored: number; failed: boolean }> {
+  if (runs.length === 0) return { stored: 0, failed: false };
 
   const rows = runs.map((run) => ({
     account_id: accountId,
@@ -80,9 +94,11 @@ async function saveRuns(accountId: string, runs: EasyAimRun[]) {
 
     if (error) {
       console.error("EASYAIM SYNC: failed to store runs:", error);
-      return;
+      return { stored: i, failed: true };
     }
   }
+
+  return { stored: rows.length, failed: false };
 }
 
 /**
@@ -93,7 +109,10 @@ async function saveRuns(accountId: string, runs: EasyAimRun[]) {
  * pass; score = sum of PBs) and appended to benchmark_scores so the
  * leaderboard and rank history update.
  */
-export async function syncEasyAimAccount(accountId: string): Promise<SyncResult> {
+export async function syncEasyAimAccount(
+  accountId: string,
+  options: { reimportIfEmpty?: boolean; lookupMissing?: boolean } = {}
+): Promise<SyncResult> {
   const { data: linkData, error: linkError } = await supabaseAdmin
     .from("easyaim_links")
     .select(
@@ -134,6 +153,23 @@ export async function syncEasyAimAccount(accountId: string): Promise<SyncResult>
       benchmarksUpdated: 0,
       backfillDone: link.backfill_done,
     };
+  }
+
+  // Manual sync only: if no runs are stored yet but the history was already
+  // marked as imported (it finished before runs were kept), read it again once.
+  // Never from the background timer, so an account with nothing to store is
+  // not re-read every two minutes.
+  if (options.reimportIfEmpty && link.backfill_done) {
+    const { count, error: countError } = await supabaseAdmin
+      .from("easyaim_runs")
+      .select("run_id", { count: "exact", head: true })
+      .eq("account_id", accountId);
+
+    if (!countError && count === 0) {
+      link.last_run_id = null;
+      link.backfill_cursor = null;
+      link.backfill_done = false;
+    }
   }
 
   const collected: EasyAimRun[] = [];
@@ -243,6 +279,78 @@ export async function syncEasyAimAccount(accountId: string): Promise<SyncResult>
     bestCursor = result.next;
   }
 
+  // Manual sync only: a scenario can be missing from the record feed above
+  // (just added to a benchmark and never stored, or its record is older than
+  // the pages read). Ask EasyAim for that one scenario's best directly, so a
+  // newly added scenario gets the player's REAL personal best, not whatever
+  // their recent runs happened to score. Scenarios from the player's own
+  // benchmarks go first so a scenario they just added is never cut by the cap.
+  if (options.lookupMissing) {
+    const missing = Array.from(attachedScenarios.keys()).filter(
+      (id) => !bestRunByScenario.has(id)
+    );
+
+    if (missing.length > 0) {
+      const ownScenarioIds = new Set<string>();
+
+      const { data: ownBenchmarks } = await supabaseAdmin
+        .from("benchmarks")
+        .select("id")
+        .eq("user_id", accountId);
+
+      const ownIds = (ownBenchmarks ?? []).map((row) => (row as { id: string }).id);
+
+      if (ownIds.length > 0) {
+        const { data: ownRows } = await supabaseAdmin
+          .from("benchmark_scenarios")
+          .select("easyaim_scenario_id")
+          .in("benchmark_id", ownIds);
+
+        for (const row of ownRows ?? []) {
+          ownScenarioIds.add(
+            String((row as { easyaim_scenario_id: string }).easyaim_scenario_id)
+          );
+        }
+      }
+
+      missing.sort(
+        (a, b) => Number(ownScenarioIds.has(b)) - Number(ownScenarioIds.has(a))
+      );
+
+      const targets = missing.slice(0, MAX_TARGETED_LOOKUPS);
+
+      for (let i = 0; i < targets.length; i += 5) {
+        const batch = targets.slice(i, i + 5);
+
+        const found = await Promise.all(
+          batch.map(async (scenarioId) => {
+            try {
+              const page = await getScenarioBestRun(
+                link.easyaim_player_id,
+                scenarioId
+              );
+              const run = page.data[0];
+
+              // Guard: only trust a run that is really for this scenario.
+              return run && String(run.scenarioId) === scenarioId ? run : null;
+            } catch (error) {
+              console.error(
+                "EASYAIM SYNC: best lookup failed for scenario",
+                scenarioId,
+                error
+              );
+              return null;
+            }
+          })
+        );
+
+        found.forEach((run, index) => {
+          if (run) bestRunByScenario.set(batch[index], run);
+        });
+      }
+    }
+  }
+
   // The window scan still has value for one thing: it is the only way to notice a
   // brand new personal best the moment it is set, without waiting for the next
   // full record-feed pass. Merged in only where it is HIGHER, so it can add an
@@ -263,7 +371,7 @@ export async function syncEasyAimAccount(accountId: string): Promise<SyncResult>
       runsToStore.set(run.id, run);
     }
   }
-  await saveRuns(accountId, [...runsToStore.values()]);
+  const saved = await saveRuns(accountId, [...runsToStore.values()]);
 
   const newPbs: NewPb[] = [];
 
@@ -360,7 +468,14 @@ export async function syncEasyAimAccount(accountId: string): Promise<SyncResult>
   ]);
 
   if (recomputeScenarioIds.size === 0) {
-    return { scanned: collected.length, newPbs, benchmarksUpdated: 0, backfillDone };
+    return {
+      scanned: collected.length,
+      newPbs,
+      benchmarksUpdated: 0,
+      backfillDone,
+      runsStored: saved.stored,
+      runsError: saved.failed,
+    };
   }
 
   const { data: affectedRows, error: affectedError } = await supabaseAdmin
@@ -391,6 +506,8 @@ export async function syncEasyAimAccount(accountId: string): Promise<SyncResult>
     newPbs,
     benchmarksUpdated,
     backfillDone,
+    runsStored: saved.stored,
+    runsError: saved.failed,
   };
 }
 

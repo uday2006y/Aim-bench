@@ -46,7 +46,7 @@ them is not, the build is not ready to ship — the lint baseline used to be
    | `NEXT_PUBLIC_SUPABASE_URL` | |
       | `SESSION_SECRET` | Rotating this signs everyone out |
    | `SUPABASE_SECRET_KEY` | Service role. Full database access |
-   | `EASYAIM_API_URL` | Defaults to staging if unset |
+   | `EASYAIM_API_URL` | Defaults to `https://easyaim.com` if unset |
    | `EASYAIM_API_KEY` | |
    | `CRON_SECRET` | Guards `/api/easyaim/sync-all`. Rotate to re-authorise the cron |
    | `DISCORD_CLIENT_ID` | |
