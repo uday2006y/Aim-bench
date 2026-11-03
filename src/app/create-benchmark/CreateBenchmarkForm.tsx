@@ -5,6 +5,23 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import SiteHeader from "@/components/SiteHeader";
 import {
+  ActionBar,
+  Banner,
+  BTN_REMOVE,
+  BTN_TINY,
+  CategoryEditor,
+  CutoffGrid,
+  Field,
+  FIELD,
+  FIELD_SM,
+  FormHeader,
+  RankEditor,
+  ScenarioCard,
+  ScenarioFiling,
+  ScenarioPicker,
+  Section,
+} from "@/components/BenchmarkFormKit";
+import {
   renameCutoffKey,
   MAX_SCENARIOS_PER_BENCHMARK,
 } from "@/lib/benchmarkScenarios";
@@ -593,591 +610,372 @@ export default function CreateBenchmarkForm() {
     }
   }
 
+  const categoryColor = (name: string) =>
+    categories.find((c) => c.name === name)?.color ?? "#7a7a7a";
+
+  const targetTierName =
+    tiers.find((t) => t.slug === addTargetTier)?.name ?? addTargetTier;
+
+  const destinationLabel =
+    `${targetTierName}` +
+    (addTargetCategory ? ` / ${addTargetCategory}` : "") +
+    (addTargetSubCategory.trim() ? ` / ${addTargetSubCategory.trim()}` : "");
+
   return (
     <main className="min-h-screen text-white">
       <SiteHeader loggedIn />
 
-      <div className="mx-auto max-w-2xl px-6 py-12">
-        <div className="mb-8">
-          <Link
-            href="/"
-            className="text-sm text-zinc-500 hover:text-white transition"
+      <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 sm:py-12">
+        <Link
+          href="/"
+          className="mb-6 inline-flex items-center gap-1.5 text-sm text-zinc-500 transition-colors hover:text-white"
+        >
+          ← Back to AIMBENCH
+        </Link>
+
+        <FormHeader
+          eyebrow="New benchmark"
+          title="Create Benchmark"
+          subtitle="Share your aim trainer benchmark with the community. Set the basics, build the rank ladder, then add scenarios and the score each rank needs."
+        />
+
+        <form onSubmit={handleSubmit} className="space-y-5">
+          {/* 1. BASICS */}
+          <Section
+            step={1}
+            title="Basics"
+            scope="Whole benchmark"
+            description="What the benchmark is called and how it is listed."
           >
-            ← Back to AIMBENCH
-          </Link>
-        </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Benchmark title" className="sm:col-span-2">
+                <input
+                  type="text"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder="Enter benchmark title"
+                  required
+                  maxLength={200}
+                  className={FIELD}
+                />
+              </Field>
 
-        <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-8 shadow-2xl">
-          <h1 className="text-3xl font-bold tracking-tight">
-            Create Benchmark
-          </h1>
+              <Field label="Description" className="sm:col-span-2">
+                <textarea
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="Describe the benchmark..."
+                  rows={3}
+                  className={`${FIELD} resize-none`}
+                />
+              </Field>
 
-          <p className="mt-2 text-sm text-zinc-500">
-            Share your aim trainer benchmark with the community.
-          </p>
+              <Field
+                label="Platform"
+                hint={
+                  scenarios.length > 0
+                    ? "Set to EasyAim because this benchmark uses EasyAim scenarios."
+                    : undefined
+                }
+              >
+                <select
+                  value={scenarios.length > 0 ? PLATFORM : platform}
+                  onChange={(e) => setPlatform(e.target.value)}
+                  disabled={scenarios.length > 0}
+                  className={FIELD}
+                >
+                  <option value={PLATFORM}>EasyAim</option>
+                </select>
+              </Field>
 
-          <form onSubmit={handleSubmit} className="mt-8 space-y-6">
-            <div>
-              <label className="mb-2 block text-sm text-zinc-400">
-                Benchmark Title
-              </label>
-              <input
-                type="text"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="Enter benchmark title"
-                required
-                maxLength={200}
-                className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-3 text-white outline-none placeholder:text-zinc-600 focus:border-zinc-500"
-              />
-            </div>
+              <Field label="Difficulty">
+                <select
+                  value={difficulty}
+                  onChange={(e) => setDifficulty(e.target.value)}
+                  className={FIELD}
+                >
+                  <option value="easy">Easy</option>
+                  <option value="medium">Medium</option>
+                  <option value="hard">Hard</option>
+                </select>
+              </Field>
 
-            <div>
-              <label className="mb-2 block text-sm text-zinc-400">
-                Description
-              </label>
-              <textarea
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="Describe the benchmark..."
-                className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-3 text-white outline-none placeholder:text-zinc-600 focus:border-zinc-500 resize-none"
-                rows={3}
-              />
-            </div>
-
-            {/* EASYAIM SCENARIOS */}
-            <div>
-              <label className="mb-2 block text-sm text-zinc-400">
-                EasyAim Scenarios (optional)
-              </label>
-              <p className="mb-3 text-xs text-zinc-600">
-                Add scenarios to score this benchmark automatically from
-                linked EasyAim accounts. Set the score required for each rank
-                per scenario. When scenarios are added, the platform becomes
-                EasyAim.
-              </p>
-
-              {/* Pick the destination first, then search. A scenario belongs to
-                  a tier, so the tier is the first choice here and the category
-                  is scoped to it. */}
-              <div className="mb-3 grid grid-cols-2 gap-2 rounded-xl border border-zinc-800 bg-zinc-950 p-3">
-                <div className="col-span-2">
-                  <label className="block text-xs text-zinc-500 mb-0.5">
-                    Add scenarios to tier
-                  </label>
-                  <select
-                    value={addTargetTier}
-                    onChange={(e) => setAddTargetTier(e.target.value)}
-                    className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-2 py-1.5 text-xs text-white outline-none focus:border-zinc-500"
-                  >
-                    {tiers.map((tier) => (
-                      <option key={tier.id} value={tier.slug}>
-                        {tier.isOfficial ? tier.name : `${tier.name} (Unofficial)`}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs text-zinc-500 mb-0.5">
-                    Add scenarios to
-                  </label>
-                  <select
-                    value={addTargetCategory}
-                    onChange={(e) => {
-                      setAddTargetCategory(e.target.value);
-                      setAddTargetSubCategory("");
-                    }}
-                    className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-2 py-1.5 text-xs text-white outline-none focus:border-zinc-500"
-                  >
-                    {categories.map((c) => (
-                      <option key={c.name} value={c.name}>{c.name}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs text-zinc-500 mb-0.5">
-                    Sub-category
-                    {addTargetSubs.length > 0 && (
-                      <span className="ml-1 text-zinc-600">
-                        ({addTargetSubs.length})
-                      </span>
-                    )}
-                  </label>
+              {scenarios.length === 0 && (
+                <Field
+                  label="Scenario count"
+                  className="sm:col-span-2"
+                  hint="A benchmark with no EasyAim scenarios has nothing to sync, so its score can only be read from the value above. Adding scenarios is what makes it playable."
+                >
                   <input
-                    list="add-sub-options"
-                    value={addTargetSubCategory}
-                    onChange={(e) => setAddTargetSubCategory(e.target.value)}
-                    placeholder="—"
-                    className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-2 py-1.5 text-xs text-white outline-none placeholder:text-zinc-600 focus:border-zinc-500"
+                    type="number"
+                    value={scenarioCount}
+                    onChange={(e) =>
+                      setScenarioCount(Math.max(1, Number(e.target.value) || 1))
+                    }
+                    min="1"
+                    step="1"
+                    placeholder="1"
+                    className={FIELD}
                   />
-                  <datalist id="add-sub-options">
-                    {addTargetSubs.map((sc) => (
-                      <option key={sc} value={sc} />
-                    ))}
-                  </datalist>
-                </div>
-                <p className="col-span-2 text-[10px] text-zinc-600">
-                  {tiers.find((t) => t.slug === addTargetTier)?.name ?? addTargetTier}
-                  {addTargetCategory ? ` / ${addTargetCategory}` : ""}
-                  {addTargetSubCategory.trim()
-                    ? ` / ${addTargetSubCategory.trim()}`
-                    : ""}
-                  {" · new scenarios go here. You can change it per scenario below."}
-                </p>
-              </div>
-
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search EasyAim scenarios..."
-                className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-3 text-white outline-none placeholder:text-zinc-600 focus:border-zinc-500"
-              />
-
-              {searching && longEnough && (
-                <p className="mt-2 text-xs text-zinc-500">Searching...</p>
+                </Field>
               )}
+            </div>
+          </Section>
 
-              {atScenarioLimit && (
-                <p className="mt-2 text-xs text-amber-300/90">
-                  This is the maximum of {MAX_SCENARIOS_PER_BENCHMARK}{" "}
-                  scenarios. Remove one to add another.
-                </p>
-              )}
-
-              {visibleResults.length > 0 && (
-                <div className="mt-2 max-h-60 overflow-y-auto rounded-lg border border-zinc-800 bg-zinc-900">
-                  {visibleResults.map((result) => (
-                    <button
-                      key={result.id}
-                      type="button"
-                      onClick={() => addScenario(result)}
-                      disabled={atScenarioLimit}
-                      className="flex w-full items-center justify-between gap-4 border-b border-white/5 px-4 py-3 text-left text-sm last:border-0 hover:bg-white/5 disabled:opacity-40"
-                    >
-                      <span className="truncate">{result.title}</span>
-                      <span className="shrink-0 text-xs text-zinc-500">
-                        {addTargetCategory}
-                        {addTargetSubCategory.trim()
-                          ? ` / ${addTargetSubCategory.trim()}`
-                          : ""}
-                        {result.author ? ` · by ${result.author}` : ""}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              {scenarios.map((scenario) => {
-                const availableSubs =
-                  categories.find((c) => c.name === scenario.category)
-                    ?.subCategories ?? [];
+          {/* 2. TIERS */}
+          <Section
+            step={2}
+            title="Tiers"
+            scope={`${tiers.length} of ${MAX_TIERS}`}
+            description={
+              <>
+                Up to {MAX_TIERS} ways to score this benchmark. Each tier gets
+                its own rank ladder and cutoffs, and is a page of its own at{" "}
+                <code className="font-mono">/benchmarks/&lt;id&gt;/&lt;tier&gt;</code>.
+                One tier is fine — the switcher only appears once there is a
+                choice to make.
+              </>
+            }
+            action={
+              <button
+                type="button"
+                onClick={addTier}
+                disabled={tiers.length >= MAX_TIERS}
+                className={BTN_TINY}
+              >
+                + Add tier
+              </button>
+            }
+          >
+            <div className="space-y-2">
+              {tiers.map((tier, index) => {
+                const clash = tierSlugClash.has(tier.id);
+                const slug = slugifyTierName(tier.name) || tier.slug;
 
                 return (
-                <div
-                  key={scenario.id}
-                  className="mt-4 rounded-xl border border-zinc-800 bg-zinc-900/60 p-4"
-                >
-                    <div className="flex items-center justify-between gap-4">
-                    <span className="truncate text-sm font-medium">
-                      {scenario.title}
+                  <div
+                    key={tier.id}
+                    className={`flex flex-wrap items-center gap-3 rounded-xl border bg-white/[0.02] p-2.5 ${
+                      clash ? "border-red-900/60" : "border-line"
+                    }`}
+                  >
+                    <span className="w-5 shrink-0 text-center font-mono text-xs text-zinc-600">
+                      {index + 1}
                     </span>
+
+                    <input
+                      type="text"
+                      value={tier.name}
+                      onChange={(e) => updateTierName(index, e.target.value)}
+                      placeholder="Tier name"
+                      maxLength={40}
+                      aria-label={`Tier ${index + 1} name`}
+                      className={`${FIELD_SM} min-w-0 flex-1`}
+                    />
+
+                    {/* The address this tier will live at. Shown because a
+                        name that slugs badly is otherwise invisible until
+                        someone shares the link. */}
+                    <code className="shrink-0 font-mono text-[11px] text-zinc-600">
+                      /{slug}
+                    </code>
+
+                    <label className="flex shrink-0 items-center gap-1.5 text-[11px] text-zinc-500">
+                      <input
+                        type="checkbox"
+                        checked={!tier.isOfficial}
+                        onChange={() => toggleTierOfficial(index)}
+                        className="rounded border-line"
+                      />
+                      Unofficial
+                    </label>
+
                     <button
                       type="button"
-                      onClick={() => removeScenario(scenario.id)}
-                      className="shrink-0 text-xs text-zinc-500 hover:text-red-400"
+                      onClick={() => removeTierAt(index)}
+                      disabled={tiers.length <= 1}
+                      aria-label={`Remove ${tier.name || `tier ${index + 1}`}`}
+                      className={BTN_REMOVE}
                     >
-                      Remove
+                      ✕
                     </button>
                   </div>
-
-                  <div className="mt-3 grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="block text-xs text-zinc-500 mb-0.5">Category</label>
-                      <select
-                        value={scenario.category}
-                        onChange={(e) => updateScenarioCategory(scenario.id, e.target.value)}
-                        className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-2 py-1.5 text-xs text-white outline-none focus:border-zinc-500"
-                      >
-                        {categories.map((c) => (
-                          <option key={c.name} value={c.name}>{c.name}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-xs text-zinc-500 mb-0.5">
-                        Sub-category
-                        {availableSubs.length > 0 && (
-                          <span className="ml-1 text-zinc-600">
-                            ({availableSubs.length})
-                          </span>
-                        )}
-                      </label>
-                      {/* Text input with a datalist rather than a <select>:
-                          it suggests the sub-categories already defined for
-                          this category, but still accepts a typed value. */}
-                      <input
-                        list={`sub-options-${scenario.id}`}
-                        value={scenario.subCategory}
-                        onChange={(e) => updateScenarioSubCategory(scenario.id, e.target.value)}
-                        placeholder="—"
-                        className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-2 py-1.5 text-xs text-white outline-none placeholder:text-zinc-600 focus:border-zinc-500"
-                      />
-                      <datalist id={`sub-options-${scenario.id}`}>
-                        {availableSubs.map((sc) => (
-                          <option key={sc} value={sc} />
-                        ))}
-                      </datalist>
-                    </div>
-                  </div>
-
-                  <div className="mt-3 grid grid-cols-2 gap-2 md:grid-cols-4">
-                    {ranks.map((rank, idx) => (
-                      /* Keyed by index, deliberately. This used to key on
-                         the rank's own name, and the input below writes to
-                         that name — so every keystroke changed the key,
-                         React remounted the input, and the field lost focus
-                         after one character. The row's position is what
-                         identifies it; the name is data. */
-                      <div key={`cutoff-${idx}`} className="block">
-                        <div className="flex items-center gap-2 mb-1">
-                          <input
-                            type="text"
-                            value={rank.name}
-                            onChange={(e) => updateRankName(idx, e.target.value)}
-                            aria-label={`Rank ${idx + 1} name`}
-                            className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-2 py-1 text-xs text-white outline-none focus:border-zinc-500"
-                          />
-                          <input
-                            type="color"
-                            value={rank.color}
-                            onChange={(e) => updateRankColor(idx, e.target.value)}
-                            className="w-6 h-6 rounded border border-white/10 shrink-0 cursor-pointer p-0.5"
-                            title={`${rank.name} color`}
-                          />
-                        </div>
-                        <label className="block text-xs text-zinc-500 mb-0.5">Score</label>
-                        <input
-                          type="number"
-                          min="0"
-                          step="any"
-                          value={scenario.cutoffs[rank.name] ?? ""}
-                          onChange={(e) => updateCutoff(scenario.id, rank.name, e.target.value)}
-                          placeholder="—"
-                          className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-2 py-1 text-xs text-white outline-none placeholder:text-zinc-600 focus:border-zinc-500"
-                        />
-                      </div>
-                    ))}
-                  </div>
-                </div>
                 );
               })}
             </div>
 
-            {/* RANK CONFIG */}
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <label className="text-sm text-zinc-400">Rank Names & Colors</label>
-                <button type="button" onClick={addRank} className="text-xs bg-white text-black px-3 py-1 rounded font-medium hover:bg-zinc-200">+ Add Rank</button>
-              </div>
-              <div className="space-y-3">
-                {ranks.map((rank, idx) => (
-                  <div key={`rank-${idx}`} className="flex items-center gap-3 rounded-xl border border-zinc-800 bg-zinc-900/60 p-3">
-                    <input
-                      type="text"
-                      value={rank.name}
-                      onChange={(e) => updateRankName(idx, e.target.value)}
-                      aria-label={`Rank ${idx + 1} name`}
-                      className="flex-1 rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-white outline-none focus:border-zinc-500"
-                      placeholder="Rank name"
-                    />
-                    <input
-                      type="color"
-                      value={rank.color}
-                      onChange={(e) => updateRankColor(idx, e.target.value)}
-                      className="w-10 h-10 rounded-lg border border-white/10 shrink-0 cursor-pointer p-1"
-                      title={`${rank.name} color`}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => removeRank(idx)}
-                      className="text-xs text-red-400 hover:text-red-300 px-2"
-                      disabled={ranks.length <= 1}
-                    >
-                      Remove
-                    </button>
-                  </div>
-                ))}
-              </div>
-              <p className="mt-2 text-xs text-zinc-600">
-                Renaming a rank carries its per-scenario scores across.
-                Removing one deletes them.
+            {tierSlugClash.size > 0 && (
+              <p role="alert" className="mt-3 text-xs text-red-400">
+                Two of those names produce the same address. Change one.
               </p>
-            </div>
+            )}
 
-            {/* CATEGORIES */}
-            <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-6 shadow-2xl">
-              <h2 className="text-xl font-bold tracking-tight mb-1">Categories</h2>
-              <p className="mb-4 text-xs text-zinc-600">
-                Group scenarios into categories and sub-categories. These
-                become the coloured rails on the benchmark table.
+            {tiers.length > 1 && (
+              <p className="mt-3 text-[11px] text-zinc-600">
+                Every tier starts from the rank ladder and cutoffs below. Tune
+                each one separately on the edit page after saving.
               </p>
-              <div className="rounded-lg border border-zinc-800 bg-zinc-900/60 p-4">
-                <div className="space-y-3">
-                  {categories.map((cat, catIdx) => (
-                    <div key={catIdx} className="rounded-lg border border-zinc-800 bg-zinc-900/60 p-3">
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="text"
-                          value={cat.name}
-                          onChange={(e) => updateCategoryName(catIdx, e.target.value)}
-                          aria-label={`Category ${catIdx + 1} name`}
-                          className="flex-1 rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-white outline-none"
-                        />
-                        <input
-                          type="color"
-                          value={cat.color}
-                          onChange={(e) => updateCategoryColor(catIdx, e.target.value)}
-                          className="w-8 h-8 rounded border border-zinc-700 shrink-0 cursor-pointer p-1"
-                        />
-                        <span className="text-xs font-mono text-zinc-500 truncate">{cat.color.toUpperCase()}</span>
-                        <button
-                          type="button"
-                          onClick={() => removeCategory(catIdx)}
-                          className="text-xs text-red-400 hover:text-red-300"
-                          disabled={categories.length <= 1}
-                          aria-label={`Remove ${cat.name}`}
-                        >
-                          &#128465;
-                        </button>
-                      </div>
-                      <div className="mt-2 pl-3 space-y-1.5">
-                        {cat.subCategories.map((sub, subIdx) => (
-                          <div key={subIdx} className="flex items-center gap-2">
-                            <input
-                              type="text"
-                              value={sub}
-                              onChange={(e) => updateSubCategoryName(catIdx, subIdx, e.target.value)}
-                              aria-label={`Sub-category ${subIdx + 1} in ${cat.name}`}
-                              className="flex-1 rounded-lg border border-zinc-800 bg-zinc-950 px-2 py-1 text-xs text-white outline-none"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => removeSubCategory(catIdx, subIdx)}
-                              className="text-xs text-red-400 hover:text-red-300"
-                              aria-label={`Remove sub-category ${sub}`}
-                            >
-                              &#10005;
-                            </button>
-                          </div>
-                        ))}
-                        <button
-                          type="button"
-                          onClick={() => addSubCategory(catIdx)}
-                          className="text-xs border border-zinc-600 text-white px-2 py-1 rounded font-medium hover:bg-zinc-800"
-                        >
-                          + Add Subcategory
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                <button type="button" onClick={addCategory} className="mt-3 text-xs border border-zinc-600 text-white px-3 py-1 rounded font-medium hover:bg-zinc-800">+ Add Category</button>
-              </div>
-            </div>
+            )}
+          </Section>
 
-            {/* TIERS */}
-            <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-6 shadow-2xl">
-              <div className="flex flex-wrap items-start justify-between gap-4">
-                <div>
-                  <h2 className="text-xl font-bold tracking-tight">Tiers</h2>
-                  <p className="mt-1 max-w-md text-xs text-zinc-600">
-                    Up to {MAX_TIERS} ways to score this benchmark. Each tier
-                    gets its own rank ladder and its own cutoffs, and each is a
-                    page of its own at{" "}
-                    <code className="font-mono">/benchmarks/&lt;id&gt;/&lt;tier&gt;</code>{" "}
-                    with a switcher in the header. One tier is fine — the
-                    switcher only appears once there is a choice to make.
-                  </p>
-                </div>
+          {/* 3. CATEGORIES */}
+          <Section
+            step={3}
+            title="Categories"
+            scope="Whole benchmark"
+            description="Group scenarios into categories and sub-categories. These become the coloured rails on the benchmark table."
+          >
+            <CategoryEditor
+              categories={categories}
+              onAdd={addCategory}
+              onRemove={removeCategory}
+              onName={updateCategoryName}
+              onColor={updateCategoryColor}
+              onAddSub={addSubCategory}
+              onSubName={updateSubCategoryName}
+              onRemoveSub={removeSubCategory}
+            />
+          </Section>
 
-                <div className="flex items-center gap-2">
-                  <span className="text-xs uppercase tracking-wider text-zinc-500">
-                    {tiers.length} of {MAX_TIERS}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={addTier}
-                    disabled={tiers.length >= MAX_TIERS}
-                    className="rounded-lg border border-zinc-700 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-white/10 disabled:opacity-40"
-                  >
-                    + Add tier
-                  </button>
-                </div>
-              </div>
+          {/* 4. RANKS */}
+          <Section
+            step={4}
+            title="Rank ladder"
+            scope="Starting ladder"
+            description="The ranks a player climbs through, lowest to highest. The strip below is drawn with your bar style from Settings."
+          >
+            <RankEditor
+              ranks={ranks}
+              onAdd={addRank}
+              onName={updateRankName}
+              onColor={updateRankColor}
+              onRemove={removeRank}
+              note="Renaming a rank carries its per-scenario scores across. Removing one deletes them."
+            />
+          </Section>
 
-              <div className="mt-5 space-y-2">
-                {tiers.map((tier, index) => {
-                  const clash = tierSlugClash.has(tier.id);
-                  const slug = slugifyTierName(tier.name) || tier.slug;
-
-                  return (
-                    <div
-                      key={tier.id}
-                      className={`flex flex-wrap items-center gap-3 rounded-lg border bg-zinc-900/60 p-3 ${
-                        clash ? "border-red-900/60" : "border-zinc-800"
-                      }`}
+          {/* 5. SCENARIOS */}
+          <Section
+            step={5}
+            title="EasyAim scenarios"
+            scope="Optional"
+            description="Add scenarios to score this benchmark automatically from linked EasyAim accounts, then set the score required for each rank per scenario."
+            action={
+              <span className="chip">
+                {scenarios.length} scenario{scenarios.length === 1 ? "" : "s"}
+              </span>
+            }
+          >
+            <div className="space-y-4">
+              {/* Pick the destination first, then search. A scenario belongs
+                  to a tier, so the tier is the first choice here and the
+                  category is scoped to it. */}
+              <ScenarioPicker
+                categories={categories}
+                targetCategory={addTargetCategory}
+                onTargetCategory={(value) => {
+                  setAddTargetCategory(value);
+                  setAddTargetSubCategory("");
+                }}
+                targetSub={addTargetSubCategory}
+                onTargetSub={setAddTargetSubCategory}
+                targetSubs={addTargetSubs}
+                destinationLabel={destinationLabel}
+                extraDestination={
+                  <Field label="Add scenarios to tier" className="sm:col-span-2">
+                    <select
+                      value={addTargetTier}
+                      onChange={(e) => setAddTargetTier(e.target.value)}
+                      className={FIELD_SM}
                     >
-                      <span className="w-5 shrink-0 text-xs font-mono text-zinc-600">
-                        {index + 1}
-                      </span>
+                      {tiers.map((tier) => (
+                        <option key={tier.id} value={tier.slug}>
+                          {tier.isOfficial ? tier.name : `${tier.name} (Unofficial)`}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                }
+                query={searchQuery}
+                onQuery={setSearchQuery}
+                searching={searching && longEnough}
+                results={visibleResults}
+                onPick={addScenario}
+                atLimit={atScenarioLimit}
+                limitMessage={
+                  <>
+                    This is the maximum of {MAX_SCENARIOS_PER_BENCHMARK} scenarios.
+                    Remove one to add another.
+                  </>
+                }
+              />
 
-                      <input
-                        type="text"
-                        value={tier.name}
-                        onChange={(e) => updateTierName(index, e.target.value)}
-                        placeholder="Tier name"
-                        maxLength={40}
-                        aria-label={`Tier ${index + 1} name`}
-                        className="min-w-0 flex-1 rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-white outline-none focus:border-zinc-500"
-                      />
-
-                      {/* The address this tier will live at. Shown because a
-                          name that slugs badly is otherwise invisible until
-                          someone shares the link. */}
-                      <code className="shrink-0 font-mono text-[11px] text-zinc-600">
-                        /{slug}
-                      </code>
-
-                      <label className="flex shrink-0 items-center gap-1.5 text-[11px] text-zinc-500">
-                        <input
-                          type="checkbox"
-                          checked={!tier.isOfficial}
-                          onChange={() => toggleTierOfficial(index)}
-                          className="rounded border-zinc-600 bg-zinc-900 text-white"
-                        />
-                        Unofficial
-                      </label>
-
-                      <button
-                        type="button"
-                        onClick={() => removeTierAt(index)}
-                        disabled={tiers.length <= 1}
-                        aria-label={`Remove ${tier.name || `tier ${index + 1}`}`}
-                        className="shrink-0 text-xs text-red-400 hover:text-red-300 disabled:cursor-not-allowed disabled:opacity-30"
-                      >
-                        &#10005;
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {tierSlugClash.size > 0 && (
-                <p role="alert" className="mt-3 text-xs text-red-400">
-                  Two of those names produce the same address. Change one.
-                </p>
-              )}
-
-              {tiers.length > 1 && (
-                <p className="mt-3 text-xs text-zinc-600">
-                  Every tier starts from the rank ladder and cutoffs below. Tune
-                  each one separately on the edit page after saving.
-                </p>
-              )}
-            </div>
-
-            <div>
-              <label className="mb-2 block text-sm text-zinc-400">
-                Platform
-              </label>
-              <select
-                value={scenarios.length > 0 ? PLATFORM : platform}
-                onChange={(e) => setPlatform(e.target.value)}
-                disabled={scenarios.length > 0}
-                className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-3 text-white outline-none placeholder:text-zinc-600 focus:border-zinc-500 disabled:opacity-60"
-              >
-                <option value={PLATFORM}>EasyAim</option>
-              </select>
-              {scenarios.length > 0 && (
-                <p className="mt-2 text-xs text-zinc-600">
-                  Platform is set to EasyAim because this benchmark uses
-                  EasyAim scenarios.
-                </p>
-              )}
-            </div>
-
-            <div>
-              <label className="mb-2 block text-sm text-zinc-400">
-                Difficulty
-              </label>
-              <select
-                value={difficulty}
-                onChange={(e) => setDifficulty(e.target.value)}
-                className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-3 text-white outline-none placeholder:text-zinc-600 focus:border-zinc-500"
-              >
-                <option value="easy">Easy</option>
-                <option value="medium">Medium</option>
-                <option value="hard">Hard</option>
-              </select>
-            </div>
-
-            {scenarios.length === 0 && (
-              <div>
-                <label className="mb-2 block text-sm text-zinc-400">
-                  Scenario Count
-                </label>
-                <input
-                  type="number"
-                  value={scenarioCount}
-                  onChange={(e) =>
-                    setScenarioCount(Math.max(1, Number(e.target.value) || 1))
+              {scenarios.map((scenario) => (
+                <ScenarioCard
+                  key={scenario.id}
+                  accent={categoryColor(scenario.category)}
+                  onRemove={() => removeScenario(scenario.id)}
+                  header={
+                    <span className="block truncate text-sm font-semibold">
+                      {scenario.title}
+                    </span>
                   }
-                  min="1"
-                  step="1"
-                  placeholder="1"
-                  className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-3 text-white outline-none placeholder:text-zinc-600 focus:border-zinc-500"
-                />
-                <p className="mt-2 text-xs text-zinc-600">
-                  A benchmark with no EasyAim scenarios has nothing to sync,
-                  so its score can only be read from the value above. Adding
-                  scenarios is what makes it playable.
-                </p>
-              </div>
-            )}
+                  meta={
+                    <>
+                      <span className="font-mono text-[10px] text-zinc-600">
+                        ID {scenario.id}
+                      </span>
+                      <span className="chip px-2 py-0 text-[10px]">
+                        {tiers.find((t) => t.slug === scenario.tierSlug)?.name ??
+                          scenario.tierSlug}
+                      </span>
+                    </>
+                  }
+                >
+                  <ScenarioFiling
+                    categories={categories}
+                    category={scenario.category}
+                    subCategory={scenario.subCategory}
+                    onCategory={(value) => updateScenarioCategory(scenario.id, value)}
+                    onSubCategory={(value) =>
+                      updateScenarioSubCategory(scenario.id, value)
+                    }
+                    listId={`sub-options-${scenario.id}`}
+                  />
 
-            {notice && (
-              <div
-                role="status"
-                aria-live="polite"
-                className="rounded-lg border border-amber-900/50 bg-amber-950/20 px-4 py-3 text-sm text-amber-300"
-              >
-                {notice}
-              </div>
-            )}
+                  <CutoffGrid
+                    ranks={ranks}
+                    step="any"
+                    value={(rankName) => scenario.cutoffs[rankName]}
+                    onChange={(rankName, value) =>
+                      updateCutoff(scenario.id, rankName, value)
+                    }
+                  />
+                </ScenarioCard>
+              ))}
+            </div>
+          </Section>
 
-            {error && (
-              <div role="alert" className="rounded-lg border border-red-900/50 bg-red-950/30 px-4 py-3 text-sm text-red-400">
-                {error}
-              </div>
-            )}
+          {notice && <Banner tone="warn">{notice}</Banner>}
 
+          {error && <Banner tone="error">{error}</Banner>}
+
+          <ActionBar
+            note={
+              <Link href="/benchmarks" className="hover:text-white hover:underline">
+                View all benchmarks
+              </Link>
+            }
+          >
             <button
               type="submit"
               disabled={loading}
-              className="w-full rounded-lg bg-white px-4 py-3 font-semibold text-black transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-50"
+              className="btn btn-primary disabled:cursor-not-allowed disabled:opacity-50"
             >
               {loading ? "Creating..." : "Create Benchmark"}
             </button>
-          </form>
-
-          <p className="mt-6 text-center text-sm text-zinc-500">
-            View all benchmarks{" "}
-            <Link href="/benchmarks" className="text-white hover:underline">
-              here
-            </Link>
-          </p>
-        </div>
+          </ActionBar>
+        </form>
       </div>
     </main>
   );

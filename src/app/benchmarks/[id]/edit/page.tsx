@@ -6,6 +6,23 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { renameCutoffKey } from "@/lib/benchmarkScenarios";
 import { MAX_TIERS, sanitizeLadder, type Tier } from "@/lib/benchmarkTiers";
 import SiteHeader from "@/components/SiteHeader";
+import {
+  ActionBar,
+  Banner,
+  BTN_TINY,
+  CategoryEditor,
+  CutoffGrid,
+  Field,
+  FIELD,
+  FIELD_SM,
+  FormHeader,
+  RankEditor,
+  ScenarioCard,
+  ScenarioFiling,
+  ScenarioPicker,
+  Section,
+  StatePanel,
+} from "@/components/BenchmarkFormKit";
 
 interface CategoryDef {
   name: string;
@@ -729,7 +746,7 @@ export default function EditBenchmarkPage({ params }: { params: Promise<{ id: st
   }
 
   if (loading) {
-    return <main className="min-h-screen text-white flex items-center justify-center"><p>Loading...</p></main>;
+    return <StatePanel title="Loading…" />;
   }
 
   // Previously the load-failure paths set notFound but nothing rendered it,
@@ -738,58 +755,117 @@ export default function EditBenchmarkPage({ params }: { params: Promise<{ id: st
   // whatever was actually there.
   if (notFound || !isOwner) {
     return (
-      <main className="min-h-screen text-white">
-        <div className="mx-auto flex max-w-3xl flex-col items-center px-6 py-24 text-center">
-          <h1 className="text-2xl font-bold tracking-tight">
-            {notFound ? "Benchmark unavailable" : "Nothing to edit"}
-          </h1>
-          <p className="mt-3 max-w-md text-sm text-zinc-500">
-            {loadError || "You can only edit benchmarks you created."}
-          </p>
-          <div className="mt-8 flex gap-3">
-            <Link
-              href="/benchmarks"
-              className="rounded-lg bg-white px-4 py-2 text-sm font-medium text-black transition hover:bg-zinc-200"
-            >
+      <StatePanel
+        title={notFound ? "Benchmark unavailable" : "Nothing to edit"}
+        actions={
+          <>
+            <Link href="/benchmarks" className="btn btn-primary">
               All benchmarks
             </Link>
-            <Link
-              href="/login"
-              className="rounded-lg border border-white/15 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/10"
-            >
+            <Link href="/login" className="btn btn-ghost">
               Log in
             </Link>
-          </div>
-        </div>
-      </main>
+          </>
+        }
+      >
+        {loadError || "You can only edit benchmarks you created."}
+      </StatePanel>
     );
   }
 
+  const categoryColor = (name: string) =>
+    categories.find((c) => c.name === name)?.color ?? "#7a7a7a";
+
+  const destinationLabel =
+    addTargetCategory +
+    (addTargetSubCategory.trim() ? ` / ${addTargetSubCategory.trim()}` : "");
+
   return (
     <main className="min-h-screen text-white">
-      <SiteHeader loggedIn width="max-w-3xl" />
+      <SiteHeader loggedIn />
 
-      <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6 sm:py-12">
-        <Link href={`/benchmarks/${id}`} className="text-sm text-zinc-500 hover:text-white mb-6 inline-block">← Back</Link>
-        <h1 className="text-3xl font-bold tracking-tight">Edit Benchmark</h1>
+      <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 sm:py-12">
+        <Link
+          href={`/benchmarks/${id}`}
+          className="mb-6 inline-flex items-center gap-1.5 text-sm text-zinc-500 transition-colors hover:text-white"
+        >
+          ← Back
+        </Link>
 
-        <form onSubmit={handleSave} className="mt-8 space-y-6">
-          {/* TIERS */}
-          <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-5">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <h2 className="text-sm font-semibold text-white">
-                  Editing the{" "}
-                  <span className="text-accent">{activeTier?.name ?? "only tier"}</span>{" "}
-                  tier
-                </h2>
-                <p className="mt-0.5 text-xs text-zinc-600">
-                  The rank ladder and the score requirements below belong to
-                  this tier only. Each tier is its own page on the benchmark.
-                </p>
-              </div>
+        <FormHeader
+          eyebrow="Edit benchmark"
+          title={title.trim() || "Edit Benchmark"}
+          subtitle="Title, description and categories apply to the whole benchmark. Ranks and scenarios belong to the tier you have selected."
+        />
 
-              {tiers.length > 1 ? (
+        <form onSubmit={handleSave} className="space-y-5">
+          {/* 1. BASICS */}
+          <Section
+            step={1}
+            title="Basics"
+            scope="Whole benchmark"
+            description="What the benchmark is called and how it is listed."
+          >
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Title" className="sm:col-span-2">
+                <input
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  maxLength={200}
+                  required
+                  className={FIELD}
+                />
+              </Field>
+
+              <Field label="Description" className="sm:col-span-2">
+                <textarea
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  rows={3}
+                  className={`${FIELD} resize-none`}
+                />
+              </Field>
+
+              <Field
+                label="Platform"
+                hint={
+                  scenarios.length > 0
+                    ? "Set to EasyAim because this benchmark uses EasyAim scenarios."
+                    : undefined
+                }
+              >
+                <select
+                  value={scenarios.length > 0 ? "easyaim" : platform}
+                  onChange={(e) => setPlatform(e.target.value)}
+                  disabled={scenarios.length > 0}
+                  className={FIELD}
+                >
+                  <option value="easyaim">EasyAim</option>
+                </select>
+              </Field>
+
+              <Field label="Difficulty">
+                <select
+                  value={difficulty}
+                  onChange={(e) => setDifficulty(e.target.value)}
+                  className={FIELD}
+                >
+                  <option value="easy">Easy</option>
+                  <option value="medium">Medium</option>
+                  <option value="hard">Hard</option>
+                </select>
+              </Field>
+            </div>
+          </Section>
+
+          {/* 2. TIERS */}
+          <Section
+            step={2}
+            title="Tiers"
+            scope={`Editing ${activeTier?.name ?? "the only tier"}`}
+            description="Each tier is its own page with its own rank ladder and score requirements. Pick the tier to edit; steps 4 and 5 change with it."
+            action={
+              tiers.length > 1 ? (
                 <button
                   type="button"
                   onClick={removeTier}
@@ -798,10 +874,10 @@ export default function EditBenchmarkPage({ params }: { params: Promise<{ id: st
                 >
                   Remove tier
                 </button>
-              ) : null}
-            </div>
-
-            <div className="mt-4 flex flex-wrap items-center gap-1 rounded-xl border border-white/10 bg-black/40 p-1">
+              ) : null
+            }
+          >
+            <div className="flex flex-wrap items-center gap-1 rounded-xl border border-line bg-black/20 p-1">
               {tiers.map((tier) => {
                 const active = tier.slug === activeSlug;
 
@@ -813,11 +889,11 @@ export default function EditBenchmarkPage({ params }: { params: Promise<{ id: st
                     disabled={tierBusy}
                     aria-current={active ? "true" : undefined}
                     className={[
-                      "relative rounded-lg px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50",
-                      "before:absolute before:inset-y-1 before:left-0 before:w-[3px] before:rounded-full before:content-['']",
+                      "relative rounded-lg px-3.5 py-2 text-xs font-medium transition-colors disabled:opacity-50",
+                      "before:absolute before:inset-y-1.5 before:left-0 before:w-[3px] before:rounded-full before:content-['']",
                       active
-                        ? "bg-white/[0.07] text-white before:bg-accent"
-                        : "text-zinc-400 hover:bg-white/[0.04] hover:text-white before:bg-transparent",
+                        ? "bg-white/[0.08] text-white before:bg-accent"
+                        : "text-zinc-400 before:bg-transparent hover:bg-white/[0.04] hover:text-white",
                     ].join(" ")}
                   >
                     {tier.is_official ? tier.name : `${tier.name} (Unofficial)`}
@@ -840,339 +916,150 @@ export default function EditBenchmarkPage({ params }: { params: Promise<{ id: st
                     placeholder="New tier name"
                     maxLength={40}
                     aria-label="New tier name"
-                    className="w-32 rounded-lg border border-zinc-800 bg-zinc-950 px-2 py-1.5 text-xs text-white outline-none placeholder:text-zinc-600 focus:border-zinc-500"
+                    className={`${FIELD_SM} w-36`}
                   />
                   <button
                     type="button"
                     onClick={addTier}
                     disabled={tierBusy || !newTierName.trim()}
-                    className="rounded-lg border border-zinc-700 px-2.5 py-1.5 text-xs font-medium text-white transition hover:bg-white/10 disabled:opacity-40"
+                    className={BTN_TINY}
                   >
                     Add
                   </button>
                 </div>
               ) : null}
             </div>
-          </div>
+          </Section>
 
-          <div>
-            <label className="block text-sm text-zinc-400 mb-2">Title</label>
-            <input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={200} className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-3 text-white focus:border-zinc-500 outline-none" required />
-          </div>
+          {/* 3. CATEGORIES */}
+          <Section
+            step={3}
+            title="Categories"
+            scope="Whole benchmark"
+            description="Group scenarios into categories and sub-categories. These become the coloured rails on the benchmark table."
+          >
+            <CategoryEditor
+              categories={categories}
+              onAdd={addCategory}
+              onRemove={removeCategory}
+              onName={updateCategoryName}
+              onColor={updateCategoryColor}
+              onAddSub={addSubCategory}
+              onSubName={updateSubCategoryName}
+              onRemoveSub={removeSubCategory}
+            />
+          </Section>
 
-          <div>
-            <label className="block text-sm text-zinc-400 mb-2">Description</label>
-            <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-3 text-white focus:border-zinc-500 outline-none resize-none" />
-          </div>
+          {/* 4. RANKS */}
+          <Section
+            step={4}
+            title="Rank ladder"
+            scope={activeTier ? `${activeTier.name} tier` : "This tier"}
+            description="The ranks a player climbs through, lowest to highest. The strip below is drawn with your bar style from Settings."
+          >
+            <RankEditor
+              ranks={ranks}
+              onAdd={addRank}
+              onName={updateRankName}
+              onColor={updateRankColor}
+              onRemove={removeRank}
+              note="Changing a rank name updates the scenario score inputs. Removing a rank removes its scores."
+            />
+          </Section>
 
-          <div>
-            <label className="block text-sm text-zinc-400 mb-2">Platform</label>
-            <select
-              value={scenarios.length > 0 ? "easyaim" : platform}
-              onChange={(e) => setPlatform(e.target.value)}
-              disabled={scenarios.length > 0}
-              className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-3 text-white focus:border-zinc-500 outline-none disabled:opacity-60"
-            >
-              <option value="easyaim">EasyAim</option>
-            </select>
-            {scenarios.length > 0 && (
-              <p className="mt-2 text-xs text-zinc-600">
-                Platform is set to EasyAim because this benchmark uses
-                EasyAim scenarios.
-              </p>
-            )}
-          </div>
+          {/* 5. SCENARIOS */}
+          <Section
+            step={5}
+            title="Scenarios"
+            scope={activeTier ? `${activeTier.name} tier` : "This tier"}
+            description="Search EasyAim, then set the score required for each rank on every scenario."
+            action={
+              <span className="chip">
+                {scenarios.length} scenario{scenarios.length === 1 ? "" : "s"}
+              </span>
+            }
+          >
+            <div className="space-y-4">
+              <ScenarioPicker
+                categories={categories}
+                targetCategory={addTargetCategory}
+                onTargetCategory={(value) => {
+                  setAddTargetCategory(value);
+                  setAddTargetSubCategory("");
+                }}
+                targetSub={addTargetSubCategory}
+                onTargetSub={setAddTargetSubCategory}
+                targetSubs={addTargetSubs}
+                destinationLabel={destinationLabel}
+                query={searchQuery}
+                onQuery={setSearchQuery}
+                searching={searching && searchLongEnough}
+                results={visibleSearchResults}
+                onPick={addScenarioFromResult}
+              />
 
-          <div>
-            <label className="block text-sm text-zinc-400 mb-2">Difficulty</label>
-            <select value={difficulty} onChange={(e) => setDifficulty(e.target.value)} className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-3 text-white focus:border-zinc-500 outline-none">
-              <option value="easy">Easy</option>
-              <option value="medium">Medium</option>
-              <option value="hard">Hard</option>
-            </select>
-          </div>
+              {scenarios.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-line px-6 py-10 text-center text-sm text-zinc-500">
+                  This tier has no scenarios yet. Search above to add one.
+                </div>
+              ) : null}
 
-          {/* CATEGORIES */}
-          <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-6 shadow-2xl">
-            <h2 className="text-xl font-bold tracking-tight mb-1">Categories</h2>
-            <p className="mb-4 text-xs text-zinc-600">
-              Group scenarios into categories and sub-categories. These
-              become the coloured rails on the benchmark table.
-            </p>
-            <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-4">
-              <div className="space-y-3">
-                {categories.map((cat, catIdx) => (
-                  <div key={catIdx} className="rounded-lg border border-zinc-800 bg-zinc-900/60 p-3">
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="text"
-                        value={cat.name}
-                        onChange={(e) => updateCategoryName(catIdx, e.target.value)}
-                        className="flex-1 rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-white outline-none"
-                      />
-                      <input
-                        type="color"
-                        value={cat.color}
-                        onChange={(e) => updateCategoryColor(catIdx, e.target.value)}
-                        className="w-8 h-8 rounded border border-zinc-700 shrink-0 cursor-pointer p-1"
-                      />
-                      <span className="text-xs font-mono text-zinc-500 truncate">{cat.color.toUpperCase()}</span>
-                      <button
-                        type="button"
-                        onClick={() => removeCategory(catIdx)}
-                        className="text-xs text-red-400 hover:text-red-300"
-                        disabled={categories.length <= 1}
-                      >
-                        &#128465;
-                      </button>
-                    </div>
-                    <div className="mt-2 pl-3 space-y-1.5">
-                      {cat.subCategories.map((sub, subIdx) => (
-                        <div key={subIdx} className="flex items-center gap-2">
-                          <input
-                            type="text"
-                            value={sub}
-                            onChange={(e) => updateSubCategoryName(catIdx, subIdx, e.target.value)}
-                            className="flex-1 rounded-lg border border-zinc-800 bg-zinc-950 px-2 py-1 text-xs text-white outline-none"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => removeSubCategory(catIdx, subIdx)}
-                            className="text-xs text-red-400 hover:text-red-300"
-                          >
-                            &#10005;
-                          </button>
-                        </div>
-                      ))}
-                      <button
-                        type="button"
-                        onClick={() => addSubCategory(catIdx)}
-                        className="text-xs border border-zinc-600 text-white px-2 py-1 rounded font-medium hover:bg-zinc-800"
-                      >
-                        + Add Subcategory
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <button type="button" onClick={addCategory} className="mt-3 text-xs border border-zinc-600 text-white px-3 py-1 rounded font-medium hover:bg-zinc-800">+ Add Category</button>
-            </div>
-          </div>
-
-          <div>
-            <label className="text-sm text-zinc-400 mb-2">Add EasyAim Scenario (optional)</label>
-
-            {/* Pick the destination group first, then search. Scenarios
-                added from the results below are filed straight into this
-                category and sub-category. */}
-            <div className="mb-3 grid grid-cols-2 gap-2 rounded-xl border border-zinc-800 bg-zinc-950 p-3">
-              <div>
-                <label className="block text-xs text-zinc-500 mb-0.5">
-                  Add scenarios to
-                </label>
-                <select
-                  value={addTargetCategory}
-                  onChange={(e) => {
-                    setAddTargetCategory(e.target.value);
-                    setAddTargetSubCategory("");
-                  }}
-                  className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-2 py-1.5 text-xs text-white outline-none focus:border-zinc-500"
+              {scenarios.map((scenario, idx) => (
+                <ScenarioCard
+                  key={scenario.id}
+                  accent={categoryColor(scenario.category)}
+                  onRemove={() => removeScenario(idx)}
+                  header={
+                    <input
+                      value={scenario.title}
+                      onChange={(e) =>
+                        setScenarios((prev) =>
+                          prev.map((s, i) =>
+                            i === idx ? { ...s, title: e.target.value } : s
+                          )
+                        )
+                      }
+                      aria-label="Scenario title"
+                      placeholder="Scenario title"
+                      className={`${FIELD} font-semibold`}
+                    />
+                  }
+                  meta={
+                    <span className="font-mono text-[10px] text-zinc-600">
+                      ID {scenario.id}
+                    </span>
+                  }
                 >
-                  {categories.map((c) => (
-                    <option key={c.name} value={c.name}>{c.name}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs text-zinc-500 mb-0.5">
-                  Sub-category
-                  {addTargetSubs.length > 0 && (
-                    <span className="ml-1 text-zinc-600">
-                      ({addTargetSubs.length})
-                    </span>
-                  )}
-                </label>
-                <input
-                  list="add-sub-options"
-                  value={addTargetSubCategory}
-                  onChange={(e) => setAddTargetSubCategory(e.target.value)}
-                  placeholder="—"
-                  className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-2 py-1.5 text-xs text-white outline-none placeholder:text-zinc-600 focus:border-zinc-500"
-                />
-                <datalist id="add-sub-options">
-                  {addTargetSubs.map((sc) => (
-                    <option key={sc} value={sc} />
-                  ))}
-                </datalist>
-              </div>
-              <p className="col-span-2 text-[10px] text-zinc-600">
-                {addTargetCategory}
-                {addTargetSubCategory.trim()
-                  ? ` / ${addTargetSubCategory.trim()}`
-                  : ""}
-                {" · new scenarios go here. You can change it per scenario below."}
-              </p>
-            </div>
-
-            <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Search EasyAim scenarios..." className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-3 text-white focus:border-zinc-500 outline-none" />
-            {searching && searchLongEnough && <p className="text-xs text-zinc-500 mt-2">Searching...</p>}
-            {visibleSearchResults.length > 0 && (
-              <div className="mt-2 max-h-48 overflow-y-auto rounded-lg border border-zinc-800 bg-zinc-900">
-                {visibleSearchResults.map((r) => (
-                  <button key={r.id} type="button" onClick={() => addScenarioFromResult(r)} className="flex w-full items-center justify-between gap-4 border-b border-white/5 px-4 py-3 text-left text-sm last:border-0 hover:bg-white/5">
-                    <span className="truncate">{r.title}</span>
-                    <span className="shrink-0 text-xs text-zinc-500">
-                      {addTargetCategory}
-                      {addTargetSubCategory.trim()
-                        ? ` / ${addTargetSubCategory.trim()}`
-                        : ""}
-                      {r.author ? ` · by ${r.author}` : ""}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <label className="text-sm text-zinc-400">Scenarios</label>
-            </div>
-            <div className="space-y-3">
-              {scenarios.map((scenario, idx) => {
-                const availableSubs =
-                  categories.find((c) => c.name === scenario.category)
-                    ?.subCategories ?? [];
-
-                return (
-                <div key={scenario.id} className="rounded-xl border border-zinc-800 bg-zinc-950 p-4 space-y-3">
-                  <div className="flex items-center gap-3">
-                    <input value={scenario.title} onChange={(e) => setScenarios((prev) => prev.map((s, i) => i === idx ? { ...s, title: e.target.value } : s))} className="flex-1 rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-white outline-none" placeholder="Scenario title" />
-                    <button type="button" onClick={() => removeScenario(idx)} className="text-xs text-red-400 hover:text-red-300">Remove</button>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="block text-xs text-zinc-500 mb-0.5">Category</label>
-                      <select
-                        value={scenario.category}
-                        onChange={(e) => updateScenarioCategory(idx, e.target.value)}
-                        className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-2 py-1.5 text-xs text-white outline-none focus:border-zinc-500"
-                      >
-                        {categories.map((c) => (
-                          <option key={c.name} value={c.name}>{c.name}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-xs text-zinc-500 mb-0.5">
-                        Sub-category
-                        {availableSubs.length > 0 && (
-                          <span className="ml-1 text-zinc-600">
-                            ({availableSubs.length})
-                          </span>
-                        )}
-                      </label>
-                      {/* A text input with a datalist rather than a <select>:
-                          it suggests the sub-categories already defined for this
-                          category, but still accepts a typed value. The old
-                          <select> could only ever offer predefined entries, so a
-                          category with none looked identical to "no sub-category"
-                          and the assignment was easy to miss. */}
-                      <input
-                        list={`sub-options-${idx}`}
-                        value={scenario.subCategory}
-                        onChange={(e) => updateScenarioSubCategory(idx, e.target.value)}
-                        placeholder="—"
-                        className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-2 py-1.5 text-xs text-white outline-none placeholder:text-zinc-600 focus:border-zinc-500"
-                      />
-                      <datalist id={`sub-options-${idx}`}>
-                        {availableSubs.map((sc) => (
-                          <option key={sc} value={sc} />
-                        ))}
-                      </datalist>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
-                    {ranks.map((rankDef, rIdx) => (
-                      <div key={`${scenario.id}-${rankDef.name}-${rIdx}`} className="block">
-                        <div className="flex items-center gap-1 mb-1">
-                          <span className="text-xs text-zinc-500 truncate">{rankDef.name}</span>
-                        </div>
-                        <input
-                          type="number"
-                          min="0"
-                          value={scenario.cutoffs[rankDef.name] ?? ""}
-                          onChange={(e) => updateCutoff(idx, rankDef.name, e.target.value)}
-                          placeholder="—"
-                          className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-2 py-1.5 text-xs text-white outline-none placeholder:text-zinc-600 focus:border-zinc-500"
-                        />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                );
-              })}
-            </div>
-          </div>
-
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <label className="text-sm text-zinc-400">Rank Names & Colors</label>
-              <button type="button" onClick={addRank} className="text-xs bg-white text-black px-3 py-1 rounded font-medium hover:bg-zinc-200">+ Add Rank</button>
-            </div>
-            <div className="space-y-2">
-              {ranks.map((rankDef, idx) => (
-                <div key={`rank-${idx}`} className="flex items-center gap-2 rounded-xl border border-zinc-800 bg-zinc-900/60 p-2">
-                  <input
-                    type="text"
-                    value={rankDef.name}
-                    onChange={(e) => updateRankName(idx, e.target.value)}
-                    className="flex-1 rounded-lg border border-zinc-800 bg-zinc-950 px-2 py-1 text-xs text-white outline-none focus:border-zinc-500"
-                    placeholder="Rank name"
+                  <ScenarioFiling
+                    categories={categories}
+                    category={scenario.category}
+                    subCategory={scenario.subCategory}
+                    onCategory={(value) => updateScenarioCategory(idx, value)}
+                    onSubCategory={(value) => updateScenarioSubCategory(idx, value)}
+                    listId={`sub-options-${idx}`}
                   />
-                  <input
-                    type="color"
-                    value={rankDef.color}
-                    onChange={(e) => updateRankColor(idx, e.target.value)}
-                    className="w-8 h-8 rounded border border-white/10 shrink-0 cursor-pointer p-0.5"
-                    title={`${rankDef.name} color`}
+
+                  <CutoffGrid
+                    ranks={ranks}
+                    value={(rankName) => scenario.cutoffs[rankName]}
+                    onChange={(rankName, value) => updateCutoff(idx, rankName, value)}
                   />
-                  <button
-                    type="button"
-                    onClick={() => removeRank(idx)}
-                    className="text-xs text-red-400 hover:text-red-300 px-1"
-                    disabled={ranks.length <= 1}
-                  >
-                    Remove
-                  </button>
-                </div>
+                </ScenarioCard>
               ))}
             </div>
-            <p className="mt-2 text-xs text-zinc-600">Changing rank names updates scenario score inputs. Removing a rank removes its scores.</p>
-          </div>
+          </Section>
 
-          {notice && (
-              <div
-                role="status"
-                aria-live="polite"
-                className="rounded-lg border border-amber-900/50 bg-amber-950/20 px-4 py-3 text-sm text-amber-300"
-              >
-                {notice} Save to make it permanent.
-              </div>
-            )}
+          {notice && <Banner tone="warn">{notice} Save to make it permanent.</Banner>}
 
-            {error && <div className="rounded-lg border border-red-900/50 bg-red-950/30 px-4 py-3 text-sm text-red-400">{error}</div>}
+          {error && <Banner tone="error">{error}</Banner>}
 
-          <div className="flex flex-col gap-3 sm:flex-row">
-            <button
-              type="submit"
-              disabled={saving}
-              className="flex-1 rounded-lg bg-white px-4 py-3 font-semibold text-black hover:bg-zinc-200 disabled:opacity-50"
-            >
-              {saving ? "Saving..." : "Save Changes"}
-            </button>
+          <ActionBar
+            note={
+              activeTier
+                ? `Saving writes the benchmark and the ${activeTier.name} tier.`
+                : undefined
+            }
+          >
             <button
               // type="button", not "submit": a submit button here would also
               // fire the form's own onSubmit, so one click would save twice
@@ -1181,11 +1068,18 @@ export default function EditBenchmarkPage({ params }: { params: Promise<{ id: st
               type="button"
               disabled={saving || !activeTier}
               onClick={(e) => handleSave(e, true)}
-              className="rounded-lg border border-white/20 px-4 py-3 font-medium text-white hover:bg-white/10 disabled:opacity-50"
+              className="btn btn-ghost disabled:cursor-not-allowed disabled:opacity-50"
             >
               {saving ? "Saving..." : "Save & keep editing"}
             </button>
-          </div>
+            <button
+              type="submit"
+              disabled={saving}
+              className="btn btn-primary disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {saving ? "Saving..." : "Save Changes"}
+            </button>
+          </ActionBar>
         </form>
       </div>
     </main>

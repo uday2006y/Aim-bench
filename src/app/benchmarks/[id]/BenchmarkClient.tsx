@@ -226,7 +226,7 @@ export default function BenchmarkClient({
       <div className="mx-auto max-w-full px-4 py-6">
         {/* Top nav bar. The benchmark table is reached from the benchmark
             list, so Back goes there rather than to the home page. */}
-        <div className="mb-6 flex items-center justify-between px-2">
+        <nav className="mb-5 flex items-center justify-between px-1">
           <Link
             href="/benchmarks"
             className="group inline-flex items-center gap-1.5 text-sm text-zinc-400 transition-colors hover:text-white"
@@ -234,28 +234,52 @@ export default function BenchmarkClient({
             <span className="transition-transform duration-200 group-hover:-translate-x-0.5">←</span>
             Back
           </Link>
-        </div>
+        </nav>
 
         {/* Benchmark header */}
-        <div className="animate-card-in mb-6 rounded-2xl border border-zinc-800 bg-surface p-6 shadow-2xl">
-          <div className="flex flex-wrap items-center justify-between gap-4">
+        <header className="animate-card-in card relative mb-6 overflow-hidden p-6 sm:p-7">
+          {/* The ladder as a thin strip across the top, in the tier's own
+              colours, so each tier carries its identity into the header. */}
+          <div aria-hidden="true" className="absolute inset-x-0 top-0 flex h-1">
+            {rankOrder.map((rank, index) => (
+              <span
+                key={`${rank.name}-${index}`}
+                className="flex-1"
+                style={{ backgroundColor: rank.color }}
+              />
+            ))}
+          </div>
+
+          <div className="flex flex-wrap items-start justify-between gap-5">
             <div className="min-w-0">
-              <h1 className="text-3xl font-extrabold tracking-tight">
+              <p className="eyebrow">
+                {benchmark.platform === "easyaim" ? "EasyAim" : benchmark.platform}{" "}
+                benchmark
+              </p>
+
+              <h1 className="mt-2 text-3xl font-extrabold tracking-tight sm:text-4xl">
                 {benchmark.title || "Benchmark"}
               </h1>
 
+              {benchmark.description ? (
+                <p className="mt-2 max-w-2xl text-sm leading-6 text-zinc-400">
+                  {benchmark.description}
+                </p>
+              ) : null}
+
               {hasScenarios && (
-                <div className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-1 text-[10px] uppercase tracking-wider text-zinc-500">
-                  <span>
+                <div className="mt-4 flex flex-wrap items-center gap-2">
+                  <span className="chip">
                     {scenarios.length} scenario{scenarios.length === 1 ? "" : "s"}
                   </span>
-                  <span>
+                  <span className="chip">
                     {groups.length} categor{groups.length === 1 ? "y" : "ies"}
                   </span>
                   {tiers.length > 1 ? (
-                    <span>
-                      {tiers.length} tier{tiers.length === 1 ? "" : "s"}
-                    </span>
+                    <span className="chip">{tiers.length} tiers</span>
+                  ) : null}
+                  {benchmark.difficulty ? (
+                    <span className="chip capitalize">{benchmark.difficulty}</span>
                   ) : null}
                 </div>
               )}
@@ -274,7 +298,7 @@ export default function BenchmarkClient({
               {isAuthorized ? (
                 <Link
                   href={`/benchmarks/${id}/edit?tab=${encodeURIComponent(tier.slug)}`}
-                  className="rounded bg-white px-3 py-1.5 text-xs font-medium text-black transition hover:bg-zinc-200"
+                  className="btn btn-primary px-4 py-2 text-xs"
                 >
                   Edit Benchmark
                 </Link>
@@ -287,7 +311,7 @@ export default function BenchmarkClient({
               side, a long title would push the switcher into a second row at a
               width where it still had room. */}
           {tiers.length > 1 ? (
-            <div className="mt-5 border-t border-white/5 pt-5">
+            <div className="mt-5 border-t border-line pt-5">
               <TierSwitcher benchmarkId={id} tiers={tiers} activeSlug={tier.slug} />
             </div>
           ) : null}
@@ -296,7 +320,7 @@ export default function BenchmarkClient({
               tracking once that same scenario cleared the previous tier's final
               rank. Rows that have not show no score. */}
           {gatedRows.length > 0 ? (
-            <div className="mt-4 rounded-lg border border-white/10 bg-white/[0.03] px-4 py-3 text-xs text-zinc-400">
+            <div className="mt-4 rounded-xl border border-line bg-white/[0.03] px-4 py-3 text-xs leading-5 text-zinc-400">
               {gatedRows.length === 1
                 ? "1 scenario has not"
                 : `${gatedRows.length} scenarios have not`}{" "}
@@ -312,7 +336,7 @@ export default function BenchmarkClient({
           ) : null}
 
           {isAuthorized && ranksWithNoCutoffs.length > 0 && (
-            <div className="mt-4 rounded-lg border border-amber-900/40 bg-amber-950/20 px-4 py-3 text-xs text-amber-300/90">
+            <div className="mt-4 rounded-xl border border-amber-900/40 bg-amber-950/20 px-4 py-3 text-xs leading-5 text-amber-300/90">
               No score cutoffs are set for{" "}
               <span className="font-semibold">
                 {ranksWithNoCutoffs.join(", ")}
@@ -323,19 +347,19 @@ export default function BenchmarkClient({
               {ranksWithNoCutoffs.length === 1 ? "it" : "them"}.
             </div>
           )}
-        </div>
+        </header>
 
         {/* Scenario table. A tier with no scenarios yet is a normal state
             (the author is mid-build), so it says so instead of rendering an
             empty frame. */}
         {!hasScenarios && isAuthorized ? (
-          <div className="mb-6 rounded-2xl border border-dashed border-zinc-800 bg-surface p-10 text-center">
+          <div className="mb-6 rounded-2xl border border-dashed border-line bg-surface p-12 text-center">
             <p className="text-sm text-zinc-500">
               This tier has no scenarios yet, so nothing can be scored against it.
             </p>
             <Link
               href={`/benchmarks/${id}/edit?tab=${encodeURIComponent(tier.slug)}`}
-              className="mt-4 inline-block rounded-lg bg-white px-4 py-2 text-sm font-medium text-black transition hover:bg-zinc-200"
+              className="btn btn-primary mt-5"
             >
               Add scenarios to {tier.name}
             </Link>
@@ -343,7 +367,7 @@ export default function BenchmarkClient({
         ) : null}
 
         {hasScenarios && (
-          <div className="animate-fade-in overflow-hidden rounded-2xl border border-zinc-800 bg-raised shadow-2xl">
+          <div className="animate-fade-in card overflow-hidden">
             <div className="overflow-x-auto">
               {/* table-fixed, because under the default auto layout every
                   column sizes itself to its own header text: CHAMPION is
@@ -363,20 +387,25 @@ export default function BenchmarkClient({
                   number. Below this the table scrolls sideways, which it
                   already did. */}
               <table className="w-full table-fixed border-collapse text-xs min-w-[1440px]">
-                <thead className="border-b border-zinc-800 bg-app text-xs font-extrabold uppercase tracking-wider text-zinc-300">
+                <thead className="border-b border-line bg-white/[0.03] text-[11px] font-extrabold uppercase tracking-[0.14em] text-zinc-400">
                   <tr>
                     {/* Spacers for the vertical category / sub-category rails */}
                     <th className="w-6" />
                     <th className="w-6" />
-                    <th className="w-[260px] text-left px-4 py-3 whitespace-nowrap">SCENARIO</th>
-                    <th className="w-[168px] text-left px-3 py-3 whitespace-nowrap">SCORE</th>
+                    <th className="w-[260px] text-left px-4 py-4 whitespace-nowrap">SCENARIO</th>
+                    <th className="w-[168px] text-left px-3 py-4 whitespace-nowrap">SCORE</th>
                     {rankOrder.map((r) => (
                       <th
                         key={r.name}
-                        className="text-center px-2 py-3 whitespace-nowrap text-xs tracking-wide"
+                        className="text-center px-2 py-4 whitespace-nowrap text-[11px] tracking-[0.14em]"
                         style={{ color: r.color }}
                       >
-                        {r.name.toUpperCase()}
+                        <span
+                          className="inline-block border-b-2 pb-1"
+                          style={{ borderColor: r.color }}
+                        >
+                          {r.name.toUpperCase()}
+                        </span>
                       </th>
                     ))}
                   </tr>
@@ -473,7 +502,7 @@ export default function BenchmarkClient({
                         return (
                           <tr
                             key={scenario.id}
-                            className="animate-row-in border-b border-zinc-800/40 last:border-b-0 transition-colors hover:bg-white/[0.04]"
+                            className="animate-row-in border-b border-line last:border-b-0 transition-colors hover:bg-white/[0.05]"
                             style={{ animationDelay: `${Math.min(staggerIndex, 14) * 22}ms` }}
                           >
                             {isGroupStart && (
