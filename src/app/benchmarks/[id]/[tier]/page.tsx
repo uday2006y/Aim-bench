@@ -54,7 +54,7 @@ export default async function BenchmarkTierPage({
 
   if (benchmarkResult.error || !benchmark) {
     return (
-      <main className="min-h-screen bg-app text-white">
+      <main className="min-h-screen text-white">
         <div className="mx-auto flex max-w-xl flex-col items-center px-6 py-24 text-center">
           <p className="text-zinc-400">Benchmark not found.</p>
           <Link href="/benchmarks" className="mt-4 text-sm hover:underline">
@@ -180,7 +180,7 @@ export default async function BenchmarkTierPage({
 
 function TiersNotInstalled() {
   return (
-    <main className="min-h-screen bg-app text-white">
+    <main className="min-h-screen text-white">
       <div className="mx-auto flex max-w-xl flex-col items-center px-6 py-24 text-center">
         <h1 className="text-2xl font-bold tracking-tight">Tiers are not set up</h1>
         <p className="mt-4 text-sm leading-6 text-zinc-400">

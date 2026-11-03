@@ -222,8 +222,8 @@ export default function BenchmarkClient({
   });
 
   return (
-    <main className="min-h-screen bg-app text-white">
-      <div className="mx-auto max-w-full px-4 py-6">
+    <main className="min-h-screen text-white">
+      <div className="mx-auto w-full max-w-[1600px] px-3 py-4 sm:px-5 sm:py-6 lg:px-8">
         {/* Top nav bar. The benchmark table is reached from the benchmark
             list, so Back goes there rather than to the home page. */}
         <nav className="mb-5 flex items-center justify-between px-1">
@@ -237,7 +237,7 @@ export default function BenchmarkClient({
         </nav>
 
         {/* Benchmark header */}
-        <header className="animate-card-in card relative mb-6 overflow-hidden p-6 sm:p-7">
+        <header className="animate-card-in card relative mb-5 overflow-hidden p-5 sm:mb-6 sm:p-7">
           {/* The ladder as a thin strip across the top, in the tier's own
               colours, so each tier carries its identity into the header. */}
           <div aria-hidden="true" className="absolute inset-x-0 top-0 flex h-1">
@@ -257,7 +257,7 @@ export default function BenchmarkClient({
                 benchmark
               </p>
 
-              <h1 className="mt-2 text-3xl font-extrabold tracking-tight sm:text-4xl">
+              <h1 className="mt-2 text-2xl font-extrabold tracking-tight sm:text-4xl">
                 {benchmark.title || "Benchmark"}
               </h1>
 
@@ -386,14 +386,17 @@ export default function BenchmarkClient({
                   rungs — still gets a column wide enough for its cutoff
                   number. Below this the table scrolls sideways, which it
                   already did. */}
-              <table className="w-full table-fixed border-collapse text-xs min-w-[1440px]">
+              <table
+                className="w-full table-fixed border-collapse text-xs"
+                style={{ minWidth: `${480 + rankOrder.length * 112}px` }}
+              >
                 <thead className="border-b border-line bg-white/[0.03] text-[11px] font-extrabold uppercase tracking-[0.14em] text-zinc-400">
                   <tr>
                     {/* Spacers for the vertical category / sub-category rails */}
                     <th className="w-6" />
                     <th className="w-6" />
-                    <th className="w-[260px] text-left px-4 py-4 whitespace-nowrap">SCENARIO</th>
-                    <th className="w-[168px] text-left px-3 py-4 whitespace-nowrap">SCORE</th>
+                    <th className="w-[190px] px-3 py-4 text-left whitespace-nowrap sm:w-[260px] sm:px-4">SCENARIO</th>
+                    <th className="w-[120px] px-3 py-4 text-left whitespace-nowrap sm:w-[168px]">SCORE</th>
                     {rankOrder.map((r) => (
                       <th
                         key={r.name}
@@ -547,7 +550,7 @@ export default function BenchmarkClient({
                               </td>
                             )}
 
-                            <td className={`px-4 py-2.5 align-middle ${rowIdx === 0 ? groupDivider : ""} ${subDivider}`}>
+                            <td className={`px-3 py-2.5 align-middle sm:px-4 ${rowIdx === 0 ? groupDivider : ""} ${subDivider}`}>
                               <div className="flex min-w-[160px] flex-col gap-0.5">
                                 <span className="truncate text-sm font-semibold leading-tight text-white">
                                   {scenario.title}
@@ -564,7 +567,7 @@ export default function BenchmarkClient({
                             <td className={`px-3 py-2.5 align-middle whitespace-nowrap ${rowIdx === 0 ? groupDivider : ""} ${subDivider}`}>
                               <div className="flex items-baseline gap-2">
                                 <span
-                                  className="font-mono text-base font-bold tracking-tight"
+                                  className="font-mono text-sm font-bold tracking-tight sm:text-base"
                                   style={{ color: scoreColor || "#ffffff" }}
                                 >
                                   {score ? score.toLocaleString() : "—"}
