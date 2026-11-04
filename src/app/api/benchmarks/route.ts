@@ -86,7 +86,7 @@ export async function GET(request: Request) {
 
     // so the only ordering left is: fetch everything, then join in memory.
 
-    const [benchmarksResult, scenarioResult, pbResult, pinResult] =
+    const [benchmarksResult, scenarioResult, pbResult, pinResult, tierRefs] =
 
       await Promise.all([
 
@@ -158,6 +158,9 @@ export async function GET(request: Request) {
 
           : null,
 
+      // Needs nothing from the reads above, so it goes out with them
+        // instead of after them.
+        loadAllTierRefs(),
       ]);
 
 
@@ -236,7 +239,7 @@ export async function GET(request: Request) {
     // times the rows. Summing them all into one card would add a player's
     // Novice score to their Elite score and call the total neither, so the
     // benchmark-level views describe each benchmark's first tier.
-    const primaryIds = primaryTierIds((await loadAllTierRefs()) as TierRef[]);
+    const primaryIds = primaryTierIds(tierRefs as TierRef[]);
 
     const scenarios = scenariosInPrimaryTiers(
       (scenarioResult.data || []) as unknown as (ScenarioCutoffs & {

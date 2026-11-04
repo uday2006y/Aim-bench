@@ -6,6 +6,8 @@ import { pruneRuns, recordAggregatesFor, type NewPb } from "./easyaimSync";
 
 const CONCURRENCY = 5;
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 // A sync of ONE benchmark is a person watching a button, so it trades a short
 // burst of requests for speed: every scenario goes out at once (up to this
 // many), each asks for only the top few records, and a failed request gets one
@@ -41,6 +43,23 @@ export async function syncSiteScenarios(
 ): Promise<SiteSyncResult> {
   const scopeBenchmarkId = options.benchmarkId;
 
+  // A benchmark id is a uuid. Anything else cannot match a row, and handing it
+  // to the database would be an error where "nothing to sync" is the answer.
+  if (scopeBenchmarkId && !UUID.test(scopeBenchmarkId)) {
+    return { scanned: 0, saved: 0, newPbs: [], benchmarksUpdated: 0, failed: 0, backfillDone: true };
+  }
+
+  let scenarioQuery = supabaseAdmin
+    .from("benchmark_scenarios")
+    .select("benchmark_id, easyaim_scenario_id, title");
+
+  // Scoped, only this benchmark's rows are read. It used to read every
+  // scenario on the site and filter in memory, which grows with the site, and
+  // which the database quietly truncates at a thousand rows.
+  if (scopeBenchmarkId) {
+    scenarioQuery = scenarioQuery.eq("benchmark_id", scopeBenchmarkId);
+  }
+
   // None of these three reads depends on another, so they go out together
   // instead of one after the other.
   const [linkResult, scenarioResult, storedResult] = await Promise.all([
@@ -49,9 +68,7 @@ export async function syncSiteScenarios(
       .select("easyaim_player_id")
       .eq("account_id", accountId)
       .maybeSingle(),
-    supabaseAdmin
-      .from("benchmark_scenarios")
-      .select("benchmark_id, easyaim_scenario_id, title"),
+    scenarioQuery,
     supabaseAdmin
       .from("easyaim_pbs")
       .select("scenario_id, score")
@@ -85,9 +102,9 @@ export async function syncSiteScenarios(
     benchmarksByScenario.get(id)!.add(row.benchmark_id);
   }
 
-  // The full table is still read when scoped, so a scenario this benchmark
-  // shares with another one still refreshes that benchmark's aggregate. Only
-  // the EasyAim requests below are narrowed.
+  // When scoped, the rows are already only this benchmark's. A benchmark that
+  // shares one of these scenarios is found further down, and only if that
+  // scenario's best actually changed.
   const scenarioIds = scopeBenchmarkId
     ? [
         ...new Set(
@@ -180,23 +197,36 @@ export async function syncSiteScenarios(
   }
 
   if (changed.length > 0) {
-    const { error } = await supabaseAdmin
-      .from("easyaim_pbs")
-      .upsert(changed, { onConflict: "account_id,scenario_id" });
-    if (error) throw error;
+    // The personal bests are the write that matters, so it goes first. When
+    // scoped, the lookup of other benchmarks that share a changed scenario
+    // goes out with it, since they are independent.
+    const [pbWrite, sharing] = await Promise.all([
+      supabaseAdmin
+        .from("easyaim_pbs")
+        .upsert(changed, { onConflict: "account_id,scenario_id" }),
+      scopeBenchmarkId
+        ? supabaseAdmin
+            .from("benchmark_scenarios")
+            .select("benchmark_id, easyaim_scenario_id")
+            .in(
+              "easyaim_scenario_id",
+              changed.map((c) => c.scenario_id)
+            )
+        : null,
+    ]);
 
-    const { error: runsError } = await supabaseAdmin.from("easyaim_runs").upsert(
-      changed.map((c) => ({
-        account_id: accountId,
-        run_id: c.run_id,
-        scenario_id: c.scenario_id,
-        score: c.score,
-        played_at: c.achieved_at,
-      })),
-      { onConflict: "account_id,run_id" }
-    );
-    if (runsError) console.error("EASYAIM SITE SYNC: could not store runs:", runsError);
-    else await pruneRuns(accountId);
+    if (pbWrite.error) throw pbWrite.error;
+
+    // A scenario this benchmark shares with another one changes that
+    // benchmark's score too, so it is recomputed as well.
+    for (const row of (sharing?.data ?? []) as {
+      benchmark_id: string;
+      easyaim_scenario_id: string;
+    }[]) {
+      const id = String(row.easyaim_scenario_id);
+      if (!benchmarksByScenario.has(id)) benchmarksByScenario.set(id, new Set());
+      benchmarksByScenario.get(id)!.add(row.benchmark_id);
+    }
   }
 
   const scanned = new Set(scenarioIds);
@@ -210,11 +240,33 @@ export async function syncSiteScenarios(
     for (const id of benchmarksByScenario.get(scenarioId) ?? []) benchmarkIds.add(id);
   }
 
-  // Independent of each other, so they run together.
+  // Keeps the run itself for the Recent runs panel, then trims the old ones.
+  async function storeRuns() {
+    if (changed.length === 0) return;
+
+    const { error: runsError } = await supabaseAdmin.from("easyaim_runs").upsert(
+      changed.map((c) => ({
+        account_id: accountId,
+        run_id: c.run_id,
+        scenario_id: c.scenario_id,
+        score: c.score,
+        played_at: c.achieved_at,
+      })),
+      { onConflict: "account_id,run_id" }
+    );
+
+    if (runsError) console.error("EASYAIM SITE SYNC: could not store runs:", runsError);
+    else await pruneRuns(accountId);
+  }
+
+  // The personal bests are already written, so none of these depends on
+  // another: the rank recompute reads them, the runs are a side record, and the
+  // timestamp is a single row. They used to run one after the other.
   const [benchmarksUpdated] = await Promise.all([
     benchmarkIds.size > 0
       ? recordAggregatesFor(accountId, [...benchmarkIds])
       : Promise.resolve(0),
+    storeRuns(),
     supabaseAdmin
       .from("easyaim_links")
       .update({ last_synced_at: new Date().toISOString() })

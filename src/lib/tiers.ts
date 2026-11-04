@@ -181,6 +181,31 @@ export async function loadAllTierRefs(): Promise<TierRef[]> {
 }
 
 /**
+ * The same refs as loadAllTierRefs, for only the benchmarks named.
+ *
+ * The recompute after a sync only cares about a handful of benchmarks, so
+ * reading every tier on the site to find their first tiers was most of a
+ * round trip spent on rows nobody looked at. Being keyed by benchmark id it
+ * can also go out in the same batch as the other reads instead of after them.
+ */
+export async function loadTierRefsFor(benchmarkIds: string[]): Promise<TierRef[]> {
+  if (benchmarkIds.length === 0) return [];
+
+  const { data, error } = await supabaseAdmin
+    .from("benchmark_tiers")
+    .select("id, benchmark_id, slug, name, position")
+    .in("benchmark_id", benchmarkIds)
+    .limit(TIER_SCAN_LIMIT);
+
+  if (error) {
+    console.error("TIERS: failed to load tier refs:", error);
+    return [];
+  }
+
+  return (data ?? []) as TierRef[];
+}
+
+/**
  * Replaces one tier's scenario list wholesale.
  *
  * Delete-then-insert rather than a diff, because a scenario removed from the

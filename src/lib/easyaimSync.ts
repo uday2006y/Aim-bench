@@ -9,7 +9,7 @@ import {
 } from "./easyaim";
 import { computeAggregates, type RankSource, type ScenarioCutoffs } from "./aggregates";
 import { primaryTierIds, scenariosInPrimaryTiers } from "./benchmarkTiers";
-import { loadAllTierRefs } from "./tiers";
+import { loadTierRefsFor } from "./tiers";
 
 const PAGE_SIZE = 25;
 const NEW_RUNS_MAX_PAGES = 4;
@@ -608,7 +608,7 @@ export async function recordAggregatesFor(
 
   if (ids.length === 0) return 0;
 
-  const [benchmarkResult, scenarioResult, pbResult, historyResult] =
+  const [benchmarkResult, scenarioResult, pbResult, historyResult, tierRefs] =
     await Promise.all([
       supabaseAdmin
         .from("benchmarks")
@@ -633,6 +633,10 @@ export async function recordAggregatesFor(
         .eq("user_id", accountId)
         .in("benchmark_id", ids)
         .order("completed_at", { ascending: false }),
+
+      // Only these benchmarks' tiers, in the same batch. This used to be a
+      // read of every tier on the site, made after the batch finished.
+      loadTierRefsFor(ids),
     ]);
 
   for (const [name, result] of [
@@ -652,7 +656,7 @@ export async function recordAggregatesFor(
     (scenarioResult.data ?? []) as unknown as (ScenarioCutoffs & {
       tier_id: string | null;
     })[],
-    primaryTierIds(await loadAllTierRefs())
+    primaryTierIds(tierRefs)
   );
 
   // A benchmark with no scenarios has nothing to score, so it gets no row —
