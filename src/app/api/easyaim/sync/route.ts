@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { syncSiteScenarios } from "@/lib/easyaimSiteSync";
 import { getSessionAccountId } from "@/lib/session";
 
-export async function POST() {
+export async function POST(request: Request) {
   try {
     const accountId = await getSessionAccountId();
 
@@ -13,7 +13,15 @@ export async function POST() {
       );
     }
 
-    return NextResponse.json(await syncSiteScenarios(accountId));
+    // Optional: limit the scan to one benchmark's scenarios. Only ever used
+    // to filter rows already read from the database, never to build a query.
+    const rawBenchmarkId = new URL(request.url).searchParams.get("benchmarkId");
+    const benchmarkId =
+      rawBenchmarkId && rawBenchmarkId.length <= 64 ? rawBenchmarkId : undefined;
+
+    return NextResponse.json(
+      await syncSiteScenarios(accountId, benchmarkId ? { benchmarkId } : {})
+    );
   } catch (error) {
     const message = error instanceof Error ? error.message : "Sync failed";
 

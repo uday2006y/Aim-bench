@@ -21,8 +21,17 @@ export interface SiteSyncResult {
  * A personal best is only ever raised.
  */
 export async function syncSiteScenarios(
-  accountId: string
+  accountId: string,
+  options: {
+    /**
+     * Only scan the scenarios that belong to this benchmark. Omitted, every
+     * scenario on the site is scanned, exactly as before.
+     */
+    benchmarkId?: string;
+  } = {}
 ): Promise<SiteSyncResult> {
+  const scopeBenchmarkId = options.benchmarkId;
+
   const { data: linkData, error: linkError } = await supabaseAdmin
     .from("easyaim_links")
     .select("easyaim_player_id")
@@ -56,7 +65,18 @@ export async function syncSiteScenarios(
     benchmarksByScenario.get(id)!.add(row.benchmark_id);
   }
 
-  const scenarioIds = [...titles.keys()];
+  // The full table is still read when scoped, so a scenario this benchmark
+  // shares with another one still refreshes that benchmark's aggregate. Only
+  // the EasyAim requests below are narrowed.
+  const scenarioIds = scopeBenchmarkId
+    ? [
+        ...new Set(
+          rows
+            .filter((row) => row.benchmark_id === scopeBenchmarkId)
+            .map((row) => String(row.easyaim_scenario_id))
+        ),
+      ]
+    : [...titles.keys()];
 
   if (scenarioIds.length === 0) {
     return { scanned: 0, saved: 0, newPbs: [], benchmarksUpdated: 0, failed: 0, backfillDone: true };
@@ -152,7 +172,12 @@ export async function syncSiteScenarios(
     if (runsError) console.error("EASYAIM SITE SYNC: could not store runs:", runsError);
   }
 
-  const hasPb = new Set<string>([...stored.keys(), ...best.keys()]);
+  const scanned = new Set(scenarioIds);
+  const hasPb = new Set<string>(
+    [...stored.keys(), ...best.keys()].filter(
+      (scenarioId) => !scopeBenchmarkId || scanned.has(scenarioId)
+    )
+  );
   const benchmarkIds = new Set<string>();
   for (const scenarioId of hasPb) {
     for (const id of benchmarksByScenario.get(scenarioId) ?? []) benchmarkIds.add(id);

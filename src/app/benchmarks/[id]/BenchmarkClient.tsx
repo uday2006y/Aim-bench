@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useBarStyle } from "@/lib/useBarStyle";
 import PinButton from "@/components/PinButton";
 import TierSwitcher from "@/components/TierSwitcher";
+import SyncBenchmarkButton from "@/components/SyncBenchmarkButton";
 import { computeTierFills } from "@/lib/tierBars";
 import type { Tier } from "@/lib/benchmarkTiers";
 
@@ -61,6 +62,35 @@ function withAlpha(hex: string, alpha: number): string {
 
   const packed = parseInt(value, 16);
   return `rgba(${(packed >> 16) & 255}, ${(packed >> 8) & 255}, ${packed & 255}, ${alpha})`;
+}
+
+/** One number in the header. Presentation only. */
+function Stat({
+  label,
+  value,
+  hint,
+  capitalize = false,
+}: {
+  label: string;
+  value: string;
+  hint?: string;
+  capitalize?: boolean;
+}) {
+  return (
+    <div className="min-w-0 rounded-xl border border-line bg-white/[0.03] px-4 py-3">
+      <dt className="text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-500">
+        {label}
+      </dt>
+      <dd
+        className={`mt-1 truncate text-xl font-extrabold tracking-tight ${
+          capitalize ? "capitalize" : ""
+        }`}
+      >
+        {value}
+      </dd>
+      {hint ? <p className="mt-0.5 truncate text-[11px] text-zinc-600">{hint}</p> : null}
+    </div>
+  );
 }
 
 export default function BenchmarkClient({
@@ -144,6 +174,28 @@ export default function BenchmarkClient({
       })
     )
     .map((rank) => rank.name);
+
+  // Numbers for the header tiles. Display only: read from the same inputs
+  // the table uses, never saved or sent anywhere.
+  const summary = (() => {
+    const topRankName = rankOrder[rankOrder.length - 1]?.name;
+    let tracked = 0;
+    let scored = 0;
+    let topCleared = 0;
+
+    for (const scenario of scenarios) {
+      if (gated.has(String(scenario.easyaim_scenario_id))) continue;
+
+      tracked += 1;
+      const score = scenario.best_score ?? 0;
+      if (score > 0) scored += 1;
+
+      const top = topRankName ? scenario.cutoffs?.[topRankName] : undefined;
+      if (typeof top === "number" && top > 0 && score >= top) topCleared += 1;
+    }
+
+    return { tracked, scored, topCleared, topRankName };
+  })();
 
   function getCategoryColor(catName: string): string {
     const def = benchmark.category_defs?.find((c) => c.name === catName);
@@ -267,34 +319,19 @@ export default function BenchmarkClient({
                 </p>
               ) : null}
 
-              {hasScenarios && (
-                <div className="mt-4 flex flex-wrap items-center gap-2">
-                  <span className="chip">
-                    {scenarios.length} scenario{scenarios.length === 1 ? "" : "s"}
-                  </span>
-                  <span className="chip">
-                    {groups.length} categor{groups.length === 1 ? "y" : "ies"}
-                  </span>
-                  {tiers.length > 1 ? (
-                    <span className="chip">{tiers.length} tiers</span>
-                  ) : null}
-                  {benchmark.difficulty ? (
-                    <span className="chip capitalize">{benchmark.difficulty}</span>
-                  ) : null}
-                </div>
-              )}
             </div>
 
             {/* Star sits with the title rather than the Edit button: it is
                 something any visitor can do, so it must not read as part of
                 the owner's controls. */}
-            <div className="flex items-center gap-3">
+            <div className="flex items-start gap-3">
               <PinButton
                 benchmarkId={id}
                 pinned={myPinned}
                 loggedIn={loggedIn}
                 size="md"
               />
+              {loggedIn ? <SyncBenchmarkButton benchmarkId={id} /> : null}
               {isAuthorized ? (
                 <Link
                   href={`/benchmarks/${id}/edit?tab=${encodeURIComponent(tier.slug)}`}
@@ -305,6 +342,63 @@ export default function BenchmarkClient({
               ) : null}
             </div>
           </div>
+
+          {hasScenarios ? (
+            <dl className="mt-6 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+              <Stat label="Scenarios" value={String(scenarios.length)} />
+              <Stat label="Categories" value={String(groups.length)} />
+              {loggedIn ? (
+                <>
+                  <Stat
+                    label="Scored"
+                    value={`${summary.scored} / ${summary.tracked}`}
+                    hint="scenarios you have played"
+                  />
+                  <Stat
+                    label="Top rank cleared"
+                    value={String(summary.topCleared)}
+                    hint={summary.topRankName}
+                  />
+                </>
+              ) : (
+                <>
+                  <Stat label="Tiers" value={String(tiers.length)} />
+                  <Stat
+                    label="Difficulty"
+                    value={benchmark.difficulty || "medium"}
+                    capitalize
+                  />
+                </>
+              )}
+            </dl>
+          ) : null}
+
+          {/* The ladder in order, so the colours in the table below have a
+              key and the climb reads left to right. */}
+          {rankOrder.length > 0 ? (
+            <ol
+              aria-label="Rank ladder"
+              className="mt-4 flex flex-wrap items-center gap-x-2 gap-y-1.5 text-[11px] font-semibold uppercase tracking-wider"
+            >
+              {rankOrder.map((rank, index) => (
+                <li key={`${rank.name}-${index}`} className="flex items-center gap-2">
+                  <span className="inline-flex items-center gap-1.5">
+                    <span
+                      aria-hidden="true"
+                      className="h-2 w-2 rounded-full"
+                      style={{ backgroundColor: rank.color }}
+                    />
+                    <span style={{ color: rank.color }}>{rank.name}</span>
+                  </span>
+                  {index < rankOrder.length - 1 ? (
+                    <span aria-hidden="true" className="text-zinc-700">
+                      →
+                    </span>
+                  ) : null}
+                </li>
+              ))}
+            </ol>
+          ) : null}
 
           {/* The switcher. Below the title rather than beside it because the
               benchmark title is variable length and the pills are not: side by
@@ -368,6 +462,9 @@ export default function BenchmarkClient({
 
         {hasScenarios && (
           <div className="animate-fade-in card overflow-hidden">
+            <p className="border-b border-line px-4 py-2 text-[11px] text-zinc-600 md:hidden">
+              Swipe sideways to see every rank.
+            </p>
             <div className="overflow-x-auto">
               {/* table-fixed, because under the default auto layout every
                   column sizes itself to its own header text: CHAMPION is
