@@ -1,4 +1,5 @@
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { MAX_STORED_RUNS } from "@/lib/easyaimSync";
 
 interface RunRow {
   run_id: number;
@@ -14,7 +15,7 @@ export default async function RecentRuns({ accountId }: { accountId: string }) {
       .select("run_id, scenario_id, score, played_at")
       .eq("account_id", accountId)
       .order("played_at", { ascending: false })
-      .limit(25),
+      .limit(MAX_STORED_RUNS),
 
     supabaseAdmin
       .from("benchmark_scenarios")
@@ -50,8 +51,9 @@ export default async function RecentRuns({ accountId }: { accountId: string }) {
     <div className="mt-6 rounded-2xl border border-zinc-800 bg-zinc-950 p-6">
       <h2 className="text-lg font-semibold mb-1">Recent runs</h2>
       <p className="mb-4 text-xs text-zinc-500">
-        Every run on a benchmark scenario, personal best or not. Your rank
-        still counts only your best.
+        Your latest {MAX_STORED_RUNS} runs on a benchmark scenario, personal
+        best or not. Older runs are cleared to save space. Your rank still
+        counts only your best.
       </p>
 
       {runs.length === 0 ? (

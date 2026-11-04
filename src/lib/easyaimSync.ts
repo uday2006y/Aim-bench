@@ -66,7 +66,61 @@ interface BenchmarkScenarioRow {
 
 
 /**
- * Keeps every run on a benchmark scenario, not only personal bests, so the
+ * How many runs are kept per account. The profile shows this many and
+ * nothing older is stored, which keeps easyaim_runs from growing without
+ * bound. Personal bests live in easyaim_pbs and are not affected.
+ */
+export const MAX_STORED_RUNS = 50;
+
+/**
+ * Deletes everything past an account's newest MAX_STORED_RUNS runs.
+ *
+ * Works in small batches because an account that imported its whole history
+ * before this cap existed can have thousands of surplus rows, and a delete
+ * by id list has to stay short enough for the request URL. Best effort like
+ * saveRuns: a failure is logged, never thrown, so it cannot break a sync.
+ */
+export async function pruneRuns(
+  accountId: string,
+  keep = MAX_STORED_RUNS
+): Promise<void> {
+  const BATCH = 200;
+
+  try {
+    for (let pass = 0; pass < 50; pass += 1) {
+      const { data, error } = await supabaseAdmin
+        .from("easyaim_runs")
+        .select("run_id")
+        .eq("account_id", accountId)
+        .order("played_at", { ascending: false })
+        .order("run_id", { ascending: false })
+        .range(keep, keep + BATCH - 1);
+
+      if (error || !data || data.length === 0) return;
+
+      const { error: deleteError } = await supabaseAdmin
+        .from("easyaim_runs")
+        .delete()
+        .eq("account_id", accountId)
+        .in(
+          "run_id",
+          (data as { run_id: number }[]).map((row) => row.run_id)
+        );
+
+      if (deleteError) {
+        console.error("EASYAIM SYNC: failed to prune runs:", deleteError);
+        return;
+      }
+
+      if (data.length < BATCH) return;
+    }
+  } catch (error) {
+    console.error("EASYAIM SYNC: failed to prune runs:", error);
+  }
+}
+
+/**
+ * Keeps the newest runs on a benchmark scenario, not only personal bests, so the
  * profile can show runs that were not a PB. Ranks still come from easyaim_pbs;
  * this table never feeds a rank, so a bad run cannot lower anything.
  *
@@ -79,7 +133,12 @@ async function saveRuns(
 ): Promise<{ stored: number; failed: boolean }> {
   if (runs.length === 0) return { stored: 0, failed: false };
 
-  const rows = runs.map((run) => ({
+  // Only the newest MAX_STORED_RUNS can survive the prune below anyway, so a
+  // long history import never writes thousands of rows just to delete them.
+  const rows = [...runs]
+    .sort((a, b) => b.playedAt - a.playedAt)
+    .slice(0, MAX_STORED_RUNS)
+    .map((run) => ({
     account_id: accountId,
     run_id: run.id,
     scenario_id: String(run.scenarioId),
@@ -97,6 +156,8 @@ async function saveRuns(
       return { stored: i, failed: true };
     }
   }
+
+  await pruneRuns(accountId);
 
   return { stored: rows.length, failed: false };
 }

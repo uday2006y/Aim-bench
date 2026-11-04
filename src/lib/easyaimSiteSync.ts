@@ -2,9 +2,18 @@ import "server-only";
 
 import { supabaseAdmin } from "./supabaseAdmin";
 import { getScenarioBestRuns, type EasyAimRun } from "./easyaim";
-import { recordAggregatesFor, type NewPb } from "./easyaimSync";
+import { pruneRuns, recordAggregatesFor, type NewPb } from "./easyaimSync";
 
 const CONCURRENCY = 5;
+
+// A sync of ONE benchmark is a person watching a button, so it trades a short
+// burst of requests for speed: every scenario goes out at once (up to this
+// many), each asks for only the top few records, and a failed request gets one
+// more try. If EasyAim ever starts answering 429, lower SCOPED_CONCURRENCY.
+// The full sync keeps the gentler numbers above.
+const SCOPED_CONCURRENCY = 30;
+const SCOPED_PAGE_LIMIT = 5;
+const SCOPED_ATTEMPTS = 2;
 
 export interface SiteSyncResult {
   scanned: number;
@@ -32,11 +41,24 @@ export async function syncSiteScenarios(
 ): Promise<SiteSyncResult> {
   const scopeBenchmarkId = options.benchmarkId;
 
-  const { data: linkData, error: linkError } = await supabaseAdmin
-    .from("easyaim_links")
-    .select("easyaim_player_id")
-    .eq("account_id", accountId)
-    .maybeSingle();
+  // None of these three reads depends on another, so they go out together
+  // instead of one after the other.
+  const [linkResult, scenarioResult, storedResult] = await Promise.all([
+    supabaseAdmin
+      .from("easyaim_links")
+      .select("easyaim_player_id")
+      .eq("account_id", accountId)
+      .maybeSingle(),
+    supabaseAdmin
+      .from("benchmark_scenarios")
+      .select("benchmark_id, easyaim_scenario_id, title"),
+    supabaseAdmin
+      .from("easyaim_pbs")
+      .select("scenario_id, score")
+      .eq("account_id", accountId),
+  ]);
+
+  const { data: linkData, error: linkError } = linkResult;
 
   if (linkError) throw linkError;
   if (!linkData) throw new Error("No EasyAim account linked");
@@ -44,9 +66,7 @@ export async function syncSiteScenarios(
   const playerId = (linkData as { easyaim_player_id: number | string })
     .easyaim_player_id;
 
-  const { data: scenarioRows, error: scenarioError } = await supabaseAdmin
-    .from("benchmark_scenarios")
-    .select("benchmark_id, easyaim_scenario_id, title");
+  const { data: scenarioRows, error: scenarioError } = scenarioResult;
 
   if (scenarioError) throw scenarioError;
 
@@ -82,42 +102,48 @@ export async function syncSiteScenarios(
     return { scanned: 0, saved: 0, newPbs: [], benchmarksUpdated: 0, failed: 0, backfillDone: true };
   }
 
-  const storedPromise = supabaseAdmin
-    .from("easyaim_pbs")
-    .select("scenario_id, score")
-    .eq("account_id", accountId);
-
   const best = new Map<string, EasyAimRun>();
   let failed = 0;
   let next = 0;
 
-    async function worker() {
+  const concurrency = scopeBenchmarkId ? SCOPED_CONCURRENCY : CONCURRENCY;
+  const pageLimit = scopeBenchmarkId ? SCOPED_PAGE_LIMIT : 100;
+  const attempts = scopeBenchmarkId ? SCOPED_ATTEMPTS : 1;
+
+  async function worker() {
     while (next < scenarioIds.length) {
       const scenarioId = scenarioIds[next++];
-      try {
-        const page = await getScenarioBestRuns(playerId, scenarioId, 100);
-        let top: EasyAimRun | null = null;
-        for (const r of page.data) {
-          if (String(r.scenarioId) !== scenarioId) continue;
-          if (!top || r.score > top.score) top = r;
+
+      for (let attempt = 1; ; attempt += 1) {
+        try {
+          const page = await getScenarioBestRuns(playerId, scenarioId, pageLimit);
+          let top: EasyAimRun | null = null;
+          for (const r of page.data) {
+            if (String(r.scenarioId) !== scenarioId) continue;
+            if (!top || r.score > top.score) top = r;
+          }
+          if (top) best.set(scenarioId, top);
+          break;
+        } catch (error) {
+          if (attempt < attempts) continue;
+
+          failed += 1;
+          console.error("EASYAIM SITE SYNC: scenario failed:", scenarioId, error);
+          break;
         }
-        if (top) best.set(scenarioId, top);
-      } catch (error) {
-        failed += 1;
-        console.error("EASYAIM SITE SYNC: scenario failed:", scenarioId, error);
       }
     }
   }
 
   await Promise.all(
-    Array.from({ length: Math.min(CONCURRENCY, scenarioIds.length) }, worker)
+    Array.from({ length: Math.min(concurrency, scenarioIds.length) }, worker)
   );
 
   if (failed === scenarioIds.length) {
     throw new Error("EasyAim requests failed for every scenario");
   }
 
-  const { data: storedRows, error: storedError } = await storedPromise;
+  const { data: storedRows, error: storedError } = storedResult;
   if (storedError) throw storedError;
 
   const stored = new Map<string, number>();
@@ -170,6 +196,7 @@ export async function syncSiteScenarios(
       { onConflict: "account_id,run_id" }
     );
     if (runsError) console.error("EASYAIM SITE SYNC: could not store runs:", runsError);
+    else await pruneRuns(accountId);
   }
 
   const scanned = new Set(scenarioIds);
@@ -183,15 +210,16 @@ export async function syncSiteScenarios(
     for (const id of benchmarksByScenario.get(scenarioId) ?? []) benchmarkIds.add(id);
   }
 
-  const benchmarksUpdated =
+  // Independent of each other, so they run together.
+  const [benchmarksUpdated] = await Promise.all([
     benchmarkIds.size > 0
-      ? await recordAggregatesFor(accountId, [...benchmarkIds])
-      : 0;
-
-  await supabaseAdmin
-    .from("easyaim_links")
-    .update({ last_synced_at: new Date().toISOString() })
-    .eq("account_id", accountId);
+      ? recordAggregatesFor(accountId, [...benchmarkIds])
+      : Promise.resolve(0),
+    supabaseAdmin
+      .from("easyaim_links")
+      .update({ last_synced_at: new Date().toISOString() })
+      .eq("account_id", accountId),
+  ]);
 
   return {
     scanned: scenarioIds.length,
