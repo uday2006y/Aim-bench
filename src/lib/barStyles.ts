@@ -32,58 +32,13 @@ export interface BarStyle {
 
 export const BAR_STYLES: BarStyle[] = [
   {
-    id: "pulse",
-    label: "Pulse",
-    description: "Animated breathing fill that glows as it progresses.",
-  },
-  {
-    id: "neon",
-    label: "Neon",
-    description: "Bright tube light with a soft glow halo.",
-  },
-  {
-    id: "candy",
-    label: "Candy",
-    description: "Diagonal striped candy-cane fill.",
-  },
-  {
-    id: "ghost",
-    label: "Ghost",
-    description: "Hollow outline only — no fill, just the track shape.",
-  },
-  {
-    id: "pixels",
-    label: "Pixels",
-    description: "Blocky stepped edges, like a retro HUD.",
-  },
-  {
-    id: "wave",
-    label: "Wave",
-    description: "Sine-wave top edge that undulates as it fills.",
-  },
-  {
-    id: "glass",
-    label: "Glass",
-    description: "Frosted frosted-glass bar with backdrop blur.",
-  },
-  {
-    id: "rail",
-    label: "Rail",
-    description: "Parallel train-track lines with center divider.",
-  },
-  {
-    id: "ember",
-    label: "Ember",
-    description: "Gradient fire fill that shifts from orange to red.",
-  },
-  {
-    id: "void",
-    label: "Void",
-    description: "Dark inverted bar with a thin luminous edge.",
+    id: "badge",
+    label: "Badge",
+    description: "Colored pill with the cutoff number inside each rank cell.",
   },
 ];
 
-export const DEFAULT_BAR_STYLE = "pulse";
+export const DEFAULT_BAR_STYLE = "badge";
 
 export function isBarStyle(id: unknown): id is string {
   return (

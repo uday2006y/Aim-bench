@@ -3,11 +3,9 @@
 import Link from "next/link";
 import React from "react";
 
-import { useBarStyle } from "@/lib/useBarStyle";
 import PinButton from "@/components/PinButton";
 import TierSwitcher from "@/components/TierSwitcher";
 import SyncBenchmarkButton from "@/components/SyncBenchmarkButton";
-import { computeTierFills } from "@/lib/tierBars";
 import type { Tier } from "@/lib/benchmarkTiers";
 
 interface CategoryDef {
@@ -32,7 +30,6 @@ interface Benchmark {
 
 interface BenchmarkScenario {
   id: string;
-  /** A string: EasyAim ids are alphanumeric and the column is `text`. */
   easyaim_scenario_id: string;
   title: string;
   position: number;
@@ -78,35 +75,12 @@ function Stat({
 }) {
   return (
     <div className="min-w-0 rounded-xl border border-line bg-white/[0.03] px-4 py-3">
-      <dt className="text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-500">
-        {label}
-      </dt>
-      <dd className={`mt-1 truncate text-xl font-extrabold tracking-tight ${
-        capitalize ? "capitalize" : ""
-      }`}>
-        {value}
-      </dd>
+      <dt className="text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-500">{label}</dt>
+      <dd className={`mt-1 truncate text-xl font-extrabold tracking-tight ${capitalize ? "capitalize" : ""}`}>{value}</dd>
       {hint ? <p className="mt-0.5 truncate text-[11px] text-zinc-600">{hint}</p> : null}
     </div>
   );
 }
-
-/** A rank cell: the cutoff label with a subtle tinted badge. */
-function RankPill({ cutoff, color }: { cutoff: number | null; color: string }) {
-  return (
-    <span
-      className="inline-flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[10px] font-semibold"
-      style={{ color }}
-    >
-      <span
-        className="h-2 w-2 rounded-full"
-        style={{ backgroundColor: color }}
-      />
-      {cutoff != null ? cutoff.toLocaleString() : "—"}
-    </span>
-  );
-}
-
 
 export default function BenchmarkClient({
   id,
@@ -122,20 +96,15 @@ export default function BenchmarkClient({
 }: {
   id: string;
   benchmark: Benchmark;
-  /** The tier being viewed. Its ladder names and colours drive every column. */
   tier: Tier;
-  /** Every tier on this benchmark, for the switcher. */
   tiers: Tier[];
   scenarios: BenchmarkScenario[];
   isAuthorized: boolean;
   myPinned: boolean;
   loggedIn: boolean;
-  /** Scenarios in this tier that have not started tracking yet, each with the score it is waiting on. */
   gatedRows?: { easyaim_scenario_id: string; waitingFor: number | null }[];
   previousTierName: string | null;
 }) {
-  const [barStyle, chooseBarStyle] = useBarStyle();
-
   const rankOrder = tier.rank_names;
   const rankColors = tier.rank_colors;
 
@@ -164,12 +133,9 @@ export default function BenchmarkClient({
 
   const orderedCategories = categoryOrder.filter((c) => groups.has(c));
 
-  const scenarioFills = new Map<string, { score: number; fills: number[] }>();
+  const scenarioScores = new Map<string, number>();
   for (const scenario of scenarios) {
-    const score = scenario.best_score ?? 0;
-    const cutoffs = rankOrder.map((rank) => scenario.cutoffs?.[rank] ?? null);
-    const fills = computeTierFills(cutoffs, score).map((f) => f.percent);
-    scenarioFills.set(scenario.easyaim_scenario_id, { score, fills });
+    scenarioScores.set(scenario.easyaim_scenario_id, scenario.best_score ?? 0);
   }
 
   const totalScenarios = scenarios.length;
@@ -193,15 +159,8 @@ export default function BenchmarkClient({
             </div>
 
             <div className="flex flex-col sm:flex-row sm:items-end gap-3">
-              <PinButton
-                benchmarkId={id}
-                pinned={myPinned}
-                loggedIn={loggedIn}
-                size="md"
-              />
-              {isAuthorized && (
-                <SyncBenchmarkButton benchmarkId={id} />
-              )}
+              <PinButton benchmarkId={id} pinned={myPinned} loggedIn={loggedIn} size="md" />
+              {isAuthorized && <SyncBenchmarkButton benchmarkId={id} />}
               {isAuthorized && (
                 <Link
                   href={`/benchmarks/${id}/edit`}
@@ -230,7 +189,7 @@ export default function BenchmarkClient({
         <div className="rounded-2xl border border-line bg-card shadow-lg overflow-hidden">
           <div className="border-b border-line bg-surface px-6 py-4">
             <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-400">
-              Scenarios â€” {tier.name}
+              Scenarios — {tier.name}
             </h2>
           </div>
 
@@ -245,11 +204,11 @@ export default function BenchmarkClient({
                     Best
                   </th>
                   {rankOrder.map((rank, rankIdx) => (
-                    <th
-                      key={rank}
-                      className="px-1.5 py-3.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-500"
-                    >
-                      <span className="flex flex-col items-center gap-1"><span className="h-2 w-2 rounded-full" style={{ backgroundColor: rankColors[rankIdx] ?? "var(--accent)" }} /><span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">{rank}</span></span>
+                    <th key={rank} className="px-1.5 py-3.5">
+                      <div className="flex flex-col items-center gap-1">
+                        <span className="h-2 w-2 rounded-full" style={{ backgroundColor: rankColors[rankIdx] ?? "var(--accent)" }} />
+                        <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">{rank}</span>
+                      </div>
                     </th>
                   ))}
                 </tr>
@@ -262,68 +221,41 @@ export default function BenchmarkClient({
                     <React.Fragment key={cat}>
                       {/* Category header */}
                       <tr>
-                        <td
-                          colSpan={3 + rankOrder.length}
-                          className="px-6 py-3 border-b border-line bg-white/[0.02]"
-                        >
+                        <td colSpan={3 + rankOrder.length} className="px-6 py-3 border-b border-line bg-white/[0.02]">
                           <div className="flex items-center gap-2">
                             {def ? (
                               <span
                                 className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.05] px-2.5 py-0.5 text-[10px] font-semibold"
-                                style={{
-                                  color: def.color,
-                                  borderColor: withAlpha(def.color, 0.5),
-                                }}
+                                style={{ color: def.color, borderColor: withAlpha(def.color, 0.5) }}
                               >
-                                <span
-                                  className="h-2 w-2 rounded-full"
-                                  style={{ backgroundColor: def.color }}
-                                />
+                                <span className="h-2 w-2 rounded-full" style={{ backgroundColor: def.color }} />
                                 {cat}
                               </span>
                             ) : (
-                              <span className="px-2.5 py-0.5 text-[10px] font-semibold text-zinc-500">
-                                {cat}
-                              </span>
+                              <span className="px-2.5 py-0.5 text-[10px] font-semibold text-zinc-500">{cat}</span>
                             )}
-                            <span className="ml-auto text-[10px] font-medium text-zinc-600">
-                              {catScenarios.length} scenario{catScenarios.length === 1 ? "" : "s"}
-                            </span>
+                            <span className="ml-auto text-[10px] font-medium text-zinc-600">{catScenarios.length} scenario{catScenarios.length === 1 ? "" : "s"}</span>
                           </div>
                         </td>
                       </tr>
 
                       {catScenarios.map((scenario) => {
-                        const { score, fills } = scenarioFills.get(scenario.easyaim_scenario_id) ?? {
-                          score: 0,
-                          fills: rankOrder.map(() => 0),
-                        };
+                        const score = scenarioScores.get(scenario.easyaim_scenario_id) ?? 0;
                         const gate = gatedByScenario.get(scenario.easyaim_scenario_id);
                         const isGated = gate != null && score === 0;
-                        const subDivider =
-                          scenario.sub_category && catScenarios.some((s) => s.sub_category === scenario.sub_category && s !== scenario)
-                            ? "border-l border-line/50"
-                            : "";
 
                         return (
-                          <tr
-                            key={scenario.id}
-                            className={`border-b border-line/50 hover:bg-white/[0.02] transition-colors ${isGated ? "bg-red-500/5" : ""}`}
-                          >
+                          <tr key={scenario.id} className={`border-b border-line/50 hover:bg-white/[0.02] transition-colors ${isGated ? "bg-red-500/5" : ""}`}>
                             <td className="px-6 py-3.5 align-middle sticky left-0 z-20 bg-card">
                               <div className="flex items-center gap-3">
                                 <div className="flex flex-col">
-                                  <span className="text-base font-semibold text-text">
-                                    {scenario.title}
-                                  </span>
+                                  <span className="text-base font-semibold text-text">{scenario.title}</span>
                                   {scenario.sub_category ? (
                                     <span className="text-xs text-zinc-400">{scenario.sub_category}</span>
                                   ) : null}
                                 </div>
                                 <div className="flex items-center gap-1">
-                                  <span className="font-mono text-[10px] text-zinc-500">
-                                    {scenario.easyaim_scenario_id}
-                                  </span>
+                                  <span className="font-mono text-[10px] text-zinc-500">{scenario.easyaim_scenario_id}</span>
                                 </div>
                               </div>
                             </td>
@@ -331,20 +263,11 @@ export default function BenchmarkClient({
                             <td className="px-3 py-3.5 align-middle whitespace-nowrap">
                               <div className="flex items-baseline gap-2">
                                 {isGated ? (
-                                  <span className="flex items-center gap-1.5 text-[11px] font-medium text-red-400">
-                                    locked
-                                  </span>
+                                  <span className="flex items-center gap-1.5 text-[11px] font-medium text-red-400">locked</span>
                                 ) : (
                                   <>
-                                    <span
-                                      className="font-mono text-sm font-bold tracking-tight sm:text-base"
-                                      style={{ color: score > 0 ? "var(--text)" : "var(--text)" }}
-                                    >
-                                      {score ? score.toLocaleString() : "â€”"}
-                                    </span>
-                                    <span className="text-[10px] font-medium text-zinc-500">
-                                      {score > 0 ? `${Math.round((score / (rankOrder.reduce((m, r) => Math.max(m, scenario.cutoffs?.[r] ?? 0), 0))) * 100)}% of top` : ""}
-                                    </span>
+                                    <span className="font-mono text-sm font-bold tracking-tight sm:text-base">{score ? score.toLocaleString() : "—"}</span>
+                                    <span className="text-[10px] font-medium text-zinc-500">{score > 0 ? `${Math.round((score / (rankOrder.reduce((m, r) => Math.max(m, scenario.cutoffs?.[r] ?? 0), 0))) * 100)}% of top` : ""}</span>
                                   </>
                                 )}
                               </div>
@@ -353,39 +276,28 @@ export default function BenchmarkClient({
                             {rankOrder.map((rank, rankIdx) => {
                               const cutoff = scenario.cutoffs?.[rank] ?? null;
                               const hasCutoff = typeof cutoff === "number" && cutoff > 0;
-                              const fillPct = fills[rankIdx] ?? 0;
                               const color = rankColors[rankIdx] ?? "var(--accent)";
                               const cleared = score > 0 && hasCutoff && score >= cutoff;
 
                               return (
                                 <td key={rank} className="px-1.5 py-3.5 align-middle">
-                                  <div className="flex flex-col items-center gap-1.5">
-                                      <div
-                                        className={`bar-track bar-${barStyle}`}
-                                        style={{ backgroundColor: withAlpha(color, 0.15) }}
-                                      >
-                                        {hasCutoff && score > 0 && (
-                                          <div
-                                            className="bar-fill"
-                                            style={{
-                                              width: `${Math.min(100, fillPct)}%`,
-                                              backgroundColor: color,
-                                              boxShadow: cleared
-                                                ? `0 0 14px ${withAlpha(color, 0.6)}`
-                                                : "none",
-                                            }}
-                                          />
-                                        )}
-                                        <span className="bar-label text-[10px] font-medium">
-                                          {hasCutoff ? cutoff.toLocaleString() : "—"}
-                                        </span>
-                                      </div>
-                                      {isGated && (
-                                        <span className="text-[9px] text-red-400/80 font-medium">
-                                          needs {gate?.toLocaleString()}
-                                        </span>
-                                      )}
-                                    </div>
+                                  <div className="flex flex-col items-center gap-1">
+                                    <span
+                                      className="rank-badge w-full"
+                                      style={{
+                                        backgroundColor: cleared ? color : color + "15",
+                                        color: cleared ? "#000" : "var(--text)",
+                                        border: cleared
+                                          ? `1px solid ${color}`
+                                          : "1px solid color-mix(in oklab, var(--text) 20%, transparent)",
+                                      }}
+                                    >
+                                      {hasCutoff ? cutoff.toLocaleString() : "—"}
+                                    </span>
+                                    {isGated && (
+                                      <span className="text-[9px] text-red-400/80 font-medium">needs {gate?.toLocaleString()}</span>
+                                    )}
+                                  </div>
                                 </td>
                               );
                             })}
@@ -407,14 +319,10 @@ export default function BenchmarkClient({
           </div>
 
           <div className="border-t border-line bg-surface px-6 py-3">
-            <p className="text-xs text-zinc-500">
-              "Bars show your progress toward each rank's cutoff, measured from the previous cleared rank. Filled bars mean the rank is cleared."
-            </p>
+            <p className="text-xs text-zinc-500">Each rank shows its cutoff as a colored badge. Filled color means the rank is cleared.</p>
           </div>
         </div>
       </div>
     </main>
   );
 }
-
-

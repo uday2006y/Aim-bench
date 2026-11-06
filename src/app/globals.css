@@ -365,14 +365,13 @@ html[data-mode="light"][data-bg="aurora"] body::before {
   to { background-position: -200% 0; }
 }
 
-/* ---------- Rank progress bars ----------
+/* ---------- Rank progress bars (badge style) ----------
    Markup (benchmark table + /settings previews):
-     <div class="bar-track bar-{style}"><div class="bar-fill"/><span class="bar-label"/></div>
-   Clean, minimal shapes that apply to every benchmark table. */
+     <div class="bar-track bar-badge"><div class="bar-fill"/><span class="bar-label"/></div>
+   Each rank cell renders as a colored pill badge with the cutoff number inside. */
 
 .bar-track {
   --bar-h: 1.1rem;
-  --bar-slant: 0.55rem;
   position: relative;
   display: block;
   width: 100%;
@@ -389,7 +388,7 @@ html[data-mode="light"][data-bg="aurora"] body::before {
   left: 0;
   height: 100%;
   border-radius: inherit;
-  transition: width 0.2s ease;
+  opacity: 0;
 }
 
 .bar-label {
@@ -399,7 +398,7 @@ html[data-mode="light"][data-bg="aurora"] body::before {
   align-items: center;
   justify-content: center;
   height: 100%;
-  padding: 0 0.25rem;
+  padding: 0 0.5rem;
   font-family: var(--font-geist-mono), ui-monospace, Menlo, Consolas, monospace;
   font-size: 0.625rem;
   font-weight: 700;
@@ -412,94 +411,26 @@ html[data-mode="light"][data-bg="aurora"] body::before {
   pointer-events: none;
 }
 
-/* Pulse: gentle breathing glow. */
-.bar-pulse .bar-fill {
-  animation: aim-pulse 3s ease-in-out infinite;
-}
-@keyframes aim-pulse {
-  0%, 100% { opacity: 0.9; filter: brightness(1); }
-  50% { opacity: 1; filter: brightness(1.2); }
-}
-
-/* Neon: tube light with outer glow. */
-.bar-neon .bar-fill {
-  box-shadow: 0 0 10px color-mix(in oklab, var(--text) 60%, transparent);
-  filter: saturate(1.4);
-}
-
-/* Candy: diagonal stripes. */
-.bar-candy .bar-fill {
-  background: repeating-linear-gradient(
-    45deg,
-    transparent 0,
-    transparent 8px,
-    color-mix(in oklab, var(--text) 25%, transparent) 8px,
-    color-mix(in oklab, var(--text) 25%, transparent) 16px
-  );
-}
-
-/* Ghost: hollow outline, no fill. */
-.bar-ghost .bar-fill {
-  opacity: 0;
-}
-.bar-ghost {
-  background: transparent;
-  border: 1px solid color-mix(in oklab, var(--text) 35%, transparent);
-}
-
-/* Pixels: stepped retro HUD edges. */
-.bar-pixels .bar-fill {
-  clip-path: polygon(
-    0 0, 14% 0, 14% 33%, 28% 33%, 28% 66%, 42% 66%, 42% 100%, 100% 100%, 100% 0, 0 0
-  );
-}
-
-/* Wave: smooth undulating top edge. */
-.bar-wave .bar-fill {
-  clip-path: path("M 0 0 Q 25% -8%, 50% 0 T 100% 0 L 100% 100% L 0 100% Z");
-}
-
-/* Glass: frosted glass blur. */
-.bar-glass .bar-fill {
-  background: color-mix(in oklab, var(--text) 20%, transparent);
-  backdrop-filter: blur(6px);
-  border: 1px solid color-mix(in oklab, var(--text) 15%, transparent);
-}
-
-/* Rail: parallel lines with center divider. */
-.bar-rail .bar-fill {
-  background: repeating-linear-gradient(
-    90deg,
-    transparent 0,
-    transparent 6px,
-    color-mix(in oklab, var(--text) 30%, transparent) 6px,
-    color-mix(in oklab, var(--text) 30%, transparent) 10px
-  );
-}
-.bar-rail::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 50%;
-  width: 1px;
-  background: color-mix(in oklab, var(--text) 20%, transparent);
-}
-
-/* Ember: warm orange-to-red gradient. */
-.bar-ember .bar-fill {
-  background: linear-gradient(90deg, #f97316 0%, #ef4444 100%);
-  box-shadow: 0 0 10px #f97316;
-}
-
-/* Void: dark inverted bar with thin luminous edge. */
-.bar-void {
-  background: color-mix(in oklab, var(--text) 6%, transparent);
-  border: 1px solid color-mix(in oklab, var(--text) 20%, transparent);
-}
-.bar-void .bar-fill {
+/* Badge: colored pill with the cutoff number inside, no progress bar. */
+.bar-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  height: auto;
+  min-width: 0;
+  padding: 0.125rem 0.5rem;
   background: color-mix(in oklab, var(--text) 12%, transparent);
-  box-shadow: inset 0 0 6px color-mix(in oklab, var(--text) 30%, transparent);
+  border: 1px solid color-mix(in oklab, var(--text) 20%, transparent);
+  border-radius: 999px;
+}
+.bar-badge .bar-fill {
+  display: none;
+}
+.bar-badge .bar-label {
+  height: auto;
+  padding: 0;
+  color: var(--text);
+  text-shadow: none;
 }/* Light themes put the bar number on a pale track; keep it readable. */
 html[data-mode="light"] .bar-label {
   text-shadow: 0 1px 3px rgb(0 0 0 / 0.85);
