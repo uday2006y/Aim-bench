@@ -102,42 +102,11 @@ function RankPill({ cutoff, color }: { cutoff: number | null; color: string }) {
         className="h-2 w-2 rounded-full"
         style={{ backgroundColor: color }}
       />
-      {cutoff != null ? cutoff.toLocaleString() : "—"}
+      {cutoff != null ? cutoff.toLocaleString() : "â€”"}
     </span>
   );
 }
 
-/** Badge-style rank cell: colored dot, separator dash, cutoff value.
- * No progress bar — matches the "Badge" bar style in settings. */
-function BadgeRankCell({
-  cutoff,
-  color,
-  score,
-  cleared,
-}: {
-  cutoff: number | null;
-  color: string;
-  score: number;
-  cleared: boolean;
-}) {
-  const hasCutoff = typeof cutoff === "number" && cutoff > 0;
-
-  return (
-    <div className="flex items-center gap-1.5 px-2 py-1.5 rounded-xl border border-white/10 bg-white/[0.03]">
-      <span className="h-2 w-2 rounded-full" style={{ backgroundColor: color }} />
-      <span className="w-px h-2 bg-white/20 shrink-0" />
-      <span
-        className="text-[10px] font-semibold leading-none"
-        style={{ color: cleared ? color : "var(--text)" }}
-      >
-        {hasCutoff ? cutoff.toLocaleString() : "—"}
-      </span>
-      {score > 0 && hasCutoff && cleared && (
-        <span className="h-1.5 w-1.5 rounded-full bg-white" />
-      )}
-    </div>
-  );
-}
 
 export default function BenchmarkClient({
   id,
@@ -261,7 +230,7 @@ export default function BenchmarkClient({
         <div className="rounded-2xl border border-line bg-card shadow-lg overflow-hidden">
           <div className="border-b border-line bg-surface px-6 py-4">
             <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-400">
-              Scenarios — {tier.name}
+              Scenarios â€” {tier.name}
             </h2>
           </div>
 
@@ -280,7 +249,7 @@ export default function BenchmarkClient({
                       key={rank}
                       className="px-1.5 py-3.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-500"
                     >
-                      <RankPill cutoff={null} color={rankColors[rankIdx] ?? "var(--accent)"} />
+                      <span className="flex flex-col items-center gap-1"><span className="h-2 w-2 rounded-full" style={{ backgroundColor: rankColors[rankIdx] ?? "var(--accent)" }} /><span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">{rank}</span></span>
                     </th>
                   ))}
                 </tr>
@@ -344,11 +313,11 @@ export default function BenchmarkClient({
                             <td className="px-6 py-3.5 align-middle sticky left-0 z-20 bg-card">
                               <div className="flex items-center gap-3">
                                 <div className="flex flex-col">
-                                  <span className="font-medium text-text">
+                                  <span className="text-base font-semibold text-text">
                                     {scenario.title}
                                   </span>
                                   {scenario.sub_category ? (
-                                    <span className="text-[10px] text-zinc-500">{scenario.sub_category}</span>
+                                    <span className="text-xs text-zinc-400">{scenario.sub_category}</span>
                                   ) : null}
                                 </div>
                                 <div className="flex items-center gap-1">
@@ -371,7 +340,7 @@ export default function BenchmarkClient({
                                       className="font-mono text-sm font-bold tracking-tight sm:text-base"
                                       style={{ color: score > 0 ? "var(--text)" : "var(--text)" }}
                                     >
-                                      {score ? score.toLocaleString() : "—"}
+                                      {score ? score.toLocaleString() : "â€”"}
                                     </span>
                                     <span className="text-[10px] font-medium text-zinc-500">
                                       {score > 0 ? `${Math.round((score / (rankOrder.reduce((m, r) => Math.max(m, scenario.cutoffs?.[r] ?? 0), 0))) * 100)}% of top` : ""}
@@ -390,15 +359,7 @@ export default function BenchmarkClient({
 
                               return (
                                 <td key={rank} className="px-1.5 py-3.5 align-middle">
-                                  {barStyle === "badge" ? (
-                                    <BadgeRankCell
-                                      cutoff={cutoff}
-                                      color={color}
-                                      score={score}
-                                      cleared={cleared}
-                                    />
-                                  ) : (
-                                    <div className="flex flex-col items-center gap-1.5">
+                                  <div className="flex flex-col items-center gap-1.5">
                                       <div
                                         className="bar-track"
                                         style={{ backgroundColor: withAlpha(color, 0.15) }}
@@ -416,7 +377,7 @@ export default function BenchmarkClient({
                                           />
                                         )}
                                         <span className="bar-label text-[10px] font-medium">
-                                          {hasCutoff ? cutoff.toLocaleString() : "—"}
+                                          {hasCutoff ? cutoff.toLocaleString() : "â€”"}
                                         </span>
                                       </div>
                                       {isGated && (
@@ -425,7 +386,6 @@ export default function BenchmarkClient({
                                         </span>
                                       )}
                                     </div>
-                                  )}
                                 </td>
                               );
                             })}
@@ -448,9 +408,7 @@ export default function BenchmarkClient({
 
           <div className="border-t border-line bg-surface px-6 py-3">
             <p className="text-xs text-zinc-500">
-              {barStyle === "badge"
-                ? "Each rank shows its cutoff value as a colored badge. Filled dot means the rank is cleared."
-                : "Bars show your progress toward each rank's cutoff, measured from the previous cleared rank. Filled bars mean the rank is cleared."}
+              "Bars show your progress toward each rank's cutoff, measured from the previous cleared rank. Filled bars mean the rank is cleared."
             </p>
           </div>
         </div>
@@ -458,3 +416,5 @@ export default function BenchmarkClient({
     </main>
   );
 }
+
+

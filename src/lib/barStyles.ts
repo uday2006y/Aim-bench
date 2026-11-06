@@ -32,43 +32,58 @@ export interface BarStyle {
 
 export const BAR_STYLES: BarStyle[] = [
   {
-    id: "ribbon",
-    label: "Ribbon",
-    description: "Curved at both ends, symmetric.",
+    id: "pulse",
+    label: "Pulse",
+    description: "Animated breathing fill that glows as it progresses.",
   },
   {
-    id: "parallelogram",
-    label: "Parallelogram",
-    description: "Both edges slant, top shifted right.",
+    id: "neon",
+    label: "Neon",
+    description: "Bright tube light with a soft glow halo.",
   },
   {
-    id: "angled",
-    label: "Angled",
-    description: "Slanted right edge, straight left.",
+    id: "candy",
+    label: "Candy",
+    description: "Diagonal striped candy-cane fill.",
   },
   {
-    id: "flat",
-    label: "Flat",
-    description: "Plain rectangle. Maximum readability.",
+    id: "ghost",
+    label: "Ghost",
+    description: "Hollow outline only — no fill, just the track shape.",
   },
   {
-    id: "rounded",
-    label: "Rounded",
-    description: "Pill shape, rounded at both ends.",
+    id: "pixels",
+    label: "Pixels",
+    description: "Blocky stepped edges, like a retro HUD.",
   },
   {
-    id: "segmented",
-    label: "Segmented",
-    description: "Notched track, so partial progress reads as steps.",
+    id: "wave",
+    label: "Wave",
+    description: "Sine-wave top edge that undulates as it fills.",
   },
   {
-    id: "badge",
-    label: "Badge",
-    description: "Colored dot with the cutoff value, no fill bar.",
+    id: "glass",
+    label: "Glass",
+    description: "Frosted frosted-glass bar with backdrop blur.",
+  },
+  {
+    id: "rail",
+    label: "Rail",
+    description: "Parallel train-track lines with center divider.",
+  },
+  {
+    id: "ember",
+    label: "Ember",
+    description: "Gradient fire fill that shifts from orange to red.",
+  },
+  {
+    id: "void",
+    label: "Void",
+    description: "Dark inverted bar with a thin luminous edge.",
   },
 ];
 
-export const DEFAULT_BAR_STYLE = "ribbon";
+export const DEFAULT_BAR_STYLE = "pulse";
 
 export function isBarStyle(id: unknown): id is string {
   return (

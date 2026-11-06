@@ -370,8 +370,8 @@ html[data-mode="light"][data-bg="aurora"] body::before {
      <div class="bar-track bar-{style}"><div class="bar-fill"/><span class="bar-label"/></div>
    The fill colour and width are set inline from the real rank data; these
    rules only decide the SHAPE. Shapes clip the track, and the fill sits
-   inside it, so one clip covers both. The ribbon's curved path lives in
-   layout.tsx as #aim-bar-ribbon. */
+   inside it, so one clip covers both. */
+
 .bar-track {
   --bar-h: 1.1rem;
   --bar-slant: 0.55rem;
@@ -381,6 +381,7 @@ html[data-mode="light"][data-bg="aurora"] body::before {
   height: var(--bar-h);
   overflow: hidden;
   background: color-mix(in oklab, var(--text) 9%, transparent);
+  border-radius: 0.5rem;
 }
 
 .bar-fill {
@@ -389,6 +390,8 @@ html[data-mode="light"][data-bg="aurora"] body::before {
   bottom: 0;
   left: 0;
   height: 100%;
+  border-radius: inherit;
+  transition: width 0.25s ease;
 }
 
 .bar-label {
@@ -411,65 +414,101 @@ html[data-mode="light"][data-bg="aurora"] body::before {
   pointer-events: none;
 }
 
-/* Ribbon: curved at both ends, symmetric. The fill gets the same curve so
-   a partial bar ends in a point rather than a hard edge. */
-.bar-ribbon,
-.bar-ribbon .bar-fill {
-  clip-path: url(#aim-bar-ribbon);
+/* Pulse: animated breathing fill with a soft glow. */
+.bar-pulse .bar-fill {
+  animation: aim-pulse 3s ease-in-out infinite;
+}
+@keyframes aim-pulse {
+  0%, 100% { opacity: 0.9; filter: brightness(1); }
+  50% { opacity: 1; filter: brightness(1.2); }
 }
 
-/* Parallelogram: both edges slant, top shifted right. */
-.bar-parallelogram,
-.bar-parallelogram .bar-fill {
-  clip-path: polygon(
-    var(--bar-slant) 0,
-    100% 0,
-    calc(100% - var(--bar-slant)) 100%,
-    0 100%
+/* Neon: bright tube light with outer glow. */
+.bar-neon .bar-fill {
+  box-shadow: 0 0 10px color-mix(in oklab, var(--text) 60%, transparent);
+  filter: saturate(1.5);
+}
+
+/* Candy: diagonal striped candy-cane fill. */
+.bar-candy .bar-fill {
+  background: repeating-linear-gradient(
+    45deg,
+    color-mix(in oklab, var(--text) 100%, transparent) 0,
+    color-mix(in oklab, var(--text) 100%, transparent) 8px,
+    color-mix(in oklab, var(--text) 30%, transparent) 8px,
+    color-mix(in oklab, var(--text) 30%, transparent) 16px
   );
 }
 
-/* Angled: slanted right edge, straight left. */
-.bar-angled,
-.bar-angled .bar-fill {
-  clip-path: polygon(0 0, 100% 0, calc(100% - var(--bar-slant)) 100%, 0 100%);
+/* Ghost: hollow outline only — no fill, just a thin ring around the track. */
+.bar-ghost .bar-fill {
+  opacity: 0;
+}
+.bar-ghost {
+  background: transparent;
+  border: 1px solid color-mix(in oklab, var(--text) 35%, transparent);
 }
 
-/* Flat: plain rectangle. */
-.bar-flat {
-  border-radius: 0;
+/* Pixels: blocky stepped edges like a retro HUD. */
+.bar-pixels .bar-fill {
+  clip-path: polygon(
+    0 0, 15% 0, 15% 33%, 30% 33%, 30% 66%, 45% 66%, 45% 100%, 100% 100%, 100% 0, 0 0
+  );
 }
 
-/* Rounded: pill. */
-.bar-rounded,
-.bar-rounded .bar-fill {
-  border-radius: 999px;
+/* Wave: sine-wave top edge that undulates. */
+.bar-wave,
+.bar-wave .bar-fill {
+  clip-path: path("M 0 0 Q 25% -15%, 50% 0 T 100% 0 L 100% 100% L 0 100% Z");
 }
 
-/* Segmented: the track is cut into four notched steps. The notches are an
-   overlay under the label, so the number stays readable across them. */
-.bar-segmented::after {
-  content: "";
-  position: absolute;
-  inset: 0;
+/* Glass: frosted glass with backdrop blur. */
+.bar-glass .bar-fill {
+  background: color-mix(in oklab, var(--text) 25%, transparent) !important;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  border: 1px solid color-mix(in oklab, var(--text) 20%, transparent);
+}
+
+/* Rail: parallel train-track lines with a center divider. */
+.bar-rail .bar-fill {
   background: repeating-linear-gradient(
     90deg,
-    transparent 0,
-    transparent calc(25% - 2px),
-    rgb(0 0 0 / 0.65) calc(25% - 2px),
-    rgb(0 0 0 / 0.65) 25%
+    color-mix(in oklab, var(--text) 100%, transparent) 0,
+    color-mix(in oklab, var(--text) 100%, transparent) 6px,
+    transparent 6px,
+    transparent 10px
   );
 }
-
-/* Badge: pill-shaped track, rounded at both ends, for the compact dot +
-   dash + cutoff style. The fill is hidden since badges show the cutoff
-   value as text rather than a filled bar. */
-.bar-badge,
-.bar-badge .bar-fill {
-  border-radius: 999px;
+.bar-rail::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 1px;
+  background: color-mix(in oklab, var(--text) 25%, transparent);
 }
-.bar-badge .bar-fill {
-  opacity: 0;
+
+/* Ember: gradient fire fill shifting from orange to red. */
+.bar-ember .bar-fill {
+  background: linear-gradient(
+    90deg,
+    #f97316 0%,
+    #ef4444 60%,
+    #991b1b 100%
+  ) !important;
+  box-shadow: 0 0 12px #f97316;
+}
+
+/* Void: dark inverted bar with thin luminous edge. */
+.bar-void {
+  background: color-mix(in oklab, var(--text) 8%, transparent);
+  border: 1px solid color-mix(in oklab, var(--text) 25%, transparent);
+}
+.bar-void .bar-fill {
+  background: color-mix(in oklab, var(--text) 15%, transparent) !important;
+  box-shadow: inset 0 0 8px color-mix(in oklab, var(--text) 40%, transparent);
 }
 
 /* Light themes put the bar number on a pale track; keep it readable. */
