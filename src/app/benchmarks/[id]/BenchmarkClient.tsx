@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import React from "react";
 
 import { useBarStyle } from "@/lib/useBarStyle";
@@ -106,6 +107,38 @@ function RankPill({ cutoff, color }: { cutoff: number | null; color: string }) {
   );
 }
 
+/** Badge-style rank cell: colored dot, separator dash, cutoff value.
+ * No progress bar — matches the "Badge" bar style in settings. */
+function BadgeRankCell({
+  cutoff,
+  color,
+  score,
+  cleared,
+}: {
+  cutoff: number | null;
+  color: string;
+  score: number;
+  cleared: boolean;
+}) {
+  const hasCutoff = typeof cutoff === "number" && cutoff > 0;
+
+  return (
+    <div className="flex items-center gap-1.5 px-2 py-1.5 rounded-xl border border-white/10 bg-white/[0.03]">
+      <span className="h-2 w-2 rounded-full" style={{ backgroundColor: color }} />
+      <span className="w-px h-2 bg-white/20 shrink-0" />
+      <span
+        className="text-[10px] font-semibold leading-none"
+        style={{ color: cleared ? color : "var(--text)" }}
+      >
+        {hasCutoff ? cutoff.toLocaleString() : "—"}
+      </span>
+      {score > 0 && hasCutoff && cleared && (
+        <span className="h-1.5 w-1.5 rounded-full bg-white" />
+      )}
+    </div>
+  );
+}
+
 export default function BenchmarkClient({
   id,
   benchmark,
@@ -199,6 +232,14 @@ export default function BenchmarkClient({
               />
               {isAuthorized && (
                 <SyncBenchmarkButton benchmarkId={id} />
+              )}
+              {isAuthorized && (
+                <Link
+                  href={`/benchmarks/${id}/edit`}
+                  className="rounded-lg border border-white/15 bg-white/[0.03] px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10 hover:border-white/20"
+                >
+                  Edit benchmark
+                </Link>
               )}
             </div>
           </div>
@@ -349,33 +390,42 @@ export default function BenchmarkClient({
 
                               return (
                                 <td key={rank} className="px-1.5 py-3.5 align-middle">
-                                  <div className="flex flex-col items-center gap-1.5">
-                                    <div
-                                      className="bar-track"
-                                      style={{ backgroundColor: withAlpha(color, 0.15) }}
-                                    >
-                                      {hasCutoff && score > 0 && (
-                                        <div
-                                          className="bar-fill"
-                                          style={{
-                                            width: `${Math.min(100, fillPct)}%`,
-                                            backgroundColor: color,
-                                            boxShadow: cleared
-                                              ? `0 0 14px ${withAlpha(color, 0.6)}`
-                                              : "none",
-                                          }}
-                                        />
+                                  {barStyle === "badge" ? (
+                                    <BadgeRankCell
+                                      cutoff={cutoff}
+                                      color={color}
+                                      score={score}
+                                      cleared={cleared}
+                                    />
+                                  ) : (
+                                    <div className="flex flex-col items-center gap-1.5">
+                                      <div
+                                        className="bar-track"
+                                        style={{ backgroundColor: withAlpha(color, 0.15) }}
+                                      >
+                                        {hasCutoff && score > 0 && (
+                                          <div
+                                            className="bar-fill"
+                                            style={{
+                                              width: `${Math.min(100, fillPct)}%`,
+                                              backgroundColor: color,
+                                              boxShadow: cleared
+                                                ? `0 0 14px ${withAlpha(color, 0.6)}`
+                                                : "none",
+                                            }}
+                                          />
+                                        )}
+                                        <span className="bar-label text-[10px] font-medium">
+                                          {hasCutoff ? cutoff.toLocaleString() : "—"}
+                                        </span>
+                                      </div>
+                                      {isGated && (
+                                        <span className="text-[9px] text-red-400/80 font-medium">
+                                          needs {gate?.toLocaleString()}
+                                        </span>
                                       )}
-                                      <span className="bar-label text-[10px] font-medium">
-                                        {hasCutoff ? cutoff.toLocaleString() : "—"}
-                                      </span>
                                     </div>
-                                    {isGated && (
-                                      <span className="text-[9px] text-red-400/80 font-medium">
-                                        needs {gate?.toLocaleString()}
-                                      </span>
-                                    )}
-                                  </div>
+                                  )}
                                 </td>
                               );
                             })}
@@ -398,8 +448,9 @@ export default function BenchmarkClient({
 
           <div className="border-t border-line bg-surface px-6 py-3">
             <p className="text-xs text-zinc-500">
-              Bars show your progress toward each rank's cutoff, measured from the previous cleared rank.
-              Filled bars mean the rank is cleared.
+              {barStyle === "badge"
+                ? "Each rank shows its cutoff value as a colored badge. Filled dot means the rank is cleared."
+                : "Bars show your progress toward each rank's cutoff, measured from the previous cleared rank. Filled bars mean the rank is cleared."}
             </p>
           </div>
         </div>
@@ -407,5 +458,3 @@ export default function BenchmarkClient({
     </main>
   );
 }
-
-

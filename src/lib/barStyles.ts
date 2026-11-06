@@ -61,6 +61,11 @@ export const BAR_STYLES: BarStyle[] = [
     label: "Segmented",
     description: "Notched track, so partial progress reads as steps.",
   },
+  {
+    id: "badge",
+    label: "Badge",
+    description: "Colored dot with the cutoff value, no fill bar.",
+  },
 ];
 
 export const DEFAULT_BAR_STYLE = "ribbon";

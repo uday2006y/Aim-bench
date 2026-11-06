@@ -459,7 +459,17 @@ html[data-mode="light"][data-bg="aurora"] body::before {
     rgb(0 0 0 / 0.65) calc(25% - 2px),
     rgb(0 0 0 / 0.65) 25%
   );
-  pointer-events: none;
+}
+
+/* Badge: pill-shaped track, rounded at both ends, for the compact dot +
+   dash + cutoff style. The fill is hidden since badges show the cutoff
+   value as text rather than a filled bar. */
+.bar-badge,
+.bar-badge .bar-fill {
+  border-radius: 999px;
+}
+.bar-badge .bar-fill {
+  opacity: 0;
 }
 
 /* Light themes put the bar number on a pale track; keep it readable. */
