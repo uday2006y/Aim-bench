@@ -102,7 +102,7 @@ function RankPill({ cutoff, color }: { cutoff: number | null; color: string }) {
         className="h-2 w-2 rounded-full"
         style={{ backgroundColor: color }}
       />
-      {cutoff != null ? cutoff.toLocaleString() : "â€”"}
+      {cutoff != null ? cutoff.toLocaleString() : "—"}
     </span>
   );
 }
@@ -361,7 +361,7 @@ export default function BenchmarkClient({
                                 <td key={rank} className="px-1.5 py-3.5 align-middle">
                                   <div className="flex flex-col items-center gap-1.5">
                                       <div
-                                        className="bar-track"
+                                        className={`bar-track bar-${barStyle}`}
                                         style={{ backgroundColor: withAlpha(color, 0.15) }}
                                       >
                                         {hasCutoff && score > 0 && (
@@ -377,7 +377,7 @@ export default function BenchmarkClient({
                                           />
                                         )}
                                         <span className="bar-label text-[10px] font-medium">
-                                          {hasCutoff ? cutoff.toLocaleString() : "â€”"}
+                                          {hasCutoff ? cutoff.toLocaleString() : "—"}
                                         </span>
                                       </div>
                                       {isGated && (
