@@ -4,6 +4,9 @@ import Link from "next/link";
 import React from "react";
 
 import PinButton from "@/components/PinButton";
+import { useBarStyle } from "@/lib/useBarStyle";
+import RankBar from "@/components/RankBar";
+import { computeTierFills } from "@/lib/tierBars";
 import TierSwitcher from "@/components/TierSwitcher";
 import SyncBenchmarkButton from "@/components/SyncBenchmarkButton";
 import type { Tier } from "@/lib/benchmarkTiers";
@@ -107,6 +110,7 @@ export default function BenchmarkClient({
 }) {
   const rankOrder = tier.rank_names;
   const rankColors = tier.rank_colors;
+  const [barStyle] = useBarStyle();
 
   const gatedByScenario = new Map(
     gatedRows.map((g) => [g.easyaim_scenario_id, g.waitingFor])
@@ -145,6 +149,13 @@ export default function BenchmarkClient({
     <main className="min-h-screen bg-bg text-text">
       {/* Hero */}
       <div className="mx-auto max-w-7xl px-6 py-8">
+        <Link
+          href="/benchmarks"
+          className="mb-4 inline-flex items-center gap-1.5 text-sm text-zinc-400 transition-colors hover:text-text"
+        >
+          <span aria-hidden="true">←</span> Back to benchmarks
+        </Link>
+
         <div className="rounded-2xl border border-line bg-surface px-6 py-8 shadow-xl">
           <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4 mb-6">
             <div className="flex flex-col gap-2">
@@ -194,7 +205,25 @@ export default function BenchmarkClient({
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
+            {/*
+              Fixed layout: with auto layout every rank column was sized by its
+              own header text ("AVERAGE-NOOB" wide, "NOOB" and "GOD" narrow), so
+              the bars under them came out uneven. Fixed layout gives the
+              Scenario and Best columns their set widths and splits the rest
+              equally between the ranks. The minimum width keeps each rank column
+              wide enough to read; below that the container scrolls sideways.
+            */}
+            <table
+              className="w-full table-fixed text-left border-collapse"
+              style={{ minWidth: `${22 + 6 + rankOrder.length * 7.5}rem` }}
+            >
+              <colgroup>
+                <col style={{ width: "22rem" }} />
+                <col style={{ width: "6rem" }} />
+                {rankOrder.map((rank) => (
+                  <col key={rank} />
+                ))}
+              </colgroup>
               <thead>
                 <tr className="border-b border-line">
                   <th className="px-6 py-3.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-500 sticky left-0 z-10 bg-card">
@@ -244,6 +273,18 @@ export default function BenchmarkClient({
                         const gate = gatedByScenario.get(scenario.easyaim_scenario_id);
                         const isGated = gate != null && score === 0;
 
+                        // How far through each rank's own gap the score has
+                        // climbed (tierBars.ts), so cleared ranks read full,
+                        // the next one partial and the rest empty.
+                        const cutoffList = rankOrder.map((rank) => scenario.cutoffs?.[rank]);
+                        const fills = computeTierFills(cutoffList, score);
+
+                        // Until a first rank is cleared the climb is drawn grey;
+                        // it takes the rank colours once there is a rank.
+                        const hasRank = cutoffList.some(
+                          (c) => typeof c === "number" && c > 0 && score >= c
+                        );
+
                         return (
                           <tr key={scenario.id} className={`border-b border-line/50 hover:bg-white/[0.02] transition-colors ${isGated ? "bg-red-500/5" : ""}`}>
                             <td className="px-6 py-3.5 align-middle sticky left-0 z-20 bg-card">
@@ -280,20 +321,15 @@ export default function BenchmarkClient({
                               const cleared = score > 0 && hasCutoff && score >= cutoff;
 
                               return (
-                                <td key={rank} className="px-1.5 py-3.5 align-middle">
+                                <td key={rank} className="px-0.5 py-3 align-middle">
                                   <div className="flex flex-col items-center gap-1">
-                                    <span
-                                      className="rank-badge w-full"
-                                      style={{
-                                        backgroundColor: cleared ? color : color + "15",
-                                        color: cleared ? "#000" : "var(--text)",
-                                        border: cleared
-                                          ? `1px solid ${color}`
-                                          : "1px solid color-mix(in oklab, var(--text) 20%, transparent)",
-                                      }}
-                                    >
-                                      {hasCutoff ? cutoff.toLocaleString() : "—"}
-                                    </span>
+                                    <RankBar
+                                      style={barStyle}
+                                      label={hasCutoff ? cutoff.toLocaleString() : "—"}
+                                      percent={fills[rankIdx]?.percent ?? 0}
+                                      color={hasRank ? color : null}
+                                      cleared={cleared}
+                                    />
                                     {isGated && (
                                       <span className="text-[9px] text-red-400/80 font-medium">needs {gate?.toLocaleString()}</span>
                                     )}
@@ -319,7 +355,7 @@ export default function BenchmarkClient({
           </div>
 
           <div className="border-t border-line bg-surface px-6 py-3">
-            <p className="text-xs text-zinc-500">Each rank shows its cutoff as a colored badge. Filled color means the rank is cleared.</p>
+            <p className="text-xs text-zinc-500">Each rank cell shows its cutoff as a bar or badge. Filled color means the rank is cleared.</p>
           </div>
         </div>
       </div>

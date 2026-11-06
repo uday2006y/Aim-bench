@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import { useBarStyle } from "@/lib/useBarStyle";
+import RankBar from "@/components/RankBar";
 
 /**
  * Presentation-only building blocks shared by /create-benchmark and
@@ -257,13 +258,13 @@ export function LadderPreview({ ranks }: { ranks: RankLike[] }) {
       >
         {ranks.map((rank, index) => (
           <div key={`preview-${index}`} className="min-w-0">
-            <div className={`bar-track bar-${barStyle}`}>
-              <div
-                className="bar-fill"
-                style={{ width: "100%", backgroundColor: rank.color }}
-              />
-              <span className="bar-label">{index + 1}</span>
-            </div>
+            <RankBar
+              style={barStyle}
+              label={String(index + 1)}
+              percent={100}
+              color={rank.color}
+              cleared
+            />
             <p
               className="mt-1.5 truncate text-center text-[10px] font-bold uppercase tracking-wider"
               style={{ color: rank.color }}

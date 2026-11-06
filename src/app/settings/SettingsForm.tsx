@@ -4,27 +4,70 @@ import Link from "next/link";
 import SiteHeader from "@/components/SiteHeader";
 import { BAR_STYLES } from "@/lib/barStyles";
 import { useBarStyle, useHydrated } from "@/lib/useBarStyle";
+import RankBar from "@/components/RankBar";
+import { computeTierFills } from "@/lib/tierBars";
 
-/** Small standalone bar used for the previews, same classes as the table. */
-function BarPreview({
-  style,
-  color,
-  fillPct,
-  label,
-}: {
-  style: string;
-  color: string;
-  fillPct: number;
-  label: string;
-}) {
+/**
+ * Sample ladder for the previews. Three players on four ranks: one who has
+ * cleared three and is climbing the fourth, one climbing the second, and one
+ * who has not reached the first yet (drawn grey).
+ */
+const SAMPLE_RANKS = [
+  { name: "Bronze", color: "#b87333", cutoff: 600 },
+  { name: "Silver", color: "#c0c0c0", cutoff: 800 },
+  { name: "Gold", color: "#ffd700", cutoff: 1000 },
+  { name: "Platinum", color: "#e5e4e2", cutoff: 1200 },
+];
+
+const SAMPLE_SCORES = [1040, 700, 410];
+
+/**
+ * A few rows of the real thing. It draws through the same RankBar and the
+ * same fill maths (tierBars.ts) as the benchmark table, so what is picked
+ * here is exactly what shows up on a benchmark.
+ *
+ * Spans rather than divs: it sits inside a <button>, which may only hold
+ * phrasing content.
+ */
+function StylePreview({ styleId }: { styleId: string }) {
+  const cutoffs = SAMPLE_RANKS.map((rank) => rank.cutoff);
+
   return (
-    <div className={`bar-track bar-${style}`}>
-      <div
-        className="bar-fill"
-        style={{ width: `${fillPct}%`, backgroundColor: color }}
-      />
-      <span className="bar-label">{label}</span>
-    </div>
+    <span className="mt-4 block">
+      <span className="mb-2 grid grid-cols-4 gap-1">
+        {SAMPLE_RANKS.map((rank) => (
+          <span
+            key={rank.name}
+            className="truncate text-center text-[10px] font-bold uppercase tracking-wider"
+            style={{ color: rank.color }}
+          >
+            {rank.name}
+          </span>
+        ))}
+      </span>
+
+      <span className="block space-y-2.5">
+        {SAMPLE_SCORES.map((score) => {
+          const fills = computeTierFills(cutoffs, score);
+          const hasRank = cutoffs.some((cutoff) => score >= cutoff);
+
+          return (
+            <span key={score} className="grid grid-cols-4 gap-1">
+              {SAMPLE_RANKS.map((rank, index) => (
+                <RankBar
+                  key={rank.name}
+                  style={styleId}
+                  label={rank.cutoff.toLocaleString()}
+                  percent={fills[index]?.percent ?? 0}
+                  color={hasRank ? rank.color : null}
+                  cleared={score >= rank.cutoff}
+                />
+              ))}
+            </span>
+          );
+        })}
+      </span>
+    </span>
   );
 }
 
@@ -37,13 +80,6 @@ export default function SettingsForm({ loggedIn }: { loggedIn: boolean }) {
   // would be asserting something the server-rendered markup cannot know.
   const hydrated = useHydrated();
 
-  // Three sample rows showing partial, mostly-full and full, using the
-  // default rank colours so the previews look like the real table.
-  const samples = [
-    { name: "Bronze", color: "#b87333", fill: 100, label: "600" },
-    { name: "Gold", color: "#ffd700", fill: 84, label: "1,000" },
-    { name: "Platinum", color: "#e5e4e2", fill: 62, label: "1,200" },
-  ];
 
   return (
     <main className="min-h-screen text-white">
@@ -107,24 +143,7 @@ export default function SettingsForm({ loggedIn }: { loggedIn: boolean }) {
                       {selected ? "Selected" : "Choose"}
                     </span>
                   </div>
-
-                  <div className="mt-4 space-y-2">
-                    {samples.map((sample) => (
-                      <div key={sample.name} className="flex items-center gap-3">
-                        <span className="w-16 shrink-0 truncate text-[10px] uppercase tracking-wider text-zinc-500">
-                          {sample.name}
-                        </span>
-                        <div className="min-w-0 flex-1">
-                          <BarPreview
-                            style={style.id}
-                            color={sample.color}
-                            fillPct={sample.fill}
-                            label={sample.label}
-                          />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                  <StylePreview styleId={style.id} />
                 </button>
               );
             })}
