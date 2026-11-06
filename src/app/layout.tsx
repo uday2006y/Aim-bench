@@ -41,9 +41,9 @@ const FONT_VARS = [geistSans, geistMono, inter, grotesk, orbitron, rajdhani, jet
   .join(" ");
 
 export const metadata: Metadata = {
-  title: "AIMBENCH — Aim Benchmark Tracker",
+  title: "AIMBENCH — Practice with intent",
   description:
-    "Profiles, compete on scenarios, track your scores and compare your performance with other players.",
+    "A focused benchmark platform for players who want to measure aim, compare performance, and improve with context.",
 };
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {

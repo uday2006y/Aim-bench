@@ -13,21 +13,11 @@ interface BenchmarkCard {
   pin_count: number;
 }
 
-/** How many starred benchmarks the home page shows. */
 const FEATURED_LIMIT = 4;
-
-/** Guard on the card scan, mirroring the list endpoint's cap. */
 const CARD_SCAN_LIMIT = 500;
 
 export default async function Home() {
   const accountId = await getSessionAccountId();
-
-  // Two queries, previously in sequence: the pin totals decided *which*
-  // benchmarks to feature, and only then were those benchmarks fetched. But
-  // the card columns are two hundred bytes each and the page is going to
-  // render a row per benchmark anyway, so reading the cards alongside the
-  // counts and joining in memory costs nothing extra and removes a whole
-  // round trip from the critical path of the first thing anyone sees.
   const [pinTotals, cardResult] = await Promise.all([
     loadTopPinned(),
     supabaseAdmin
@@ -37,172 +27,75 @@ export default async function Home() {
       .limit(CARD_SCAN_LIMIT),
   ]);
 
-  const pinCountById = new Map(
-    pinTotals.map((entry) => [entry.id, entry.pin_count])
-  );
-
-  // Only starred benchmarks, most stars first. A benchmark nobody starred is
-  // not a recommendation, so an unstarred one is not featured here no matter
-  // how recently it was made.
-  //
-  // Equal star counts break by newest, so the featured row keeps refreshing
-  // as the community grows rather than freezing on whichever benchmarks
-  // happened to be starred first.
+  const pinCountById = new Map(pinTotals.map((entry) => [entry.id, entry.pin_count]));
   const benchmarks: BenchmarkCard[] = (cardResult.data || [])
-    .map(
-      (row) =>
-        ({
-          ...(row as Omit<BenchmarkCard, "pin_count">),
-          pin_count: pinCountById.get((row as { id: string }).id) ?? 0,
-        }) as BenchmarkCard
-    )
+    .map((row) => ({
+      ...(row as Omit<BenchmarkCard, "pin_count">),
+      pin_count: pinCountById.get((row as { id: string }).id) ?? 0,
+    }))
     .filter((card) => card.pin_count > 0)
-    .sort(
-      (a, b) =>
-        b.pin_count - a.pin_count ||
-        new Date(b.created_at ?? 0).getTime() -
-          new Date(a.created_at ?? 0).getTime()
-    )
+    .sort((a, b) => b.pin_count - a.pin_count || new Date(b.created_at ?? 0).getTime() - new Date(a.created_at ?? 0).getTime())
     .slice(0, FEATURED_LIMIT);
 
   return (
-    <main className="min-h-screen text-white">
+    <main className="site-shell min-h-screen text-white">
       <SiteHeader loggedIn={Boolean(accountId)} />
-
-      {/* HERO */}
-      <section className="mx-auto max-w-7xl px-6 pb-20 pt-24">
-        <div className="animate-card-in max-w-3xl">
-          <p className="mb-4 text-sm font-medium uppercase tracking-[0.25em] text-zinc-500">
-            Aim Benchmark Platform
-          </p>
-
-          <h1 className="text-5xl font-bold tracking-tight md:text-7xl">
-            Measure your aim.
-            <br />
-            <span className="text-zinc-500">Track your progress.</span>
-          </h1>
-
-          <p className="mt-6 max-w-2xl text-lg leading-8 text-zinc-400">
-            Create benchmarks, compete on scenarios, track your scores and
-            compare your performance with other players.
-          </p>
-
-          <div className="mt-8 flex gap-4">
-            <Link
-              href="/benchmarks"
-              className="rounded-xl bg-white px-6 py-3 font-semibold text-black"
-            >
-              Explore Benchmarks
-            </Link>
-
-            <Link
-              href="/create-benchmark"
-              className="rounded-xl border border-white/10 px-6 py-3 font-semibold text-white hover:bg-white/5"
-            >
-              Create Benchmark
-            </Link>
+      <div className="site-content">
+        <section className="home-hero">
+          <div className="hero-copy">
+            <p className="eyebrow">Aim performance, made measurable</p>
+            <h1>Turn every session into a <em>signal.</em></h1>
+            <p className="hero-lede">AIMBENCH is the open benchmark platform for players who want to practice with intent, compare with context, and see real progress.</p>
+            <div className="hero-actions">
+              <Link href="/benchmarks" className="btn btn-primary">Explore benchmarks <span aria-hidden="true">↗</span></Link>
+              <Link href="/create-benchmark" className="btn btn-ghost">Build a benchmark</Link>
+            </div>
+            <div className="hero-proof" aria-label="AIMBENCH highlights">
+              <span><strong>01</strong> Curated scenarios</span>
+              <span><strong>02</strong> Community scores</span>
+              <span><strong>03</strong> Progress history</span>
+            </div>
           </div>
-        </div>
-      </section>
-
-      {/* BENCHMARKS */}
-      <section className="mx-auto max-w-7xl px-6 pb-24">
-        <div className="mb-8 flex items-end justify-between">
-          <div>
-            <h2 className="text-2xl font-semibold">Starred Benchmarks</h2>
-            <p className="mt-1 text-sm text-zinc-500">
-              What the community has starred most
-            </p>
+          <div className="hero-visual" aria-hidden="true">
+            <div className="target-ring ring-one" />
+            <div className="target-ring ring-two" />
+            <div className="target-ring ring-three" />
+            <div className="target-crosshair horizontal" />
+            <div className="target-crosshair vertical" />
+            <span className="target-dot" />
+            <span className="visual-label label-top">CALIBRATE / 001</span>
+            <span className="visual-label label-bottom">PRECISION OVER REPETITION</span>
+            <span className="visual-score">98<span>%</span></span>
           </div>
+        </section>
 
-          <Link
-            href="/benchmarks"
-            className="text-sm text-zinc-400 hover:text-white"
-          >
-            View all →
-          </Link>
-        </div>
-
-        {benchmarks.length === 0 ? (
-          <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-10 text-center">
-            <p className="text-zinc-500">
-              Nothing starred yet — be the first
-            </p>
-            <Link
-              href="/benchmarks"
-              className="mt-3 inline-block text-sm font-medium text-white hover:underline"
-            >
-              Browse benchmarks and star one →
-            </Link>
+        <section className="section-block">
+          <div className="section-heading">
+            <div><p className="eyebrow">Community signal</p><h2>Benchmarks worth your time.</h2></div>
+            <Link href="/benchmarks" className="text-link">View the full library <span aria-hidden="true">→</span></Link>
           </div>
-        ) : (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {benchmarks.map((benchmark, i) => (
-              <Link
-                key={benchmark.id}
-                href={`/benchmarks/${benchmark.id}`}
-                className="animate-card-in hover-lift group flex flex-col rounded-2xl border border-white/10 bg-white/[0.02] p-6 hover:border-white/25 hover:bg-white/[0.05]"
-                style={{ animationDelay: `${Math.min(i, 8) * 45}ms` }}
-              >
-                <div className="mb-6 flex items-center justify-between gap-2">
-                  <span className="truncate rounded-full border border-white/10 px-3 py-1 text-xs text-zinc-400">
-                    {benchmark.platform}
-                  </span>
+          {benchmarks.length === 0 ? (
+            <div className="empty-state"><p>No benchmarks have been starred yet.</p><Link href="/benchmarks" className="text-link">Browse the library →</Link></div>
+          ) : (
+            <div className="benchmark-grid">
+              {benchmarks.map((benchmark, index) => (
+                <Link key={benchmark.id} href={`/benchmarks/${benchmark.id}`} className="benchmark-card">
+                  <div className="card-index">0{index + 1}</div>
+                  <div className="card-meta"><span>{benchmark.platform}</span><span className="star">★ {benchmark.pin_count}</span></div>
+                  <h3>{benchmark.title}</h3>
+                  <p>{benchmark.scenario_count ?? 1} scenario{(benchmark.scenario_count ?? 1) === 1 ? "" : "s"}</p>
+                  <span className="card-arrow" aria-hidden="true">↗</span>
+                </Link>
+              ))}
+            </div>
+          )}
+        </section>
 
-                  {/* Static, and without a count to match the star on the
-                      benchmark cards. This list is chosen by star count;
-                      printing the number here would turn a badge into a
-                      ranking. */}
-                  <span
-                    aria-hidden="true"
-                    className="shrink-0 text-2xl leading-none text-amber-300 [text-shadow:0_0_14px_rgba(252,211,77,0.6)]"
-                  >
-                    ★
-                  </span>
-                </div>
-
-                <h3 className="line-clamp-2 text-lg font-semibold">
-                  {benchmark.title}
-                </h3>
-
-                <p className="mt-2 text-xs text-zinc-600">
-                  {benchmark.scenario_count ?? 1} scenario
-                  {(benchmark.scenario_count ?? 1) === 1 ? "" : "s"}
-                </p>
-
-                <span className="mt-6 block text-sm font-medium text-white">
-                  Open benchmark →
-                </span>
-              </Link>
-            ))}
-          </div>
-        )}
-      </section>
-
-            {/* QUICK ACTIONS */}
-      <section className="mx-auto max-w-7xl px-6 pb-24">
-        <div className="grid gap-4 md:grid-cols-2">
-          <Link
-            href="/benchmarks"
-            className="hover-lift group rounded-2xl border border-white/10 bg-white/[0.02] p-6 hover:border-white/25 hover:bg-white/[0.05]"
-          >
-            <h3 className="text-lg font-semibold mb-2">Browse All Benchmarks</h3>
-            <p className="text-sm text-zinc-500">
-              Community-created aim trainer benchmarks across all platforms
-            </p>
-          </Link>
-
-          <Link
-            href="/create-benchmark"
-            className="hover-lift group rounded-2xl border border-white/10 bg-white/[0.02] p-6 hover:border-white/25 hover:bg-white/[0.05]"
-          >
-            <h3 className="text-lg font-semibold mb-2">Create Benchmark</h3>
-            <p className="text-sm text-zinc-500">
-              Share your aim trainer benchmark with the community
-            </p>
-          </Link>
-        </div>
-      </section>
+        <section className="home-cta">
+          <div><p className="eyebrow">Make the next rep count</p><h2>Your best score is a starting point.</h2></div>
+          <Link href="/create-benchmark" className="btn btn-primary">Create your benchmark <span aria-hidden="true">↗</span></Link>
+        </section>
+      </div>
     </main>
   );
 }
