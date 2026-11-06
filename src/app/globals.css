@@ -888,6 +888,22 @@ html[data-cards="outline"] .app-sidebar {
 .create-benchmark-shell form > section,
 .create-benchmark-shell form > div { border-color: color-mix(in oklab, var(--border) 88%, var(--accent)); }
 
+/* Benchmark workspace redesign */
+.benchmark-index-page, .benchmark-detail-page { background: radial-gradient(circle at 78% 0%, rgba(255, 214, 0, .055), transparent 28rem), #08090b; }
+.benchmark-index-hero { min-height: 19rem; padding: 2.25rem; border: 1px solid rgba(255,255,255,.11); border-radius: 1.25rem; background: linear-gradient(135deg, rgba(255,255,255,.055), rgba(255,255,255,.012)); box-shadow: 0 24px 70px rgba(0,0,0,.28); align-items: flex-end; }
+.benchmark-index-hero::before { content: "BENCHMARK OPERATIONS / 01"; display: block; position: absolute; margin-top: -10rem; color: rgba(255,255,255,.25); font: 600 10px/1 var(--font-mono, monospace); letter-spacing: .2em; }
+.benchmark-index-page .benchmark-hero h1 { font-size: clamp(3.25rem, 8vw, 7rem); letter-spacing: -.08em; line-height: .86; }
+.benchmark-index-page .card { border-radius: .85rem; background: linear-gradient(145deg, rgba(255,255,255,.055), rgba(255,255,255,.018)); }
+.benchmark-index-page .card:hover { border-color: rgba(255,255,255,.28); box-shadow: 0 20px 50px rgba(0,0,0,.3); }
+.benchmark-detail-page header.card { border-radius: 1.1rem; background: linear-gradient(145deg, #15171c, #0e0f12 72%); box-shadow: 0 26px 80px rgba(0,0,0,.32); }
+.benchmark-detail-page header.card h1 { font-size: clamp(2.75rem, 6vw, 5.25rem); letter-spacing: -.07em; line-height: .88; }
+.benchmark-detail-page header.card dl > div { min-height: 5.4rem; border-radius: .7rem; border-color: rgba(255,255,255,.12); background: rgba(255,255,255,.035); }
+.benchmark-detail-page .card.overflow-hidden { border-radius: 1rem; border-color: rgba(255,255,255,.13); background: #121419; box-shadow: 0 24px 80px rgba(0,0,0,.25); }
+.benchmark-detail-page table thead { background: #191b20; }
+.benchmark-detail-page table tbody tr { height: 4.25rem; }
+.benchmark-detail-page table tbody tr:hover { background: rgba(255,255,255,.065); }
+.benchmark-detail-page table td { border-color: rgba(255,255,255,.1); }
+
 @media (max-width: 640px) {
   .benchmark-hero { padding-top: .25rem; }
   .benchmark-hero .btn { width: 100%; justify-content: center; }

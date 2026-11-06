@@ -274,8 +274,8 @@ export default function BenchmarkClient({
   });
 
   return (
-    <main className="min-h-screen text-white">
-      <div className="mx-auto w-full max-w-[1600px] px-3 py-4 sm:px-5 sm:py-6 lg:px-8">
+    <main className="min-h-screen text-white benchmark-detail-page">
+      <div className="mx-auto w-full max-w-[1680px] px-3 py-4 sm:px-5 sm:py-6 lg:px-8">
         {/* Top nav bar. The benchmark table is reached from the benchmark
             list, so Back goes there rather than to the home page. */}
         <nav className="mb-5 flex items-center justify-between px-1">
