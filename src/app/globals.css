@@ -857,6 +857,42 @@ html[data-cards="outline"] .app-sidebar {
 .ring-one { width: 76%; height: 76%; opacity: .26; }
 .ring-two { width: 50%; height: 50%; opacity: .55; }
 .ring-three { width: 23%; height: 23%; border-width: 2px; box-shadow: 0 0 2rem color-mix(in oklab, var(--accent) 30%, transparent); }
+
+/* ---------- Benchmark workflows ---------- */
+.benchmark-page-shell,
+.create-benchmark-shell { position: relative; }
+.benchmark-page-shell::before,
+.create-benchmark-shell::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 14rem;
+  pointer-events: none;
+  background: radial-gradient(circle at 12% 20%, color-mix(in oklab, var(--accent) 9%, transparent), transparent 50%);
+  opacity: .8;
+}
+.benchmark-hero,
+.create-benchmark-shell > * { position: relative; }
+.benchmark-hero {
+  border-bottom: 1px solid var(--border);
+  padding: 1rem 0 2rem;
+}
+.benchmark-hero h1 { font-size: clamp(2.5rem, 5vw, 4.4rem); letter-spacing: -.06em; }
+.benchmark-hero .eyebrow,
+.create-benchmark-kicker { color: var(--accent); font-family: var(--font-geist-mono), monospace; font-size: .68rem; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; }
+.benchmark-page-shell .field { border-radius: 999px; background: color-mix(in oklab, var(--surface) 90%, var(--bg)); }
+.benchmark-page-shell .card { border-color: color-mix(in oklab, var(--border) 90%, var(--accent)); background: linear-gradient(145deg, color-mix(in oklab, var(--surface) 96%, var(--accent)), var(--surface)); }
+.create-benchmark-shell { padding-top: 2rem; }
+.create-benchmark-kicker { margin-bottom: 1.25rem; }
+.create-benchmark-shell form { position: relative; }
+.create-benchmark-shell form > section,
+.create-benchmark-shell form > div { border-color: color-mix(in oklab, var(--border) 88%, var(--accent)); }
+
+@media (max-width: 640px) {
+  .benchmark-hero { padding-top: .25rem; }
+  .benchmark-hero .btn { width: 100%; justify-content: center; }
+  .create-benchmark-shell { padding-top: 1rem; }
+}
 .target-crosshair { position: absolute; top: 50%; left: 12%; width: 76%; height: 1px; background: color-mix(in oklab, var(--accent) 42%, transparent); }
 .target-crosshair.vertical { top: 12%; left: 50%; width: 1px; height: 76%; }
 .target-dot { position: absolute; top: calc(50% - 0.25rem); left: calc(50% - 0.25rem); width: .5rem; height: .5rem; border-radius: 50%; background: var(--accent); box-shadow: 0 0 1.5rem var(--accent); }
