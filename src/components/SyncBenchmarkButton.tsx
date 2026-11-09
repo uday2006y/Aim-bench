@@ -32,6 +32,8 @@ export default function SyncBenchmarkButton({
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
   const [needsLink, setNeedsLink] = useState(false);
+  const [success, setSuccess] = useState(false);
+  const [pressed, setPressed] = useState(false);
   const busy = useRef(false);
 
   async function sync() {
@@ -78,6 +80,8 @@ export default function SyncBenchmarkButton({
       }
 
       router.refresh();
+      setSuccess(true);
+      setTimeout(() => setSuccess(false), 1500);
     } catch {
       setError("Could not reach the server");
     } finally {
@@ -93,16 +97,37 @@ export default function SyncBenchmarkButton({
       <button
         type="button"
         onClick={sync}
+        onMouseDown={() => setPressed(true)}
+        onMouseUp={() => setPressed(false)}
+        onMouseLeave={() => setPressed(false)}
         disabled={syncing || resting}
-        className="btn btn-ghost px-4 py-2 text-xs disabled:cursor-not-allowed disabled:opacity-60"
+        className={`
+          relative inline-flex items-center justify-center gap-1.5
+          rounded-lg border border-white/10 bg-white/[0.04] px-4 py-2 text-xs font-medium text-white
+          transition-all duration-150
+          hover:bg-white/[0.08] hover:border-white/20
+          disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-white/[0.04]
+          ${pressed ? "scale-95 bg-white/[0.12]" : ""}
+          ${syncing ? "ring-1 ring-white/25" : ""}
+        `}
       >
-        <span
-          aria-hidden="true"
-          className={`mr-1.5 inline-block ${syncing ? "animate-spin" : ""}`}
-        >
-          ↻
+        {syncing && (
+          <span
+            aria-hidden="true"
+            className="absolute inset-0 rounded-lg border border-white/20 animate-pulse"
+          />
+        )}
+        <span className="relative z-10">
+          <span
+            aria-hidden="true"
+            className={`mr-1.5 inline-block transition-transform duration-300 ${
+              syncing ? "animate-spin" : success ? "scale-110" : ""
+            }`}
+          >
+            {success ? "✓" : "↻"}
+          </span>
+          {syncing ? "Syncing..." : success ? "Synced!" : "Sync now"}
         </span>
-        {syncing ? "Syncing..." : "Sync now"}
       </button>
 
       {notice ? (

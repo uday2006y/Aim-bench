@@ -191,7 +191,7 @@ export default function BenchmarkClient({
 
             <div className="flex flex-col sm:flex-row sm:items-end gap-3">
               <PinButton benchmarkId={id} pinned={myPinned} loggedIn={loggedIn} size="md" />
-              {isAuthorized && <SyncBenchmarkButton benchmarkId={id} />}
+              <SyncBenchmarkButton benchmarkId={id} />
               {isAuthorized && (
                 <Link
                   href={`/benchmarks/${id}/edit`}
