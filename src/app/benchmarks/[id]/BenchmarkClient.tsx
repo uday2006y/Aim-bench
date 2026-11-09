@@ -145,6 +145,26 @@ export default function BenchmarkClient({
   const totalScenarios = scenarios.length;
   const trackedCount = scenarios.filter((s) => (s.best_score ?? 0) > 0).length;
 
+  // Phones: the ranks sit in a small grid under each scenario instead of in
+  // columns, so as many columns as fit without crowding. Six ranks make
+  // two rows of three; four make two rows of two.
+  const phoneColumns =
+    rankOrder.length <= 3 ? Math.max(rankOrder.length, 1) : rankOrder.length === 4 ? 2 : 3;
+
+  /** Everything one scenario row needs to draw, for the phone layout. */
+  function phoneRow(scenario: BenchmarkScenario) {
+    const score = scenarioScores.get(scenario.easyaim_scenario_id) ?? 0;
+    const gate = gatedByScenario.get(scenario.easyaim_scenario_id);
+    const isGated = gate != null && score === 0;
+    const cutoffList = rankOrder.map((rank) => scenario.cutoffs?.[rank]);
+    const fills = computeTierFills(cutoffList, score);
+    const hasRank = cutoffList.some((c) => typeof c === "number" && c > 0 && score >= c);
+    const topCutoff = rankOrder.reduce((m, r) => Math.max(m, scenario.cutoffs?.[r] ?? 0), 0);
+    const pctOfTop = score > 0 && topCutoff > 0 ? Math.round((score / topCutoff) * 100) : null;
+
+    return { score, gate, isGated, cutoffList, fills, hasRank, pctOfTop };
+  }
+
   return (
     <main className="min-h-screen bg-bg text-text">
       {/* Hero */}
@@ -204,7 +224,114 @@ export default function BenchmarkClient({
             </h2>
           </div>
 
-          <div className="overflow-x-auto">
+          {/*
+            Phones: one card per scenario. The category is a header, the
+            scenario name and best score sit on top, and the rank bars follow in
+            a grid. Everything is one column of content, so nothing scrolls
+            sideways. From sm up the table below takes over.
+          */}
+          <div className="sm:hidden">
+            {orderedCategories.map((cat) => {
+              const catScenarios = groups.get(cat)!;
+              const def = categoryMap.get(cat);
+
+              return (
+                <section key={cat}>
+                  <div className="flex items-center gap-2 border-b border-line bg-white/[0.02] px-4 py-3">
+                    {def ? (
+                      <span
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.05] px-2.5 py-0.5 text-[10px] font-semibold"
+                        style={{ color: def.color, borderColor: withAlpha(def.color, 0.5) }}
+                      >
+                        <span className="h-2 w-2 rounded-full" style={{ backgroundColor: def.color }} />
+                        {cat}
+                      </span>
+                    ) : (
+                      <span className="px-1 py-0.5 text-[10px] font-semibold text-zinc-500">{cat}</span>
+                    )}
+                    <span className="ml-auto text-[10px] font-medium text-zinc-600">
+                      {catScenarios.length} scenario{catScenarios.length === 1 ? "" : "s"}
+                    </span>
+                  </div>
+
+                  {catScenarios.map((scenario) => {
+                    const { score, gate, isGated, cutoffList, fills, hasRank, pctOfTop } = phoneRow(scenario);
+
+                    return (
+                      <div
+                        key={scenario.id}
+                        className={`border-b border-line/50 px-4 py-4 ${isGated ? "bg-red-500/5" : ""}`}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="text-base font-semibold leading-snug text-text">{scenario.title}</p>
+                            {scenario.sub_category ? (
+                              <p className="text-xs text-zinc-400">{scenario.sub_category}</p>
+                            ) : null}
+                            <p className="mt-0.5 font-mono text-[10px] text-zinc-600">{scenario.easyaim_scenario_id}</p>
+                          </div>
+
+                          <div className="shrink-0 text-right">
+                            {isGated ? (
+                              <span className="text-[11px] font-medium text-red-400">locked</span>
+                            ) : (
+                              <>
+                                <p className="font-mono text-base font-bold tracking-tight">
+                                  {score ? score.toLocaleString() : "—"}
+                                </p>
+                                {pctOfTop != null ? (
+                                  <p className="text-[10px] font-medium text-zinc-500">{pctOfTop}% of top</p>
+                                ) : null}
+                              </>
+                            )}
+                          </div>
+                        </div>
+
+                        <div
+                          className="mt-3 grid gap-x-2 gap-y-3"
+                          style={{ gridTemplateColumns: `repeat(${phoneColumns}, minmax(0, 1fr))` }}
+                        >
+                          {rankOrder.map((rank, rankIdx) => {
+                            const cutoff = cutoffList[rankIdx] ?? null;
+                            const hasCutoff = typeof cutoff === "number" && cutoff > 0;
+                            const color = rankColors[rankIdx] ?? "var(--accent)";
+                            const cleared = score > 0 && hasCutoff && score >= cutoff;
+
+                            return (
+                              <div key={rank} className="min-w-0">
+                                <div className="mb-1 flex items-center gap-1 text-[9px] font-semibold uppercase tracking-wider text-zinc-500">
+                                  <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: color }} />
+                                  <span className="truncate">{rank}</span>
+                                </div>
+                                <RankBar
+                                  style={barStyle}
+                                  label={hasCutoff ? cutoff.toLocaleString() : "—"}
+                                  percent={fills[rankIdx]?.percent ?? 0}
+                                  color={hasRank ? color : null}
+                                  cleared={cleared}
+                                />
+                                {isGated ? (
+                                  <p className="mt-1 text-center text-[9px] font-medium text-red-400/80">
+                                    needs {gate?.toLocaleString()}
+                                  </p>
+                                ) : null}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </section>
+              );
+            })}
+
+            {orderedCategories.length === 0 && (
+              <p className="px-6 py-12 text-center text-zinc-500">No scenarios in this tier yet.</p>
+            )}
+          </div>
+
+          <div className="hidden overflow-x-auto sm:block">
             {/*
               Fixed layout: with auto layout every rank column was sized by its
               own header text ("AVERAGE-NOOB" wide, "NOOB" and "GOD" narrow), so
