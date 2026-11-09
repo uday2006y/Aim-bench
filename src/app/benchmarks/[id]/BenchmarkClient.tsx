@@ -214,11 +214,11 @@ export default function BenchmarkClient({
               wide enough to read; below that the container scrolls sideways.
             */}
             <table
-              className="w-full table-fixed text-left border-collapse"
-              style={{ minWidth: `${22 + 6 + rankOrder.length * 7.5}rem` }}
+              className="w-full table-fixed text-left border-collapse [--sc-w:14rem] sm:[--sc-w:22rem]"
+              style={{ minWidth: `calc(var(--sc-w) + 6rem + ${rankOrder.length * 7.5}rem)` }}
             >
               <colgroup>
-                <col style={{ width: "22rem" }} />
+                <col style={{ width: "var(--sc-w)" }} />
                 <col style={{ width: "6rem" }} />
                 {rankOrder.map((rank) => (
                   <col key={rank} />
@@ -226,7 +226,7 @@ export default function BenchmarkClient({
               </colgroup>
               <thead>
                 <tr className="border-b border-line">
-                  <th className="px-6 py-3.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-500 sticky left-0 z-10 bg-card">
+                  <th className="px-3 sm:px-6 py-3.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-500 sticky left-0 z-20 bg-app">
                     Scenario
                   </th>
                   <th className="px-3 py-3.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-500 whitespace-nowrap">
@@ -250,8 +250,10 @@ export default function BenchmarkClient({
                     <React.Fragment key={cat}>
                       {/* Category header */}
                       <tr>
-                        <td colSpan={3 + rankOrder.length} className="px-6 py-3 border-b border-line bg-white/[0.02]">
-                          <div className="flex items-center gap-2">
+                        <td colSpan={3 + rankOrder.length} className="relative p-0 border-b border-line bg-white/[0.02]">
+                          {/* Sticky, so the category label travels with the scenario names
+                              instead of scrolling off to the left. */}
+                          <div className="sticky left-0 flex w-fit items-center gap-2 px-3 sm:px-6 py-3">
                             {def ? (
                               <span
                                 className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.05] px-2.5 py-0.5 text-[10px] font-semibold"
@@ -263,8 +265,8 @@ export default function BenchmarkClient({
                             ) : (
                               <span className="px-2.5 py-0.5 text-[10px] font-semibold text-zinc-500">{cat}</span>
                             )}
-                            <span className="ml-auto text-[10px] font-medium text-zinc-600">{catScenarios.length} scenario{catScenarios.length === 1 ? "" : "s"}</span>
                           </div>
+                          <span className="absolute right-6 top-1/2 -translate-y-1/2 text-[10px] font-medium text-zinc-600">{catScenarios.length} scenario{catScenarios.length === 1 ? "" : "s"}</span>
                         </td>
                       </tr>
 
@@ -287,7 +289,7 @@ export default function BenchmarkClient({
 
                         return (
                           <tr key={scenario.id} className={`border-b border-line/50 hover:bg-white/[0.02] transition-colors ${isGated ? "bg-red-500/5" : ""}`}>
-                            <td className="px-6 py-3.5 align-middle sticky left-0 z-20 bg-card">
+                            <td className="px-3 sm:px-6 py-3.5 align-middle sticky left-0 z-20 bg-app">
                               <div className="flex items-center gap-3">
                                 <div className="flex flex-col">
                                   <span className="text-base font-semibold text-text">{scenario.title}</span>
@@ -296,7 +298,7 @@ export default function BenchmarkClient({
                                   ) : null}
                                 </div>
                                 <div className="flex items-center gap-1">
-                                  <span className="font-mono text-[10px] text-zinc-500">{scenario.easyaim_scenario_id}</span>
+                                  <span className="hidden font-mono text-[10px] text-zinc-500 sm:inline">{scenario.easyaim_scenario_id}</span>
                                 </div>
                               </div>
                             </td>
